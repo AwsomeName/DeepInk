@@ -1,0 +1,84 @@
+import type { TerminalTabRef } from '@shared/terminal'
+import type { WorkspaceRef } from '../../../shared/workspace-ref'
+import { workspaceRefLabel } from '../../../shared/workspace-ref'
+
+export interface TerminalTabDraft {
+  type: 'terminal'
+  title: string
+  icon: string
+  terminal: TerminalTabRef
+  forceNew: true
+}
+
+function createTerminalId(prefix: string): string {
+  const random =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `${prefix}-${random}`
+}
+
+function getTerminalCwd(workspaceRef: WorkspaceRef): string | undefined {
+  switch (workspaceRef.kind) {
+    case 'local':
+      return workspaceRef.path
+    case 'remote':
+      return workspaceRef.path
+    case 'global':
+      return undefined
+  }
+}
+
+function getTerminalRuntime(workspaceRef: WorkspaceRef): TerminalTabRef['runtime'] {
+  if (workspaceRef.kind === 'remote') {
+    return {
+      location: 'remote',
+      transport: workspaceRef.transport,
+      backend: 'remote-shell',
+      workspaceRef,
+      cwd: getTerminalCwd(workspaceRef),
+      endpointId: workspaceRef.endpointId,
+    }
+  }
+
+  return {
+    location: 'local',
+    transport: 'local',
+    backend: 'local-shell',
+    workspaceRef,
+    cwd: getTerminalCwd(workspaceRef),
+  }
+}
+
+function getTerminalPermissionPolicy(
+  workspaceRef: WorkspaceRef,
+): TerminalTabRef['permissionPolicy'] {
+  if (workspaceRef.kind === 'remote' || workspaceRef.kind === 'global') {
+    return {
+      mode: 'ask-every-command',
+      requireConfirmationFor: ['read', 'write', 'network', 'destructive', 'privileged', 'unknown'],
+    }
+  }
+
+  return {
+    mode: 'ask-risky-command',
+    requireConfirmationFor: ['write', 'network', 'destructive', 'privileged', 'unknown'],
+  }
+}
+
+export function buildTerminalTabDraft(workspaceRef: WorkspaceRef): TerminalTabDraft {
+  return {
+    type: 'terminal',
+    title: `Terminal · ${workspaceRefLabel(workspaceRef)}`,
+    icon: '⌨️',
+    forceNew: true,
+    terminal: {
+      runtime: getTerminalRuntime(workspaceRef),
+      permissionPolicy: getTerminalPermissionPolicy(workspaceRef),
+      status: 'idle',
+      closePolicy: 'terminate-process',
+      sessionId: createTerminalId('terminal-session'),
+      auditLogId: createTerminalId('terminal-audit'),
+    },
+  }
+}

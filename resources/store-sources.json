@@ -1,0 +1,31 @@
+{
+  "defaultStoreId": "yingyongbao",
+  "stores": [
+    {
+      "id": "yingyongbao",
+      "displayName": "应用宝",
+      "packageName": "com.tencent.android.qqdownloader",
+      "cacheFileName": "yingyongbao.apk",
+      "officialSite": "https://sj.qq.com/",
+      "sources": [
+        {
+          "type": "detail_page",
+          "url": "https://sj.qq.com/appdetail/com.tencent.android.qqdownloader",
+          "linkPattern": "https?://[^\"']*\\.apk",
+          "note": "腾讯详情页，提取 imtt*.dd.qq.com 直链；页面改版时此源会失效"
+        },
+        {
+          "type": "detail_page",
+          "url": "https://apkpure.com/cn/ying-yong-bao/com.tencent.android.qqdownloader/download",
+          "linkPattern": "https?://[^\"']*\\.apk",
+          "note": "APKPure download 页（.cn 国内可访问），作为兜底源"
+        },
+        {
+          "type": "direct",
+          "url": "https://imtt2.dd.qq.com/16891/apk/8D3AA49FC5D29A51B5B9F30868BACEE5.apk",
+          "note": "硬编码直链，hash 随版本失效最快，仅作最后兜底"
+        }
+      ]
+    }
+  ]
+}

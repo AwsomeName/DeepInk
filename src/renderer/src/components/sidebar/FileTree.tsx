@@ -1,0 +1,341 @@
+import { useRef, useState, useEffect, useCallback } from 'react'
+import { useFsStore, useTabStore } from '../../stores'
+import { useContextMenuStore } from '../../stores/context-menu-store'
+import type { FileTreeNode } from '../../stores/fs-store'
+import { IconFolder, IconChevronRight, IconChevronDown } from '../common/Icons'
+import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
+
+const FILE_TREE_SCROLL_KEY = 'deepink-file-tree-scroll'
+
+function loadFileTreeScrollTop(): number {
+  try {
+    if (typeof localStorage === 'undefined') return 0
+    return Number(localStorage.getItem(FILE_TREE_SCROLL_KEY) ?? 0)
+  } catch {
+    return 0
+  }
+}
+
+function saveFileTreeScrollTop(scrollTop: number): void {
+  try {
+    if (typeof localStorage === 'undefined') return
+    localStorage.setItem(FILE_TREE_SCROLL_KEY, String(scrollTop))
+  } catch {
+    // localStorage 可能不可用，忽略持久化失败。
+  }
+}
+
+/** 文件扩展名 → 图标映射 */
+const FILE_ICONS: Record<string, string> = {
+  '.md': '📝',
+  '.txt': '📄',
+  '.tsx': '⚛️',
+  '.ts': '⚛️',
+  '.js': '📜',
+  '.css': '🎨',
+  '.json': '📋',
+  '.html': '🌐',
+  '.py': '🐍',
+  '.pdf': '📕',
+  '.docx': '📘',
+  '.xlsx': '📊',
+  '.pptx': '📽️',
+  '.png': '🖼️',
+  '.jpg': '🖼️',
+  '.jpeg': '🖼️',
+  '.fbx': getModelFileIcon('.fbx'),
+  '.glb': getModelFileIcon('.glb'),
+  '.gltf': getModelFileIcon('.gltf'),
+}
+
+/** 获取文件图标 */
+function getFileIcon(node: FileTreeNode): string {
+  if (node.type === 'directory') return ''
+  if (isModelFileExtension(node.extension)) return getModelFileIcon(node.extension)
+  return FILE_ICONS[node.extension ?? ''] ?? '📄'
+}
+
+export function FileTree(): React.ReactElement {
+  const tree = useFsStore((s) => s.tree)
+  const workspacePath = useFsStore((s) => s.workspacePath)
+  const loading = useFsStore((s) => s.loading)
+  const error = useFsStore((s) => s.error)
+  const picking = useFsStore((s) => s.picking)
+  const openWorkspacePicker = useFsStore((s) => s.openWorkspacePicker)
+  const toggleDir = useFsStore((s) => s.toggleDir)
+  const editingPath = useFsStore((s) => s.editingPath)
+  const newFolderParent = useFsStore((s) => s.newFolderParent)
+  const setSelectedPath = useFsStore((s) => s.setSelectedPath)
+  const confirmNewFolder = useFsStore((s) => s.confirmNewFolder)
+  const cancelEditing = useFsStore((s) => s.cancelEditing)
+  const openTab = useTabStore((s) => s.openTab)
+  const treeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = treeRef.current
+    if (!el) return
+    el.scrollTop = loadFileTreeScrollTop()
+    const onScroll = (): void => saveFileTreeScrollTop(el.scrollTop)
+    el.addEventListener('scroll', onScroll, { passive: true })
+    return () => el.removeEventListener('scroll', onScroll)
+  }, [workspacePath])
+
+  /** 点击文件 → 打开编辑器 Tab */
+  const handleFileClick = (node: FileTreeNode): void => {
+    if (node.type === 'file') {
+      setSelectedPath(node.path)
+      openTab({
+        type: getTabTypeForFile(node.extension),
+        title: node.name,
+        icon: getFileIcon(node),
+        filePath: node.path,
+      })
+    }
+  }
+
+  /** 点击目录 → 展开/折叠 */
+  const handleDirClick = (node: FileTreeNode): void => {
+    if (node.type === 'directory') {
+      setSelectedPath(node.path)
+      toggleDir(node.path)
+    }
+  }
+
+  if (loading) {
+    return <div className="file-tree-loading">加载中...</div>
+  }
+
+  if (error) {
+    return (
+      <div className="file-tree-empty">
+        <div className="file-tree-empty-title">无法打开工作空间</div>
+        <div className="file-tree-empty-hint">{error}</div>
+        <button className="file-tree-empty-btn" onClick={() => openWorkspacePicker()} disabled={loading || picking}>
+          重新选择工作空间文件夹
+        </button>
+      </div>
+    )
+  }
+
+  if (!workspacePath) {
+    return (
+      <div className="file-tree-empty">
+        <IconFolder size={28} />
+        <div className="file-tree-empty-title">尚未打开工作空间</div>
+        <div className="file-tree-empty-hint">打开一个文件夹作为工作空间</div>
+        <button className="file-tree-empty-btn" onClick={() => openWorkspacePicker()} disabled={loading || picking}>
+          打开工作空间文件夹
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <div className="file-tree" ref={treeRef}>
+      {tree.map((node) => (
+        <FileTreeNodeView
+          key={node.path}
+          node={node}
+          depth={0}
+          onDirClick={handleDirClick}
+          onFileClick={handleFileClick}
+        />
+      ))}
+      {/* 根目录新建文件夹输入框 */}
+      {editingPath === 'new-folder' && newFolderParent === workspacePath && (
+        <InlineInput
+          depth={0}
+          onConfirm={confirmNewFolder}
+          onCancel={cancelEditing}
+        />
+      )}
+    </div>
+  )
+}
+
+/** 单个树节点 */
+function FileTreeNodeView({
+  node,
+  depth,
+  onDirClick,
+  onFileClick,
+}: {
+  node: FileTreeNode
+  depth: number
+  onDirClick: (node: FileTreeNode) => void
+  onFileClick: (node: FileTreeNode) => void
+}): React.ReactElement {
+  const isDir = node.type === 'directory'
+  const icon = getFileIcon(node)
+  const showMenu = useContextMenuStore((s) => s.show)
+  const editingPath = useFsStore((s) => s.editingPath)
+  const newFolderParent = useFsStore((s) => s.newFolderParent)
+  const confirmRename = useFsStore((s) => s.confirmRename)
+  const confirmNewFolder = useFsStore((s) => s.confirmNewFolder)
+  const cancelEditing = useFsStore((s) => s.cancelEditing)
+  const selectedPath = useFsStore((s) => s.selectedPath)
+
+  /** 重命名输入框（在此节点上） */
+  const isRenaming = editingPath === node.path
+
+  /** 新建文件夹输入框（在此目录的子节点列表中） */
+  const isNewFolderHere = editingPath === 'new-folder' && newFolderParent === node.path
+
+  return (
+    <div className="file-tree-node">
+      {/* 节点行 */}
+      {!isNewFolderHere && (
+        <div
+          className={`file-tree-item ${isDir ? 'directory' : 'file'} ${isRenaming ? 'renaming' : ''} ${selectedPath === node.path ? 'selected' : ''}`}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          onClick={() => {
+            if (!isRenaming) {
+              isDir ? onDirClick(node) : onFileClick(node)
+            }
+          }}
+          onContextMenu={(e) => { e.preventDefault(); showMenu(node, e.clientX, e.clientY) }}
+        >
+          {/* 展开/折叠箭头（目录才有） */}
+          <span className="file-tree-arrow">
+            {isDir && (node.expanded ? <IconChevronDown size={10} /> : <IconChevronRight size={10} />)}
+          </span>
+
+          {/* 图标 */}
+          <span className="file-tree-icon">
+            {isDir ? <IconFolder size={14} /> : <span style={{ fontSize: 14 }}>{icon}</span>}
+          </span>
+
+          {/* 名称 */}
+          {isRenaming ? (
+            <InlineInputBox
+              initialValue={node.name}
+              onConfirm={(name) => confirmRename(node.path, name)}
+              onCancel={cancelEditing}
+            />
+          ) : (
+            <span className="file-tree-name">{node.name}</span>
+          )}
+        </div>
+      )}
+
+      {/* 子节点（展开时显示） */}
+      {isDir && node.expanded && node.children && (
+        <div className="file-tree-children">
+          {node.children.map((child) => (
+            <FileTreeNodeView
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              onDirClick={onDirClick}
+              onFileClick={onFileClick}
+            />
+          ))}
+          {/* 在此目录下新建文件夹 */}
+          {isNewFolderHere && (
+            <InlineInput
+              depth={depth + 1}
+              onConfirm={confirmNewFolder}
+              onCancel={cancelEditing}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/**
+ * 内联编辑输入框（独立行版本，用于新建文件夹）
+ * 自动聚焦、Enter 确认、Escape 取消
+ */
+function InlineInput({
+  depth,
+  initialValue = '',
+  onConfirm,
+  onCancel,
+}: {
+  depth: number
+  initialValue?: string
+  onConfirm: (name: string) => void
+  onCancel: () => void
+}): React.ReactElement {
+  const [value, setValue] = useState(initialValue)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onConfirm(value)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCancel()
+    }
+  }, [value, onConfirm, onCancel])
+
+  return (
+    <div
+      className="file-tree-item inline-editing"
+      style={{ paddingLeft: `${depth * 16 + 8}px` }}
+    >
+      <IconFolder size={14} />
+      <input
+        ref={inputRef}
+        className="file-tree-rename-input"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        onBlur={() => value.trim() && onConfirm(value)}
+      />
+    </div>
+  )
+}
+
+/**
+ * 内联编辑输入框（内嵌在节点行中使用，用于重命名）
+ * 自动聚焦、Enter 确认、Escape 取消
+ */
+function InlineInputBox({
+  initialValue,
+  onConfirm,
+  onCancel,
+}: {
+  initialValue: string
+  onConfirm: (name: string) => void
+  onCancel: () => void
+}): React.ReactElement {
+  const [value, setValue] = useState(initialValue)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    // 选中文件名（不含扩展名）
+    const dotIndex = initialValue.lastIndexOf('.')
+    const selEnd = dotIndex > 0 ? dotIndex : initialValue.length
+    inputRef.current?.setSelectionRange(0, selEnd)
+  }, [initialValue])
+
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      onConfirm(value)
+    } else if (e.key === 'Escape') {
+      e.preventDefault()
+      onCancel()
+    }
+  }, [value, onConfirm, onCancel])
+
+  return (
+    <input
+      ref={inputRef}
+      className="file-tree-rename-input inline"
+      value={value}
+      onChange={(e) => setValue(e.target.value)}
+      onKeyDown={handleKeyDown}
+      onBlur={() => value.trim() && onConfirm(value)}
+    />
+  )
+}

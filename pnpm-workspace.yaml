@@ -1,0 +1,6 @@
+allowBuilds:
+  electron: true
+  electron-winstaller: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - agent-device@0.17.2

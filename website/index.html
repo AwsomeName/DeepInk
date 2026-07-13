@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DeepInk — 下一代一站式 AI 桌面服务</title>
+  <meta name="description" content="DeepInk 是 AI 时代的工作入口。写文档、做表格、做 PPT，跟同事沟通，浏览网页、自动化操作，跟 AI 协作完成一切。" />
+  <meta name="keywords" content="DeepInk, AI桌面助手, 文档编辑, 即时通讯, 浏览器自动化, AI协作" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'><rect width='48' height='48' rx='12' fill='%230078d4'/><path d='M14 24C14 18.477 18.477 14 24 14V14C29.523 14 34 18.477 34 24V34H24C18.477 34 14 29.523 14 24V24Z' fill='white' fill-opacity='0.9'/><circle cx='24' cy='24' r='4' fill='%230078d4'/></svg>" />
+  <style>
+    /* ─── Reset ─── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+      color: #1a1a2e;
+      background: #fff;
+      line-height: 1.7;
+      -webkit-font-smoothing: antialiased;
+    }
+    a { color: #0078d4; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img { max-width: 100%; height: auto; }
+
+    /* ─── Layout ─── */
+    .container { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+
+    /* ─── Navigation ─── */
+    .nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+      background: rgba(255,255,255,0.92); backdrop-filter: blur(16px);
+      border-bottom: 1px solid #eef0f5;
+    }
+    .nav-inner {
+      display: flex; align-items: center; justify-content: space-between; height: 56px;
+    }
+    .nav-brand {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 17px; font-weight: 700; color: #1a1a2e; text-decoration: none;
+    }
+    .nav-brand:hover { text-decoration: none; }
+    .nav-links { display: flex; align-items: center; gap: 28px; }
+    .nav-links a {
+      font-size: 14px; font-weight: 500; color: #4a4a6a; transition: color 0.15s;
+    }
+    .nav-links a:hover { color: #1a1a2e; text-decoration: none; }
+
+    /* ─── Section Base ─── */
+    section { padding: 80px 0; }
+    .section-title {
+      font-size: 28px; font-weight: 700; text-align: center; margin-bottom: 12px; letter-spacing: -0.3px;
+    }
+    .section-desc {
+      font-size: 16px; color: #6b7280; text-align: center; max-width: 520px; margin: 0 auto 48px;
+    }
+
+    /* ─── Hero ─── */
+    .hero {
+      padding: 140px 0 60px; text-align: center;
+      background: linear-gradient(180deg, #f0f7ff 0%, #fff 100%);
+    }
+    .hero-icon {
+      width: 72px; height: 72px; border-radius: 18px; margin: 0 auto 20px;
+      background: #0078d4; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 8px 24px rgba(0,120,212,0.25);
+    }
+    .hero h1 {
+      font-size: 40px; font-weight: 800; line-height: 1.2; letter-spacing: -0.5px;
+      margin-bottom: 16px;
+    }
+    .hero h1 span { color: #0078d4; }
+    .hero > .container > p {
+      font-size: 17px; color: #6b7280; max-width: 480px; margin: 0 auto 32px;
+    }
+    .hero-tags {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 32px;
+    }
+    .hero-tag {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 5px 14px; border-radius: 100px;
+      background: #f0f7ff; color: #0078d4; font-size: 13px; font-weight: 500;
+    }
+
+    /* ─── Mockup ─── */
+    .mockup-wrapper {
+      max-width: 800px; margin: 48px auto 0;
+      border-radius: 12px; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,0.12);
+      border: 1px solid #e2e4ea;
+    }
+    .mockup-bar {
+      display: flex; align-items: center; gap: 6px; padding: 10px 14px;
+      background: #eef0f5;
+    }
+    .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
+    .mockup-dot.r { background: #ff5f57; }
+    .mockup-dot.y { background: #febc2e; }
+    .mockup-dot.g { background: #28c840; }
+    .mockup-url {
+      flex: 1; margin-left: 8px; padding: 4px 10px; border-radius: 4px;
+      background: #fff; font-size: 12px; color: #8b949e;
+    }
+    .mockup-body {
+      display: flex; height: 360px; background: #0d1117;
+    }
+    .mockup-actbar {
+      width: 44px; background: #161b22; border-right: 1px solid #21262d;
+      display: flex; flex-direction: column; align-items: center; padding-top: 10px; gap: 4px;
+    }
+    .m-icon {
+      width: 30px; height: 30px; border-radius: 5px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 14px; color: #6b7280;
+    }
+    .m-icon.active { color: #fff; background: rgba(0,120,212,0.2); }
+    .mockup-side {
+      width: 180px; background: #0d1117; border-right: 1px solid #21262d; padding: 12px;
+    }
+    .m-side-title { font-size: 10px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .m-side-item {
+      padding: 4px 6px; border-radius: 3px; font-size: 12px; color: #c9d1d9; margin-bottom: 1px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .m-side-item.active { background: rgba(0,120,212,0.15); color: #58a6ff; }
+    .mockup-center { flex: 1; display: flex; flex-direction: column; }
+    .m-tabs { display: flex; background: #161b22; border-bottom: 1px solid #21262d; }
+    .m-tab {
+      padding: 6px 14px; font-size: 11px; color: #6b7280;
+      display: flex; align-items: center; gap: 4px; border-right: 1px solid #21262d;
+    }
+    .m-tab.active { color: #fff; background: #0d1117; border-bottom: 2px solid #0078d4; }
+    .m-content {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      color: #6b7280; font-size: 13px;
+    }
+    .mockup-right {
+      width: 220px; background: #0d1117; border-left: 1px solid #21262d; padding: 12px;
+    }
+    .m-panel-title { font-size: 12px; font-weight: 600; color: #c9d1d9; margin-bottom: 10px; }
+    .m-msg { padding: 6px 10px; border-radius: 6px; font-size: 11px; line-height: 1.5; margin-bottom: 8px; }
+    .m-msg.bot { background: rgba(0,120,212,0.15); color: #c9d1d9; }
+    .m-msg.user { background: #161b22; color: #8b949e; text-align: right; }
+
+    /* ─── Features ─── */
+    .features-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;
+    }
+    .feature-card {
+      padding: 28px; border-radius: 12px; border: 1px solid #eef0f5;
+      transition: all 0.2s;
+    }
+    .feature-card:hover { border-color: #0078d4; box-shadow: 0 4px 16px rgba(0,120,212,0.1); transform: translateY(-2px); }
+    .feature-icon {
+      width: 44px; height: 44px; border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; margin-bottom: 16px;
+    }
+    .fi-blue { background: #e8f4fd; }
+    .fi-green { background: #e6f9ed; }
+    .fi-purple { background: #f0e8fd; }
+    .fi-orange { background: #fdf0e6; }
+    .fi-teal { background: #e6f5f5; }
+    .fi-pink { background: #fde8f0; }
+    .feature-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+    .feature-card p { font-size: 13px; color: #6b7280; line-height: 1.6; }
+
+    /* ─── Showcase ─── */
+    .showcase { background: #f8f9fc; }
+    .showcase-list {
+      max-width: 720px; margin: 0 auto;
+      display: flex; flex-direction: column; gap: 32px;
+    }
+    .showcase-item {
+      background: #fff; border-radius: 12px; overflow: hidden;
+      border: 1px solid #eef0f5; transition: box-shadow 0.2s;
+    }
+    .showcase-item:hover { box-shadow: 0 8px 32px rgba(0,0,0,0.1); }
+    .showcase-img {
+      background: #0d1117; overflow: hidden;
+    }
+    .showcase-img img {
+      width: 100%; height: auto; display: block;
+    }
+    .showcase-label {
+      padding: 14px 20px; font-size: 14px; font-weight: 600; color: #1a1a2e; text-align: center;
+    }
+
+    /* ─── Guide ─── */
+    .guide-steps {
+      max-width: 640px; margin: 0 auto;
+      display: flex; flex-direction: column; gap: 32px;
+    }
+    .guide-step {
+      display: flex; gap: 20px; align-items: flex-start;
+    }
+    .step-num {
+      flex-shrink: 0; width: 40px; height: 40px; border-radius: 50%;
+      background: #0078d4; color: #fff; font-size: 18px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .step-content h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .step-content p { font-size: 14px; color: #6b7280; line-height: 1.6; }
+    .step-code {
+      margin-top: 10px; padding: 12px 16px; border-radius: 8px;
+      background: #1a1a2e; color: #e2e8f0; font-family: 'SF Mono', 'Menlo', monospace;
+      font-size: 13px; line-height: 1.6; overflow-x: auto;
+    }
+    .step-code .comment { color: #6b7280; }
+    .step-code .cmd { color: #58a6ff; }
+
+    /* ─── Download ─── */
+    .download { background: #f8f9fc; }
+    .download-cards {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 600px; margin: 0 auto;
+    }
+    .dl-card {
+      padding: 28px; border-radius: 12px; background: #fff; border: 1px solid #eef0f5;
+      text-align: center; transition: box-shadow 0.2s;
+    }
+    .dl-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+    .dl-icon { font-size: 36px; margin-bottom: 12px; }
+    .dl-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+    .dl-card .dl-ver { font-size: 13px; color: #6b7280; margin-bottom: 16px; }
+    .dl-btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600;
+      border: none; cursor: pointer; transition: all 0.15s;
+    }
+    .dl-btn:hover { text-decoration: none; }
+    .dl-btn-primary {
+      background: #0078d4; color: #fff;
+      box-shadow: 0 2px 8px rgba(0,120,212,0.3);
+    }
+    .dl-btn-primary:hover { background: #006abc; transform: translateY(-1px); color: #fff; }
+    .dl-btn-disabled {
+      background: #eef0f5; color: #6b7280; cursor: not-allowed;
+    }
+
+    /* ─── About / Footer ─── */
+    .about { padding: 60px 0 40px; border-top: 1px solid #eef0f5; }
+    .about-grid {
+      display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 40px;
+    }
+    .about-col h3 { font-size: 15px; font-weight: 600; margin-bottom: 12px; }
+    .about-col p, .about-col li { font-size: 13px; color: #6b7280; line-height: 1.8; }
+    .about-col ul { list-style: none; }
+    .about-col a { color: #0078d4; }
+
+    .footer {
+      padding: 24px 0; border-top: 1px solid #eef0f5;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .footer p { font-size: 12px; color: #9ca3af; }
+    .footer-links { display: flex; gap: 20px; }
+    .footer-links a { font-size: 12px; color: #9ca3af; }
+    .footer-links a:hover { color: #1a1a2e; }
+
+    /* ─── Responsive ─── */
+    @media (max-width: 768px) {
+      .hero h1 { font-size: 28px; }
+      .hero > .container > p { font-size: 15px; }
+      .features-grid { grid-template-columns: 1fr; }
+      .download-cards { grid-template-columns: 1fr; }
+      .about-grid { grid-template-columns: 1fr; gap: 24px; }
+      .nav-links a:not(.nav-dl) { display: none; }
+      .mockup-side, .mockup-right { display: none; }
+      .mockup-body { height: 280px; }
+      section { padding: 60px 0; }
+      .footer { flex-direction: column; gap: 12px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="nav">
+  <div class="container nav-inner">
+    <a href="#" class="nav-brand">
+      <svg width="28" height="28" viewBox="0 0 48 48" fill="none">
+        <rect width="48" height="48" rx="12" fill="#0078d4"/>
+        <path d="M14 24C14 18.477 18.477 14 24 14C29.523 14 34 18.477 34 24V34H24C18.477 34 14 29.523 14 24Z" fill="white" fill-opacity="0.9"/>
+        <circle cx="24" cy="24" r="4" fill="#0078d4"/>
+      </svg>
+      DeepInk
+    </a>
+    <div class="nav-links">
+      <a href="#features">产品功能</a>
+      <a href="#showcase">应用展示</a>
+      <a href="#guide">使用指南</a>
+      <a href="#download">下载</a>
+      <a href="#about">关于</a>
+    </div>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-icon">
+      <svg width="40" height="40" viewBox="0 0 48 48" fill="none">
+        <path d="M14 24C14 18.477 18.477 14 24 14C29.523 14 34 18.477 34 24V34H24C18.477 34 14 29.523 14 24Z" fill="white" fill-opacity="0.9"/>
+        <circle cx="24" cy="24" r="4" fill="#0078d4"/>
+      </svg>
+    </div>
+    <h1>下一代一站式 <span>AI 桌面服务</span></h1>
+    <p>写文档、做表格、做 PPT，跟同事沟通，浏览网页、自动化操作 — AI 协作完成一切。</p>
+    <div class="hero-tags">
+      <span class="hero-tag">📝 AI 文档编辑</span>
+      <span class="hero-tag">💬 即时通讯</span>
+      <span class="hero-tag">🌐 浏览器自动化</span>
+      <span class="hero-tag">🤖 可插拔 AI 后端</span>
+      <span class="hero-tag">🔒 隐私优先</span>
+    </div>
+
+    <!-- Mockup -->
+    <div class="mockup-wrapper">
+      <div class="mockup-bar">
+        <div class="mockup-dot r"></div>
+        <div class="mockup-dot y"></div>
+        <div class="mockup-dot g"></div>
+        <div class="mockup-url">deepink://workbench</div>
+      </div>
+      <div class="mockup-body">
+        <div class="mockup-actbar">
+          <div class="m-icon active">📄</div>
+          <div class="m-icon">🔍</div>
+          <div class="m-icon">🌐</div>
+          <div class="m-icon">💬</div>
+          <div class="m-icon" style="margin-top:auto">⚙️</div>
+        </div>
+        <div class="mockup-side">
+          <div class="m-side-title">文件</div>
+          <div class="m-side-item active">📂 项目报告.docx</div>
+          <div class="m-side-item">📊 数据分析.xlsx</div>
+          <div class="m-side-item">📑 会议纪要</div>
+          <div class="m-side-item">🖼️ 产品设计</div>
+        </div>
+        <div class="mockup-center">
+          <div class="m-tabs">
+            <div class="m-tab active">📄 项目报告.docx</div>
+            <div class="m-tab">🌐 浏览器</div>
+          </div>
+          <div class="m-content">AI 正在帮你续写项目报告…</div>
+        </div>
+        <div class="mockup-right">
+          <div class="m-panel-title">🤖 AI 助手</div>
+          <div class="m-msg user">帮我写一段项目总结</div>
+          <div class="m-msg bot">好的，已生成项目总结，包含关键成果、里程碑和下一步计划。</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features">
+  <div class="container">
+    <h2 class="section-title">产品功能</h2>
+    <p class="section-desc">DeepInk 提供完整的 AI 驱动工作体验，让你打开一个 App 搞定所有事情。</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon fi-blue">📝</div>
+        <h3>AI 文档编辑</h3>
+        <p>智能写作、续写、改写、翻译、总结。支持 docx、xlsx、pptx 多格式，AI 帮你搞定所有文档工作。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-green">💬</div>
+        <h3>即时通讯</h3>
+        <p>跟同事聊天、给 AI 发任务、Agent 之间协作。一键分享工作成果，沟通和工作无缝衔接。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-purple">🌐</div>
+        <h3>内嵌浏览器</h3>
+        <p>内置浏览器，AI 自动化操作网页。填表单、查资料、抓数据 — 让 AI 帮你点，你在旁边看。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-orange">🤖</div>
+        <h3>可插拔 AI 后端</h3>
+        <p>支持 Claude、GPT、国内大模型等多种 AI 后端。自带 API Key 或使用内置服务，灵活切换。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-teal">🛡️</div>
+        <h3>安全与隐私</h3>
+        <p>数据本地存储，AI 记忆独立管理。Human-in-the-loop，所有操作需确认，过程可视化，随时可中断。</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon fi-pink">⚡</div>
+        <h3>高效交互</h3>
+        <p>Command Palette 快捷命令、多 Tab 管理、面板拖拽调整。键盘优先，像 VSCode 一样高效。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Showcase -->
+<section class="showcase" id="showcase">
+  <div class="container">
+    <h2 class="section-title">应用展示</h2>
+    <p class="section-desc">DeepInk 界面简洁直观，遵循 VSCode 设计精神，上手即用。</p>
+    <div class="showcase-list">
+      <div class="showcase-item">
+        <div class="showcase-img">
+          <img src="images/登录.png" alt="登录界面 — 微信扫码 / 手机验证码" loading="lazy" />
+        </div>
+        <div class="showcase-label">登录界面 — 微信扫码 / 手机验证码</div>
+      </div>
+      <div class="showcase-item">
+        <div class="showcase-img">
+          <img src="images/文档编辑.png" alt="主工作区 — 文档编辑 + 多 Tab" loading="lazy" />
+        </div>
+        <div class="showcase-label">主工作区 — 文档编辑 + 多 Tab</div>
+      </div>
+      <div class="showcase-item">
+        <div class="showcase-img">
+          <img src="images/操作浏览器.png" alt="内嵌浏览器 — AI 自动化操作" loading="lazy" />
+        </div>
+        <div class="showcase-label">内嵌浏览器 — AI 自动化操作</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Guide -->
+<section id="guide">
+  <div class="container">
+    <h2 class="section-title">使用指南</h2>
+    <p class="section-desc">三步开始使用 DeepInk，开启你的 AI 工作新时代。</p>
+    <div class="guide-steps">
+      <div class="guide-step">
+        <div class="step-num">1</div>
+        <div class="step-content">
+          <h3>下载并安装 DeepInk</h3>
+          <p>前往下方下载区获取 Mac 安装包，拖入 Applications 文件夹即可完成安装。首次打开可能需要在「系统设置 → 隐私与安全性」中允许运行。</p>
+        </div>
+      </div>
+      <div class="guide-step">
+        <div class="step-num">2</div>
+        <div class="step-content">
+          <h3>登录并配置 AI 后端</h3>
+          <p>使用微信扫码或手机验证码登录。进入设置页面，选择你喜欢的 AI 后端 — 可以使用内置服务，也可以填入自己的 API Key。</p>
+        </div>
+      </div>
+      <div class="guide-step">
+        <div class="step-num">3</div>
+        <div class="step-content">
+          <h3>开始使用</h3>
+          <p>打开右侧 Agent 面板，告诉 AI 你想做什么。它会帮你写文档、操作浏览器、整理数据 — 一切操作都在你的许可和监视下进行。</p>
+          <div class="step-code">
+            <span class="comment">// 示例：让 AI 帮你操作浏览器</span><br/>
+            <span class="cmd">你：</span>帮我在百度搜索 DeepInk<br/>
+            <span class="cmd">AI：</span>好的，正在操作浏览器 → 导航到百度 → 填写搜索词 → 点击搜索 ✅<br/>
+            <span class="cmd">你：</span>把搜索结果整理成文档<br/>
+            <span class="cmd">AI：</span>已创建「DeepInk 搜索结果.docx」📄
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Download -->
+<section class="download" id="download">
+  <div class="container">
+    <h2 class="section-title">下载 DeepInk</h2>
+    <p class="section-desc">选择你的平台，下载安装 DeepInk 客户端。</p>
+    <div class="download-cards">
+      <div class="dl-card">
+        <div class="dl-icon">🍎</div>
+        <h3>macOS</h3>
+        <p class="dl-ver">适用于 macOS 13.0 及以上（Apple Silicon / Intel）</p>
+        <a href="#" class="dl-btn dl-btn-primary">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          下载 .dmg
+        </a>
+      </div>
+      <div class="dl-card">
+        <div class="dl-icon">🪟</div>
+        <h3>Windows</h3>
+        <p class="dl-ver">适用于 Windows 10 及以上</p>
+        <span class="dl-btn dl-btn-disabled">即将上线</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- About -->
+<section class="about" id="about">
+  <div class="container">
+    <div class="about-grid">
+      <div class="about-col">
+        <h3>产品定位</h3>
+        <p>DeepInk 是 AI 时代的工作入口。用户打开 DeepInk，完成所有事情 — 写文档、做表格、做 PPT，跟同事沟通，浏览网页、自动化操作。不是 AI 助手，不是 AI 工具，是一站式 AI 桌面服务。</p>
+      </div>
+      <div class="about-col">
+        <h3>联系我们</h3>
+        <ul>
+          <li>📧 电子邮箱：contact@deepink.app</li>
+          <li>🌐 官方网站：deepink.app</li>
+          <li>💬 微信公众号：DeepInk</li>
+        </ul>
+      </div>
+      <div class="about-col">
+        <h3>法律信息</h3>
+        <ul>
+          <li><a href="terms.html">用户服务协议</a></li>
+          <li><a href="privacy.html">隐私保护政策</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<div class="container">
+  <div class="footer">
+    <p>© 2025 DeepInk. All rights reserved.</p>
+    <div class="footer-links">
+      <a href="terms.html">用户协议</a>
+      <a href="privacy.html">隐私政策</a>
+      <a href="#about">联系我们</a>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

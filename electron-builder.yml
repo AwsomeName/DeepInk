@@ -1,0 +1,42 @@
+appId: com.deepink.app
+productName: DeepInk
+directories:
+  buildResources: resources
+  output: dist
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!docs/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,CLAUDE.md,README.md}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+  - '!{.gitignore,.claude,dev.sh,pnpm-workspace.yaml}'
+asar: true
+asarUnpack:
+  # agent-device：helper APK 需真实文件路径供 adb install；daemon entry + import.meta 解析需出 asar
+  - node_modules/agent-device/android-snapshot-helper/dist/**
+  - node_modules/agent-device/dist/**
+  - node_modules/yaml/**
+extraResources:
+  - from: resources/scrcpy-server.jar
+    to: scrcpy-server.jar
+    filter:
+      - '**/*'
+  # 应用商店源配置：打包后需要真实文件路径
+  - from: resources/store-sources.json
+    to: store-sources.json
+  # 能力验证页面：page.goto('file://...') 需要真实文件路径，不能留在 asar 内
+  - from: out/main/test-page.html
+    to: test-page.html
+mac:
+  icon: resources/icon.png
+  target:
+    - dmg
+    - zip
+  category: public.app-category.productivity
+  identity: null
+# 自动更新发布源（generic = 任意 HTTPS 静态服务器）。
+# 开源配置不内置 DeepInk 产品更新源；闭源产品构建可通过专用配置覆盖。
+publish:
+  provider: generic
+  url: https://updates.example.com/deepink

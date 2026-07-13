@@ -1,0 +1,166 @@
+import { useCallback, useRef } from 'react'
+import type { BrowserInstanceSnapshot } from '@shared/ipc/browser'
+import { useAgentStore, useBrowserStore, useTabStore, useWorkspaceStore } from '../../stores'
+import { useTabContextMenuStore } from '../../stores/tab-context-menu-store'
+import { AndroidToolbar } from './AndroidToolbar'
+import { BrowserToolbar } from './BrowserToolbar'
+import { SessionRestoreBanner } from './SessionRestoreBanner'
+import { TabBar } from './TabBar'
+import { WorkbenchContent } from './WorkbenchContent'
+import { useBrowserEvents } from './use-browser-events'
+import { useBrowserViewLifecycle } from './use-browser-view-lifecycle'
+import { useEditorContentUpdates } from './use-editor-content-updates'
+import { useWorkbenchBounds } from './use-workbench-bounds'
+import { closeTabWithDraftPolicy } from '../../utils/close-tab'
+import { recordTerminalLifecycleEvent } from '../../utils/terminal-lifecycle'
+import { buildTerminalTabDraft } from '../../utils/terminal-tab'
+
+export function Workbench(): React.ReactElement {
+  const tabs = useTabStore((s) => s.tabs)
+  const activeTabId = useTabStore((s) => s.activeTabId)
+  const activateTab = useTabStore((s) => s.activateTab)
+  const reorderTabs = useTabStore((s) => s.reorderTabs)
+  const openTab = useTabStore((s) => s.openTab)
+  const createConversation = useAgentStore((s) => s.createConversation)
+  const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
+  const showTabMenu = useTabContextMenuStore((s) => s.show)
+  const browserTabs = useBrowserStore((s) => s.tabs)
+  const setBrowserUrlInput = useBrowserStore((s) => s.setUrlInput)
+  const contentRef = useRef<HTMLDivElement>(null)
+
+  const activeTab = tabs.find((tab) => tab.id === activeTabId)
+  const isBrowserTab = activeTab?.type === 'browser'
+  const isAndroidTab = activeTab?.type === 'android'
+  const activeBrowserState = activeTabId ? browserTabs[activeTabId] : undefined
+
+  useWorkbenchBounds(contentRef)
+  useBrowserViewLifecycle(activeTab, tabs)
+  useBrowserEvents()
+  useEditorContentUpdates()
+
+  const handleNavigate = useCallback((): void => {
+    if (!activeTabId) return
+    let url = (activeBrowserState?.urlInput ?? '').trim()
+    if (!url) return
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://' + url
+    }
+    window.deepink.browser.navigate(activeTabId, url)
+  }, [activeTabId, activeBrowserState])
+
+  const openNewDocument = useCallback((): void => {
+    openTab({ type: 'editor', title: '未命名.md', icon: '📄', forceNew: true })
+  }, [openTab])
+
+  const openNewBrowser = useCallback((): void => {
+    openTab({ type: 'browser', title: '浏览器', icon: '🌐', forceNew: true })
+  }, [openTab])
+
+  const openNewAndroid = useCallback((): void => {
+    openTab({ type: 'android', title: 'Android', icon: '📱' })
+  }, [openTab])
+
+  const openNewConversation = useCallback((): void => {
+    const conversationId = createConversation({
+      surface: 'workbench-tab',
+      runtime: {
+        location: 'local',
+        transport: 'local',
+        backend: 'deepink-agent',
+        workspaceRef: activeWorkspaceRef,
+      },
+      activate: false,
+    })
+    openTab({
+      type: 'conversation',
+      title: '新工作会话',
+      icon: '🤖',
+      conversation: {
+        surface: 'workbench-tab',
+        runtime: {
+          location: 'local',
+          transport: 'local',
+          backend: 'deepink-agent',
+          workspaceRef: activeWorkspaceRef,
+        },
+        sessionId: conversationId,
+      },
+    })
+  }, [activeWorkspaceRef, createConversation, openTab])
+
+  const openNewTerminal = useCallback((): void => {
+    const draft = buildTerminalTabDraft(activeWorkspaceRef)
+    openTab(draft)
+    void recordTerminalLifecycleEvent(draft.terminal, 'created', 'Terminal Tab 已创建')
+  }, [activeWorkspaceRef, openTab])
+
+  const handleCloseTab = useCallback((tabId: string): void => {
+    void closeTabWithDraftPolicy(tabId)
+  }, [])
+
+  const openBrowserUrl = useCallback(
+    (url: string): void => {
+      if (activeTabId && isBrowserTab) {
+        window.deepink.browser.navigate(activeTabId, url)
+        return
+      }
+      openTab({ type: 'browser', title: '浏览器', icon: '🌐', initialUrl: url, forceNew: true })
+    },
+    [activeTabId, isBrowserTab, openTab],
+  )
+
+  const restoreBrowserSnapshot = useCallback(
+    async (snap: BrowserInstanceSnapshot): Promise<void> => {
+      openTab({
+        type: 'browser',
+        title: snap.title ?? '恢复的页面',
+        icon: '🌐',
+        initialUrl: snap.url,
+        restore: {
+          viewMode: snap.viewMode,
+          zoomMode: snap.zoomMode,
+          manualZoom: snap.manualZoom,
+          history: snap.history,
+          historyIndex: snap.historyIndex,
+        },
+        forceNew: true,
+      })
+      await window.deepink.browser.removeSnapshot(snap.id)
+    },
+    [openTab],
+  )
+
+  return (
+    <div className="workbench">
+      <SessionRestoreBanner />
+      <TabBar
+        tabs={tabs}
+        activeTabId={activeTabId}
+        onActivate={activateTab}
+        onClose={handleCloseTab}
+        onReorder={reorderTabs}
+        onNewDocument={openNewDocument}
+        onNewBrowser={openNewBrowser}
+        onNewAndroid={openNewAndroid}
+        onNewConversation={openNewConversation}
+        onNewTerminal={openNewTerminal}
+        onShowMenu={showTabMenu}
+      />
+
+      {isBrowserTab && activeTabId && (
+        <BrowserToolbar
+          tabId={activeTabId}
+          browserState={activeBrowserState}
+          onUrlInputChange={setBrowserUrlInput}
+          onNavigate={handleNavigate}
+          onOpenUrl={openBrowserUrl}
+          onRestoreSnapshot={restoreBrowserSnapshot}
+        />
+      )}
+
+      {isAndroidTab && <AndroidToolbar />}
+
+      <WorkbenchContent activeTab={activeTab} isBrowserTab={isBrowserTab} contentRef={contentRef} />
+    </div>
+  )
+}

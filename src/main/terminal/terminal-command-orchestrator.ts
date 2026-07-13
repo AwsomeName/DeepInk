@@ -1,0 +1,240 @@
+import { randomUUID } from 'node:crypto'
+import type { TerminalPermissionRisk, TerminalStatus } from '../../shared/terminal'
+import type {
+  TerminalSubmitCommandInput,
+  TerminalSubmitCommandResult,
+} from '../../shared/ipc/terminal'
+import { workspaceRefKey } from '../../shared/workspace-ref'
+import type { TerminalAuditStore } from './terminal-audit-store'
+import type { TerminalConfirmationService } from './terminal-confirmation-service'
+import type { TerminalExecutionAdapter } from './terminal-execution-adapter'
+import { evaluateTerminalPermission } from './terminal-permission'
+import type { TerminalSessionRegistry } from './terminal-session-registry'
+import type { TerminalSessionState } from './terminal-session-state'
+import type { RemoteError } from '../../shared/remote-error'
+
+export interface TerminalCommandOrchestratorOptions {
+  sessionRegistry: Pick<TerminalSessionRegistry, 'get' | 'transition'>
+  confirmationService: Pick<TerminalConfirmationService, 'requestConfirmation'>
+  executionAdapter?: Pick<TerminalExecutionAdapter, 'start' | 'write'>
+  auditStore?: Pick<TerminalAuditStore, 'recordEvent'>
+  now?: () => number
+  idFactory?: () => string
+}
+
+const SUBMITTABLE_STATUSES = new Set<TerminalStatus>(['idle', 'running'])
+
+export class TerminalCommandOrchestrator {
+  private readonly sessionRegistry: Pick<TerminalSessionRegistry, 'get' | 'transition'>
+  private readonly confirmationService: Pick<TerminalConfirmationService, 'requestConfirmation'>
+  private readonly executionAdapter?: Pick<TerminalExecutionAdapter, 'start' | 'write'>
+  private readonly auditStore?: Pick<TerminalAuditStore, 'recordEvent'>
+  private readonly now: () => number
+  private readonly idFactory: () => string
+
+  constructor(options: TerminalCommandOrchestratorOptions) {
+    this.sessionRegistry = options.sessionRegistry
+    this.confirmationService = options.confirmationService
+    this.executionAdapter = options.executionAdapter
+    this.auditStore = options.auditStore
+    this.now = options.now ?? Date.now
+    this.idFactory = options.idFactory ?? randomUUID
+  }
+
+  async submitCommand(
+    input: TerminalSubmitCommandInput,
+  ): Promise<TerminalSubmitCommandResult> {
+    const session = this.sessionRegistry.get(input.terminalSessionId)
+    if (!session) {
+      return {
+        success: false,
+        status: 'rejected',
+        error: `Terminal session 不存在：${input.terminalSessionId}`,
+      }
+    }
+
+    if (!SUBMITTABLE_STATUSES.has(session.status)) {
+      return {
+        success: false,
+        status: 'rejected',
+        error: `Terminal session 当前状态不可提交命令：${session.status}`,
+      }
+    }
+
+    const decision = evaluateTerminalPermission(input.command, input.permissionPolicy)
+    if (decision.action === 'deny') {
+      await this.recordCommandAudit('command-denied', input, session, decision.risk, {
+        approved: false,
+        message: decision.reason,
+      })
+      return {
+        success: false,
+        status: 'denied',
+        risk: decision.risk,
+        error: decision.reason,
+      }
+    }
+
+    if (decision.action === 'confirm') {
+      const previousStatus = session.status
+      this.sessionRegistry.transition(input.terminalSessionId, 'blocked', {
+        lastCommand: input.command,
+        now: this.now(),
+      })
+
+      const approved = await this.confirmationService.requestConfirmation({
+        terminalSessionId: input.terminalSessionId,
+        workspaceKey: this.resolveWorkspaceKey(input, session),
+        command: input.command,
+        actor: input.actor,
+        risk: decision.risk,
+        reason: decision.reason,
+        cwd: session.runtime.cwd,
+        runtime: session.runtime,
+      })
+
+      this.restoreAfterConfirmation(input.terminalSessionId, previousStatus, input.command)
+
+      if (!approved) {
+        return {
+          success: false,
+          status: 'denied',
+          risk: decision.risk,
+          error: 'Terminal 命令未获确认，真实执行未启动',
+        }
+      }
+    }
+
+    this.sessionRegistry.transition(input.terminalSessionId, session.status, {
+      lastCommand: input.command,
+      now: this.now(),
+    })
+    await this.recordCommandAudit('command-submitted', input, session, decision.risk, {
+      approved: true,
+      message: 'Terminal 命令已通过权限检查；真实执行尚未接入',
+    })
+    await this.dispatchToExecutionAdapter(
+      input,
+      this.sessionRegistry.get(input.terminalSessionId) ?? session,
+    )
+
+    return {
+      success: true,
+      status: 'accepted',
+      risk: decision.risk,
+      execution: 'not-started',
+      message: 'Terminal 命令已通过权限检查；真实执行尚未接入',
+    }
+  }
+
+  private async dispatchToExecutionAdapter(
+    input: TerminalSubmitCommandInput,
+    session: TerminalSessionState,
+  ): Promise<void> {
+    if (!this.executionAdapter) return
+
+    try {
+      if (session.status === 'idle') {
+        await this.executionAdapter.start({
+          sessionId: input.terminalSessionId,
+          runtime: session.runtime,
+        })
+      }
+
+      await this.executionAdapter.write({
+        sessionId: input.terminalSessionId,
+        data: `${input.command}\n`,
+        actor: input.actor,
+      })
+    } catch (error) {
+      await this.recordExecutionErrorAudit(input, session, error)
+    }
+  }
+
+  private restoreAfterConfirmation(
+    terminalSessionId: string,
+    previousStatus: TerminalStatus,
+    command: string,
+  ): void {
+    if (!SUBMITTABLE_STATUSES.has(previousStatus)) return
+    this.sessionRegistry.transition(terminalSessionId, previousStatus, {
+      lastCommand: command,
+      now: this.now(),
+    })
+  }
+
+  private async recordCommandAudit(
+    kind: 'command-submitted' | 'command-denied',
+    input: TerminalSubmitCommandInput,
+    session: TerminalSessionState,
+    risk: TerminalPermissionRisk,
+    options: { approved: boolean; message: string },
+  ): Promise<void> {
+    if (!this.auditStore) return
+
+    await this.auditStore.recordEvent({
+      id: this.idFactory(),
+      terminalSessionId: input.terminalSessionId,
+      workspaceKey: this.resolveWorkspaceKey(input, session),
+      timestamp: this.now(),
+      kind,
+      actor: input.actor,
+      command: input.command,
+      risk,
+      approved: options.approved,
+      message: options.message,
+    })
+  }
+
+  private async recordExecutionErrorAudit(
+    input: TerminalSubmitCommandInput,
+    session: TerminalSessionState,
+    error: unknown,
+  ): Promise<void> {
+    if (!this.auditStore) return
+
+    const remoteError = getRemoteErrorFromUnknown(error)
+    const message = remoteError?.message ?? getErrorMessage(error)
+
+    await this.auditStore.recordEvent({
+      id: this.idFactory(),
+      terminalSessionId: input.terminalSessionId,
+      workspaceKey: this.resolveWorkspaceKey(input, session),
+      timestamp: this.now(),
+      kind: 'error',
+      actor: input.actor,
+      command: input.command,
+      message,
+      remoteError,
+    })
+  }
+
+  private resolveWorkspaceKey(
+    input: TerminalSubmitCommandInput,
+    session: TerminalSessionState,
+  ): string | null {
+    return input.workspaceKey ?? workspaceRefKey(session.runtime.workspaceRef)
+  }
+}
+
+function getRemoteErrorFromUnknown(error: unknown): RemoteError | undefined {
+  if (!error || typeof error !== 'object' || !('remoteError' in error)) return undefined
+  const remoteError = (error as { remoteError?: unknown }).remoteError
+  if (!remoteError || typeof remoteError !== 'object') return undefined
+  const candidate = remoteError as Partial<RemoteError>
+  if (
+    typeof candidate.layer !== 'string' ||
+    typeof candidate.code !== 'string' ||
+    typeof candidate.message !== 'string' ||
+    typeof candidate.retryable !== 'boolean'
+  ) {
+    return undefined
+  }
+  return candidate as RemoteError
+}
+
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  if (typeof error === 'string' && error.trim()) return error
+  return 'Terminal 执行适配器调用失败'
+}

@@ -1,0 +1,50 @@
+---
+description: 内嵌浏览器「只显示左半边」排错——勿误判为 DPI/setBounds 问题
+globs: src/main/browser/**,src/renderer/**/workbench/**,src/main/ipc/browser-ipc.ts,docs/features/browser-automation.md
+alwaysApply: true
+---
+
+# 内嵌浏览器视口：内容被裁切 ≠ bounds 算错
+
+## 现象
+
+用户反馈内嵌浏览器「只显示左半边」、右侧被裁掉；日志里 `workbench-content` 宽度与 `WebContentsView` 的 `window.innerWidth` 一致（例如均为 744），且 `setBounds` 使用 DIP 正确。
+
+## 根因（常见误判）
+
+**不要**优先怀疑 DPI 换算、`setBounds` 用错物理像素、或 `getBoundingClientRect` 坐标错误。
+
+典型原因是：**面板 CSS 宽度 < 页面固定内容宽度**。桌面站（如百度首页 `#wrapper` ≈ 1250px）在窄工作区（侧栏 + Agent 占掉后约 744px）会横向溢出，视觉上像「只显示左半边」，与把 Chrome 窗口拖到同样宽度一致。
+
+## 先验证再改代码
+
+通过 CDP / Playwright 连到内嵌页，对比：
+
+```javascript
+// innerWidth ≈ 面板宽度 → bounds 链路正常
+// scrollWidth > innerWidth → 页面内容比视口宽，是缩放/布局问题，不是定位 bug
+JSON.stringify({
+  innerWidth: window.innerWidth,
+  docScrollWidth: document.documentElement.scrollWidth,
+})
+```
+
+若 `innerWidth === bounds.width` 且 `scrollWidth > innerWidth`，**不要**去改 DIP、加倍 width、或改坐标上报逻辑。
+
+## 正确处理方式（已实现）
+
+- **默认**：`fit` 模式 — 测量 `scrollWidth`，`setZoomFactor(paneWidth / contentWidth)`，只缩不放大。
+- **手动**：工具栏 `zoomIn` / `zoomOut` / 百分比，走 `manual` 模式。
+- **移动版**：切换 iOS Safari UA + `reload`，视口约 414px 并缩放填满面板。
+
+相关代码：`src/main/browser/browser-manager.ts`（`applyZoom`、`measureContentWidth`、`setDeviceMode`）。
+
+## 禁止的做法
+
+- ❌ 在未验证 `scrollWidth` 前，假设「viewport 不匹配」并尝试 `bounds.width * devicePixelRatio`
+- ❌ 把「内容被裁」当成 WebContentsView 未铺满容器而去改 React 布局（容器往往已正确）
+- ❌ 删除或绕过已有的 `fit` / 设备模式，改回纯 100% 缩放导致桌面站再次裁切
+
+## 布局参考（1400px 窗口）
+
+活动栏 48 + 侧栏 250 + **工作区 ~744** + Agent 350 ≈ 1400。工作区变窄是预期，不是 bug。

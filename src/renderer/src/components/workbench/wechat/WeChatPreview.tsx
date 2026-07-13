@@ -1,0 +1,132 @@
+/**
+ * 微信公众号格式预览组件
+ *
+ * 在 preview Tab 中渲染，读取 .md 文件 → IPC 转换 → 模拟手机预览。
+ * 提供「复制到公众号」和「保存为 HTML」两个操作。
+ */
+
+import { useState, useEffect, useCallback } from 'react'
+import { useToastStore } from '../../common/Toast'
+
+interface WeChatPreviewProps {
+  filePath: string
+}
+
+export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElement {
+  const [html, setHtml] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const showToast = useToastStore((s) => s.show)
+
+  // 读取文件并转换
+  useEffect(() => {
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        setLoading(true)
+        setError('')
+        const file = await window.deepink.fs.readFile(filePath)
+        const content = typeof file === 'string' ? file : file.content
+        const result = await window.deepink.wechat.convert(content)
+        if (result.error) {
+          if (!cancelled) setError(result.error)
+        } else if (!result.html) {
+          if (!cancelled) setError('未生成 HTML')
+        } else {
+          if (!cancelled) setHtml(result.html)
+        }
+      } catch (err) {
+        if (!cancelled) setError(String(err))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [filePath])
+
+  /** 复制到剪贴板 */
+  const handleCopy = useCallback(async () => {
+    if (!html) return
+    try {
+      const blob = new Blob([html], { type: 'text/html' })
+      await navigator.clipboard.write([new ClipboardItem({ 'text/html': blob })])
+      showToast('已复制，可直接粘贴到公众号', 'success')
+    } catch (err) {
+      showToast('复制失败: ' + String(err), 'error')
+    }
+  }, [html, showToast])
+
+  /** 保存为 HTML 文件 */
+  const handleSave = useCallback(async () => {
+    if (!html) return
+    try {
+      const fileName = filePath.split('/').pop()?.replace(/\.md$/i, '') ?? 'wechat'
+      const result = await window.deepink.dialog.showSaveDialog({
+        title: '保存为 HTML 文件',
+        defaultPath: `${fileName}.html`,
+        filters: [{ name: 'HTML', extensions: ['html'] }],
+      })
+      if (result && !result.canceled && result.filePath) {
+        const fullHtml = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>${fileName}</title></head>
+<body style="background:#fff;padding:20px;">${html}</body>
+</html>`
+        await window.deepink.fs.writeFile(result.filePath, fullHtml)
+        showToast('已保存: ' + result.filePath, 'success')
+      }
+    } catch (err) {
+      showToast('保存失败: ' + String(err), 'error')
+    }
+  }, [html, filePath, showToast])
+
+  // 加载中
+  if (loading) {
+    return (
+      <div className="wechat-preview-loading">
+        <div className="wechat-preview-spinner" />
+        <span>正在转换为微信格式...</span>
+      </div>
+    )
+  }
+
+  // 转换失败
+  if (error) {
+    return (
+      <div className="wechat-preview-error">
+        <span style={{ fontSize: 48 }}>⚠️</span>
+        <span>转换失败</span>
+        <span className="wechat-preview-error-msg">{error}</span>
+      </div>
+    )
+  }
+
+  return (
+    <div className="wechat-preview">
+      {/* 工具栏 */}
+      <div className="wechat-preview-toolbar">
+        <span className="wechat-preview-title">📱 微信公众号预览</span>
+        <div className="wechat-preview-actions">
+          <button className="wechat-btn-copy" onClick={handleCopy} title="复制为微信公众号格式">
+            📋 复制到公众号
+          </button>
+          <button className="wechat-btn-save" onClick={handleSave} title="保存为 HTML 文件">
+            💾 保存
+          </button>
+        </div>
+      </div>
+
+      {/* 预览区（模拟手机宽度） */}
+      <div className="wechat-preview-phone">
+        <div
+          className="wechat-preview-body"
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
+    </div>
+  )
+}

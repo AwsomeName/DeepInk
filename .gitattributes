@@ -1,0 +1,53 @@
+# Normalize line endings
+* text=auto
+
+# TypeScript
+*.ts text diff=typescript
+*.tsx text diff=typescript
+
+# Markdown
+*.md text diff=markdown
+
+# YAML
+*.yml text diff=yaml
+*.yaml text diff=yaml
+
+# JSON
+*.json text diff=json
+
+# Shell scripts
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+
+# Node.js config
+*.mjs text
+*.cjs text
+
+# CSS
+*.css text diff=css
+
+# HTML
+*.html text diff=html
+
+# Binary assets
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.icns binary
+*.svg text
+*.ttf binary
+*.woff binary
+*.woff2 binary
+
+# Archives
+*.dmg binary
+*.zip binary
+*.tar.gz binary
+*.blockmap binary
+
+# Environment
+.env.example text
+.env.local text

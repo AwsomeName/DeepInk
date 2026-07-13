@@ -1,0 +1,91 @@
+import { ipcMain } from 'electron'
+
+// ipcMain.handle 注册的通道集中清理，避免 macOS activate 重建窗口时重复注册。
+const IPC_HANDLE_CHANNELS = [
+  // browser-ipc
+  'browser:navigate', 'browser:goBack', 'browser:goForward', 'browser:reload',
+  'browser:getCurrentURL', 'browser:createView', 'browser:destroyView', 'browser:setActive',
+  'browser:setZoom', 'browser:zoomIn', 'browser:zoomOut', 'browser:resetZoom',
+  'browser:fitWidth', 'browser:setDeviceMode', 'browser:getViewState',
+  'browser:listSnapshots', 'browser:removeSnapshot', 'browser:clearSnapshots',
+  'browser:listHistory', 'browser:clearHistory',
+  'browserTask:start', 'browserTask:list', 'browserTask:get', 'browserTask:getActiveForTab',
+  'browserTask:pause', 'browserTask:resume', 'browserTask:cancel', 'browserTask:finish',
+  'browserTask:listActionLogs',
+  'browserDownload:list', 'browserDownload:get', 'browserDownload:keepToWorkspace',
+  'browserDownload:saveAs', 'browserDownload:discard', 'browserDownload:open',
+  'browserDownload:reveal',
+  // dialog-ipc
+  'dialog:showOpenDialog', 'dialog:showSaveDialog', 'dialog:showMessageBox',
+  // window-ipc
+  'window:toggleFullscreen', 'window:toggleDevtools', 'window:reload',
+  // android-ipc
+  'android:getSetupStatus', 'android:getLicense', 'android:acceptLicense',
+  'android:setup', 'android:listAvds', 'android:launch', 'android:terminate',
+  'android:getState', 'android:getDeviceId', 'android:tap', 'android:swipe',
+  'android:pressKey', 'android:typeText', 'android:screenshot', 'android:getDeviceInfo',
+  'android:listPackages', 'android:dumpUi', 'android:installApk', 'android:uninstallPackage',
+  'android:pushFile', 'android:shell',
+  'android:reconnect', 'android:retryStoreInstall',
+  'android:listPhysicalDevices', 'android:connectPhysical', 'android:disconnectPhysical',
+  'scrcpy:connect', 'scrcpy:disconnect',
+  // agent-ipc
+  'agent:sendMessage', 'agent:abort', 'agent:executeAction', 'agent:resolveToolConfirmation',
+  'agent:getStatus', 'agent:resetSession', 'agent:getPlaywrightStatus', 'agent:verifyCapabilities',
+  'agent:getCapabilities',
+  'agent:restoreConversation', 'agent:closeConversation',
+  'agent:getPermissionMode', 'agent:setPermissionMode',
+  'agent:setScope', 'agent:getScope',
+  // terminal-ipc
+  'terminal:resolveCommandConfirmation',
+  'terminal:recordLifecycleEvent',
+  'terminal:submitCommand',
+  'terminal:listSessions',
+  'terminal:listAuditEvents', 'terminal:clearAuditSession', 'terminal:clearAuditEvents',
+  // mcp-ipc
+  'mcp:listServers', 'mcp:addServer', 'mcp:removeServer', 'mcp:updateServer', 'mcp:reloadConfig',
+  // auth-ipc
+  'auth:getServiceStatus', 'auth:phoneSendCode', 'auth:phoneLogin',
+  'auth:checkSession', 'auth:getProfile', 'auth:logout',
+  // subscription-ipc
+  'subscription:getPlans', 'subscription:getStatus', 'subscription:createOrder',
+  'subscription:checkOrder', 'subscription:verifyAppleIap', 'subscription:cancel',
+  // sync-ipc
+  'sync:getStatus', 'sync:getConfig', 'sync:saveConfig', 'sync:deleteConfig',
+  'sync:testConnection', 'sync:triggerSync', 'sync:startAutoSync', 'sync:stopAutoSync',
+  'sync:getHistory', 'sync:clearHistory',
+  // settings-ipc
+  'settings:getAll', 'settings:set', 'settings:reset', 'settings:resetKey',
+  // workspace-state-ipc
+  'workspaceState:get', 'workspaceState:setSection', 'workspaceState:clear',
+  // meshy-ipc
+  'meshy:createPreview', 'meshy:createRefine', 'meshy:getTask',
+  'meshy:saveAsset', 'meshy:generateAndSave',
+  // fs-ipc
+  'fs:getHomePath', 'fs:readDir', 'fs:readFile', 'fs:writeFile',
+  'fs:stat', 'fs:mkdir', 'fs:rename', 'fs:delete', 'fs:openPath',
+  // editor-ipc
+  'editor:contentUpdateAck', 'editor:readResponse', 'editor:saveResult',
+  // updater-ipc
+  'updater:check', 'updater:download',
+  // wechat-ipc
+  'wechat:convert',
+  // cclink-ipc
+  'cclink:getState', 'cclink:getIdentity', 'cclink:preflightLegacyImport', 'cclink:ensureIdentity', 'cclink:clearIdentity',
+  'cclink:sendLegacySmsCode', 'cclink:importLegacyIdentity',
+  'cclink:listServers', 'cclink:removeServer',
+  'cclink:listSessions', 'cclink:syncPairedAgents', 'cclink:removeSession', 'cclink:listMessages',
+  'cclink:sendLocalMessage', 'cclink:listFileTree', 'cclink:readFile',
+  'cclink:getRealtimeStatus', 'cclink:connectRealtime', 'cclink:disconnectRealtime',
+  'cclink:clearLocalData', 'cclink:seedDemoData',
+] as const
+
+/** 清理所有 IPC handler/listener，防止 activate 时重复注册。 */
+export function cleanupIpcHandlers(): void {
+  for (const channel of IPC_HANDLE_CHANNELS) {
+    ipcMain.removeHandler(channel)
+  }
+  // 以下通道用的是 ipcMain.on 而不是 handle。
+  ipcMain.removeAllListeners('workbench:bounds')
+  ipcMain.removeAllListeners('scrcpy:touch')
+}
