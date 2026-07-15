@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { WorkspaceStateSnapshot } from '@shared/ipc/workspace-state'
 import { restoreWorkspaceState, type WorkspaceBootstrapDeps } from './workspace-bootstrap-core'
 import { useAgentStore } from '../stores/agent-store'
+import { useBrowserStore } from '../stores/browser-store'
+import { useEditorStore } from '../stores/editor-store'
 import { useTabStore } from '../stores/tab-store'
 import { resolveConversationTab } from '../utils/conversation-tab'
 
@@ -30,6 +32,8 @@ function createDeps(overrides: Partial<WorkspaceBootstrapDeps> = {}): WorkspaceB
     hydrateTabs: vi.fn(),
     hydrateEditorDrafts: vi.fn(),
     hydrateAgentConversations: vi.fn(),
+    beginRestore: vi.fn(),
+    endRestore: vi.fn(),
     initWorkspace: vi.fn().mockResolvedValue(undefined),
     warn: vi.fn(),
     ...overrides,
@@ -60,7 +64,7 @@ describe('restoreWorkspaceState', () => {
     expect(deps.initWorkspace).toHaveBeenCalled()
   })
 
-  it('工作区快照为空时回退到 global 快照，兼容旧版本迁移', async () => {
+  it('工作区快照为空时不回退到 global，避免未归档状态串入项目', async () => {
     const getWorkspaceState = vi
       .fn()
       .mockResolvedValueOnce(snapshot('/workspace/a', {}))
@@ -73,8 +77,61 @@ describe('restoreWorkspaceState', () => {
     await restoreWorkspaceState(deps)
 
     expect(getWorkspaceState).toHaveBeenNthCalledWith(1, '/workspace/a')
-    expect(getWorkspaceState).toHaveBeenNthCalledWith(2, null)
-    expect(deps.hydrateLayout).toHaveBeenCalledWith({ activePanel: 'files' })
+    expect(getWorkspaceState).toHaveBeenCalledTimes(1)
+    expect(deps.hydrateLayout).toHaveBeenCalledWith(undefined)
+  })
+
+  it('工作区快照为空时清空运行态，不保留上一个项目的内存种子', async () => {
+    useBrowserStore.setState({
+      ...useBrowserStore.getInitialState(),
+      tabs: {
+        stale: {
+          url: 'https://stale.example',
+          urlInput: 'https://stale.example',
+          viewMode: 'desktop',
+          zoomMode: 'fit',
+          zoomFactor: 1,
+          history: ['https://stale.example'],
+          historyIndex: 0,
+          ready: false,
+        },
+      },
+    }, true)
+    useTabStore.setState({
+      ...useTabStore.getInitialState(),
+      tabs: [{ id: 'stale-tab', type: 'browser', title: 'Stale', icon: '🌐' }],
+      activeTabId: 'stale-tab',
+    }, true)
+    useEditorStore.setState({
+      ...useEditorStore.getInitialState(),
+      files: {
+        'virtual:stale': {
+          savedContent: '',
+          currentContent: 'stale draft',
+          dirty: true,
+          loading: false,
+        },
+      },
+    }, true)
+    useAgentStore.setState(useAgentStore.getInitialState(), true)
+    const staleConversationId = useAgentStore.getState().createConversation({ activate: true })
+
+    const deps = createDeps({
+      getSettings: vi.fn().mockResolvedValue({ lastWorkspacePath: '/workspace/empty' } as any),
+      getWorkspaceState: vi.fn().mockResolvedValue(snapshot('/workspace/empty', {})),
+      hydrateBrowserTabs: (value) => useBrowserStore.getState().hydrateFromWorkspaceState(value),
+      hydrateTabs: (value) => useTabStore.getState().hydrateFromWorkspaceState(value),
+      hydrateEditorDrafts: (value) => useEditorStore.getState().hydrateFromWorkspaceState(value),
+      hydrateAgentConversations: (value) =>
+        useAgentStore.getState().hydrateFromWorkspaceState(value),
+    })
+
+    await restoreWorkspaceState(deps)
+
+    expect(useBrowserStore.getState().tabs).toEqual({})
+    expect(useTabStore.getState().tabs).toEqual([])
+    expect(useEditorStore.getState().files).toEqual({})
+    expect(useAgentStore.getState().activeConversationId).not.toBe(staleConversationId)
   })
 
   it('状态恢复失败时记录告警，但仍尝试恢复工作区', async () => {

@@ -15,6 +15,7 @@ import { buildTerminalTabDraft } from '../../utils/terminal-tab'
 import { CclinkConversation } from '../cclink/CclinkConversation'
 import { ErrorBoundary } from '../common/ErrorBoundary'
 import { PanelErrorFallback } from '../common/ErrorFallback'
+import { DataSourceQueryTab } from '../data-sources/DataSourceQueryTab'
 import { SettingsPage } from '../settings/SettingsPage'
 import { AndroidDisplay } from './AndroidDisplay'
 import { GerberLayerPreview } from './GerberLayerPreview'
@@ -98,6 +99,7 @@ export function WorkbenchContent({
             {activeTab.type === 'terminal-record' && activeTab.terminalRecord && (
               <TerminalRecordView tab={activeTab} />
             )}
+            {activeTab.type === 'data-source-query' && <DataSourceQueryTab tab={activeTab} />}
           </>
         )}
       </ErrorBoundary>

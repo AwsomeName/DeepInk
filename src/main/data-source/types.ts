@@ -1,0 +1,16 @@
+export type {
+  ConnectionTestResult,
+  CreateDataSourceInput,
+  DataCollection,
+  DataQuerySnapshot,
+  DataSourceAuditEvent,
+  DataSourceConfig,
+  DataSourceSecret,
+  FieldMapping,
+  GetRecordInput,
+  NormalizedRecord,
+  RunDataQueryInput,
+  SaveDataQueryInput,
+  SavedDataQuery,
+  UpdateDataSourceInput,
+} from '../../shared/data-source'

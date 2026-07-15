@@ -245,6 +245,29 @@ describe('useAgentStore', () => {
       expect(useAgentStore.getState().messages.at(-1)?.rawText).toBe('第二个会话')
     })
 
+    it('新建激活会话时镜像状态指向新会话而不是旧消息', () => {
+      useAgentStore.getState().addUserMessage('旧会话内容')
+      const id = useAgentStore.getState().createConversation()
+      const state = useAgentStore.getState()
+
+      expect(state.activeConversationId).toBe(id)
+      expect(state.messages).toBe(state.conversations[id].messages)
+      expect(state.messages).toHaveLength(1)
+      expect(state.messages[0].id).toBe('welcome')
+      expect(state.messages.some((message) => message.rawText === '旧会话内容')).toBe(false)
+    })
+
+    it('重命名活跃会话时同步标题和右侧镜像状态', () => {
+      const id = useAgentStore.getState().createConversation()
+
+      useAgentStore.getState().renameConversation(id, '知乎登录排查')
+
+      const state = useAgentStore.getState()
+      expect(state.conversations[id].title).toBe('知乎登录排查')
+      expect(state.activeConversationId).toBe(id)
+      expect(state.messages).toBe(state.conversations[id].messages)
+    })
+
     it('新建工作会话时记录 workbench-tab surface 和本地 runtime', () => {
       const id = useAgentStore.getState().createConversation({
         surface: 'workbench-tab',

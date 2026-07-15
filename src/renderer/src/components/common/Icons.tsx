@@ -97,6 +97,19 @@ export function IconGlobe(p: IconProps = defaults): React.ReactElement {
   )
 }
 
+/** 数据源 / 数据库 */
+export function IconDatabase(p: IconProps = defaults): React.ReactElement {
+  return I(
+    p,
+    <>
+      <ellipse cx="8" cy="3.5" rx="5" ry="2" stroke="currentColor" strokeWidth="1.15" />
+      <path d="M3 3.5v4c0 1.1 2.2 2 5 2s5-.9 5-2v-4" stroke="currentColor" strokeWidth="1.15" />
+      <path d="M3 7.5v4c0 1.1 2.2 2 5 2s5-.9 5-2v-4" stroke="currentColor" strokeWidth="1.15" />
+      <path d="M3 7.5c0 1.1 2.2 2 5 2s5-.9 5-2" stroke="currentColor" strokeWidth="1.15" />
+    </>,
+  )
+}
+
 /** 设置 / 齿轮 */
 export function IconSettings(p: IconProps = defaults): React.ReactElement {
   return I(

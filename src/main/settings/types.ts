@@ -13,6 +13,7 @@ export type {
   Provider,
   ApiFormat,
   AgentEngine,
+  CadBackend,
   AppSettings,
   ProviderPreset,
 } from '../../shared/settings-constants'

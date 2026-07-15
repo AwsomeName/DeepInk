@@ -3,7 +3,7 @@ import type { CclinkStore } from '../cclink/cclink-store'
 import type { CclinkIdentityService } from '../cclink/cclink-identity-service'
 import type { CclinkFileService } from '../cclink/cclink-file-service'
 import type { CclinkRealtimeService } from '../cclink/cclink-realtime-service'
-import type { CclinkFileReadRequest, CclinkFileTreeRequest } from '../../shared/ipc/cclink'
+import type { CclinkFileReadRequest, CclinkFileTreeRequest, CclinkIdentitySnapshot } from '../../shared/ipc/cclink'
 
 export function registerCclinkIpc(
   cclinkStore: CclinkStore,
@@ -14,7 +14,7 @@ export function registerCclinkIpc(
   ipcMain.handle('cclink:getState', () => cclinkStore.getState())
 
   ipcMain.handle('cclink:getIdentity', () => {
-    return identityService?.getCachedIdentity() ?? null
+    return identityService?.getIdentitySnapshot() ?? null
   })
 
   ipcMain.handle('cclink:preflightLegacyImport', () => {
@@ -24,7 +24,9 @@ export function registerCclinkIpc(
 
   ipcMain.handle('cclink:ensureIdentity', () => {
     if (!identityService) throw new Error('CCLink identity service 未初始化')
-    return identityService.ensureIdentity()
+    return identityService.ensureIdentity().then((identity) =>
+      requireIdentitySnapshot(identityService.getIdentitySnapshot(identity)),
+    )
   })
 
   ipcMain.handle('cclink:sendLegacySmsCode', () => {
@@ -34,7 +36,9 @@ export function registerCclinkIpc(
 
   ipcMain.handle('cclink:importLegacyIdentity', (_event, smsCode: string) => {
     if (!identityService) throw new Error('CCLink identity service 未初始化')
-    return identityService.importLegacyIdentity(smsCode)
+    return identityService.importLegacyIdentity(smsCode).then((identity) =>
+      requireIdentitySnapshot(identityService.getIdentitySnapshot(identity)),
+    )
   })
 
   ipcMain.handle('cclink:clearIdentity', () => {
@@ -99,4 +103,9 @@ export function registerCclinkIpc(
   ipcMain.handle('cclink:clearLocalData', () => cclinkStore.clear())
 
   ipcMain.handle('cclink:seedDemoData', () => cclinkStore.seedDemoData())
+}
+
+function requireIdentitySnapshot(snapshot: CclinkIdentitySnapshot | null): CclinkIdentitySnapshot {
+  if (!snapshot) throw new Error('CCLink identity 快照生成失败')
+  return snapshot
 }

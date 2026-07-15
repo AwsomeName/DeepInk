@@ -2,6 +2,7 @@ import { useUIStore, useTabStore } from '../../stores'
 import type { ActivityPanel } from '../../types'
 import {
   IconFiles,
+  IconDatabase,
   IconGlobe,
   IconProjects,
   IconRobot,
@@ -19,6 +20,7 @@ const MAIN_ICONS: Array<{
   { id: 'projects', Icon: IconProjects, label: '项目' },
   { id: 'files', Icon: IconFiles, label: '文件' },
   { id: 'browser', Icon: IconGlobe, label: '浏览器' },
+  { id: 'data-sources', Icon: IconDatabase, label: '数据源' },
   { id: 'terminal', Icon: IconTerminal, label: 'Terminal' },
   { id: 'operations', Icon: IconSparkle, label: '运营' },
   { id: 'production', Icon: IconTool, label: '生产' },

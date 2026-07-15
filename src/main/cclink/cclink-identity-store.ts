@@ -21,15 +21,25 @@ export class CclinkIdentityStore {
 
     try {
       const raw = readFileSync(this.filePath, 'utf-8')
-      if (safeStorage.isEncryptionAvailable()) {
+      if (!safeStorage.isEncryptionAvailable()) {
+        this.identity = null
+        this.removePersistedIdentity('safeStorage 不可用，已移除本地 CCLink identity')
+        return
+      }
+
+      try {
         const plaintext = safeStorage.decryptString(Buffer.from(raw, 'base64'))
         this.identity = JSON.parse(plaintext) as ChatccIdentity
-      } else {
-        this.identity = JSON.parse(raw) as ChatccIdentity
+      } catch (decryptError) {
+        const legacyPlaintextIdentity = parseIdentity(raw)
+        if (!legacyPlaintextIdentity) throw decryptError
+        console.warn('[CCLink] 检测到旧版明文 identity，正在迁移为加密存储')
+        await this.save(legacyPlaintextIdentity)
       }
     } catch (err) {
       console.warn('[CCLink] 加载 identity 失败:', (err as Error).message)
       this.identity = null
+      this.removePersistedIdentity('已移除无法读取的 CCLink identity')
     }
   }
 
@@ -38,18 +48,19 @@ export class CclinkIdentityStore {
   }
 
   async save(identity: ChatccIdentity): Promise<void> {
-    this.identity = identity
     if (!existsSync(this.userDataPath)) {
       mkdirSync(this.userDataPath, { recursive: true })
     }
 
-    if (safeStorage.isEncryptionAvailable()) {
-      const encrypted = safeStorage.encryptString(JSON.stringify(identity))
-      writeFileSync(this.filePath, encrypted.toString('base64'), 'utf-8')
-    } else {
-      console.warn('[CCLink] safeStorage 不可用，identity 将以明文存储')
-      writeFileSync(this.filePath, JSON.stringify(identity, null, 2), 'utf-8')
+    if (!safeStorage.isEncryptionAvailable()) {
+      this.identity = null
+      this.removePersistedIdentity('safeStorage 不可用，拒绝明文保存 CCLink identity')
+      throw new Error('系统安全存储不可用，已拒绝明文保存 CCLink identity')
     }
+
+    const encrypted = safeStorage.encryptString(JSON.stringify(identity))
+    writeFileSync(this.filePath, encrypted.toString('base64'), 'utf-8')
+    this.identity = identity
   }
 
   async clear(): Promise<void> {
@@ -59,5 +70,33 @@ export class CclinkIdentityStore {
     } catch (err) {
       console.warn('[CCLink] 清除 identity 失败:', (err as Error).message)
     }
+  }
+
+  private removePersistedIdentity(reason: string): void {
+    try {
+      if (!existsSync(this.filePath)) return
+      unlinkSync(this.filePath)
+      console.warn(`[CCLink] ${reason}`)
+    } catch (err) {
+      console.warn('[CCLink] 移除 identity 文件失败:', (err as Error).message)
+    }
+  }
+}
+
+function parseIdentity(raw: string): ChatccIdentity | null {
+  try {
+    const parsed = JSON.parse(raw) as Partial<ChatccIdentity>
+    if (
+      typeof parsed.accountUserId !== 'string'
+      || typeof parsed.clientImUserId !== 'string'
+      || typeof parsed.imUserSig !== 'string'
+      || typeof parsed.authToken !== 'string'
+      || typeof parsed.sdkAppId !== 'number'
+    ) {
+      return null
+    }
+    return parsed as ChatccIdentity
+  } catch {
+    return null
   }
 }

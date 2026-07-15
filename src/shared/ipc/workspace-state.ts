@@ -30,6 +30,26 @@ export interface WorkspaceStateSetSectionResult {
   error?: string
 }
 
+export interface WorkspaceStateDiagnostics {
+  userDataPath: string
+  stateFilePath: string
+  backupFilePath: string
+  workspaceCount: number
+  fileVersion: number
+  migration: {
+    fixedUserDataPath: string
+    legacyUserDataPath: string
+    candidates: Array<{
+      path: string
+      migrated: string[]
+      skippedExisting: string[]
+      missing: string[]
+      merged: string[]
+      errors: string[]
+    }>
+  } | null
+}
+
 export interface WorkspaceStateApiContract {
   get: (workspaceKey?: string | null, ownerKey?: string | null) => Promise<WorkspaceStateSnapshot>
   setSection: (
@@ -42,4 +62,5 @@ export interface WorkspaceStateApiContract {
     workspaceKey?: string | null,
     ownerKey?: string | null,
   ) => Promise<{ success: boolean; error?: string }>
+  diagnostics: () => Promise<WorkspaceStateDiagnostics>
 }

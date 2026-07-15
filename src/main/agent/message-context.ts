@@ -47,6 +47,18 @@ function normalizeResources(resources?: AgentSendResource[]): AgentSendResource[
       ...(resource.ref.workspaceKey !== undefined
         ? { workspaceKey: resource.ref.workspaceKey ? truncate(resource.ref.workspaceKey) : null }
         : {}),
+      ...(resource.ref.sourceId ? { sourceId: truncate(resource.ref.sourceId) } : {}),
+      ...(resource.ref.collection ? { collection: truncate(resource.ref.collection) } : {}),
+      ...(resource.ref.savedQueryId ? { savedQueryId: truncate(resource.ref.savedQueryId) } : {}),
+      ...(resource.ref.queryId ? { queryId: truncate(resource.ref.queryId) } : {}),
+      ...(resource.ref.recordId ? { recordId: truncate(resource.ref.recordId) } : {}),
+      ...(resource.ref.sourceUrl ? { sourceUrl: truncate(resource.ref.sourceUrl) } : {}),
+      ...(resource.ref.publishedAt ? { publishedAt: truncate(resource.ref.publishedAt) } : {}),
+      ...(resource.ref.collectedAt ? { collectedAt: truncate(resource.ref.collectedAt) } : {}),
+      ...(resource.ref.executedAt ? { executedAt: truncate(resource.ref.executedAt) } : {}),
+      ...(typeof resource.ref.total === 'number' ? { total: resource.ref.total } : {}),
+      ...(typeof resource.ref.returned === 'number' ? { returned: resource.ref.returned } : {}),
+      ...(typeof resource.ref.truncated === 'boolean' ? { truncated: resource.ref.truncated } : {}),
     },
   }))
 }

@@ -46,4 +46,8 @@ export function registerWorkspaceStateIpc(workspaceStateService: WorkspaceStateS
       }
     },
   )
+
+  ipcMain.handle('workspaceState:diagnostics', () => {
+    return workspaceStateService.getDiagnostics()
+  })
 }

@@ -234,6 +234,47 @@ describe('CclinkIdentityService', () => {
     expect(store.identity).toMatchObject({ authToken: 'auth-1' })
   })
 
+  it('builds a renderer-safe identity snapshot without secrets', async () => {
+    const store = new MemoryIdentityStore()
+    store.identity = {
+      accountUserId: 'account-1',
+      imUserId: 'im-1',
+      clientImUserId: 'client-1',
+      imUserSig: 'sig-secret',
+      authToken: 'auth-secret',
+      sdkAppId: 12345,
+      deviceId: 'device-1',
+      deviceName: 'Mac',
+      expiresAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: 1783526400000,
+    }
+    const tokenManager = {
+      getValidAccessToken: vi.fn().mockResolvedValue('access-token'),
+      saveUserProfile: vi.fn(),
+      getUserProfile: vi.fn().mockReturnValue(null),
+    } as unknown as TokenManager
+
+    const service = new CclinkIdentityService(store as any, () => tokenManager, {
+      baseUrl: 'https://example.test',
+    })
+
+    const snapshot = service.getIdentitySnapshot()
+
+    expect(snapshot).toEqual({
+      accountUserId: 'account-1',
+      imUserId: 'im-1',
+      clientImUserId: 'client-1',
+      sdkAppId: 12345,
+      deviceId: 'device-1',
+      deviceName: 'Mac',
+      expiresAt: '2026-08-01T00:00:00.000Z',
+      updatedAt: 1783526400000,
+      ready: true,
+    })
+    expect(snapshot).not.toHaveProperty('imUserSig')
+    expect(snapshot).not.toHaveProperty('authToken')
+  })
+
   it('lists paired agents from cloud and maps them to servers', async () => {
     const store = new MemoryIdentityStore()
     const tokenManager = {

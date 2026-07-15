@@ -3,6 +3,7 @@ import { useCommandStore } from '../stores/command-store'
 import { useUIStore } from '../stores/ui-store'
 import { createAgentCommands } from './commands/agent-commands'
 import { createBrowserCommands } from './commands/browser-commands'
+import { createDiagnosticsCommands } from './commands/diagnostics-commands'
 import { createFileCommands } from './commands/file-commands'
 import { createSettingsCommands } from './commands/settings-commands'
 import { createSyncCommands } from './commands/sync-commands'
@@ -32,6 +33,7 @@ export function useRegisterCommands(): void {
       ...createSyncCommands(),
       ...createAgentCommands(),
       ...createBrowserCommands(),
+      ...createDiagnosticsCommands(),
       ...createWindowCommands(),
     ])
   }, [registerCommands, toggleSidebar, toggleAgentPanel, setAgentPanelMode, resetAgentLayout])

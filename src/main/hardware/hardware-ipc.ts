@@ -10,6 +10,10 @@ export function registerHardwareIpc(hardwareService: HardwareService): void {
     hardwareService.inspectProductionPackage(workspacePath),
   )
 
+  ipcMain.handle('hardware:prepareFpcShapeContext', (_event, workspacePath: string) =>
+    hardwareService.prepareFpcShapeContext(workspacePath),
+  )
+
   ipcMain.handle(
     'hardware:readGerberLayerPreview',
     (_event, workspacePath: string, packagePath: string, entry: string) =>

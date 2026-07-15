@@ -21,10 +21,21 @@ export type ZoomMode = 'fit' | 'manual'
 export type DeviceMode = 'desktop' | 'mobile'
 
 /** API 提供商 */
-export type Provider = 'anthropic' | 'deepseek' | 'glm' | 'qwen' | 'moonshot' | 'siliconflow' | 'openai' | 'custom'
+export type Provider =
+  | 'anthropic'
+  | 'deepseek'
+  | 'glm'
+  | 'qwen'
+  | 'moonshot'
+  | 'siliconflow'
+  | 'openai'
+  | 'custom'
 
 /** API 格式 */
 export type ApiFormat = 'anthropic' | 'openai'
+
+/** CAD 转换后端 */
+export type CadBackend = 'none' | 'local-freecad' | 'managed-freecad' | 'occt-experimental'
 
 /** 提供商预设配置 */
 export interface ProviderPreset {
@@ -73,6 +84,17 @@ export interface AppSettings {
   /** Meshy API 密钥 */
   meshyApiKey: string
 
+  // ─── CAD / 结构件预览 ───
+
+  /** STEP/STP CAD 转换后端 */
+  cadBackend: CadBackend
+  /** 本机 FreeCAD/FreeCADCmd 可执行文件路径 */
+  freecadPath: string
+  /** 是否启用 CAD 转换缓存 */
+  cadCacheEnabled: boolean
+  /** CAD 转换缓存上限（MB） */
+  cadCacheLimitMb: number
+
   // ─── 编辑器设置（前瞻性：当前 MarkdownEditor 暂未消费，Tiptap 集成后启用） ───
 
   /** 编辑器字体族 */
@@ -108,14 +130,49 @@ export interface AppSettings {
 
 /** 所有提供商的预设（唯一权威来源） */
 export const PROVIDER_PRESETS: Record<Provider, ProviderPreset> = {
-  anthropic:   { label: 'Anthropic',     anthropicBaseUrl: 'https://api.anthropic.com',                       openaiBaseUrl: '',                                                   defaultModel: 'claude-sonnet-4-6' },
-  deepseek:    { label: 'DeepSeek',      anthropicBaseUrl: 'https://api.deepseek.com/anthropic',               openaiBaseUrl: 'https://api.deepseek.com',                           defaultModel: 'deepseek-chat' },
-  glm:         { label: '智谱 GLM',      anthropicBaseUrl: 'https://open.bigmodel.cn/api/anthropic',           openaiBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',               defaultModel: 'glm-4-flash' },
-  qwen:        { label: '通义千问',       anthropicBaseUrl: 'https://coding.dashscope.aliyuncs.com',            openaiBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',  defaultModel: 'qwen-plus' },
-  moonshot:    { label: 'Moonshot/Kimi', anthropicBaseUrl: 'https://api.moonshot.cn/anthropic',                openaiBaseUrl: 'https://api.moonshot.cn/v1',                         defaultModel: 'moonshot-v1-8k' },
-  siliconflow: { label: '硅基流动',       anthropicBaseUrl: 'https://api.siliconflow.cn/',                      openaiBaseUrl: 'https://api.siliconflow.cn/v1',                      defaultModel: 'deepseek-ai/DeepSeek-V3' },
-  openai:      { label: 'OpenAI',        anthropicBaseUrl: '',                                                  openaiBaseUrl: 'https://api.openai.com/v1',                          defaultModel: 'gpt-4o' },
-  custom:      { label: '自定义',         anthropicBaseUrl: '',                                                  openaiBaseUrl: '',                                                   defaultModel: '' },
+  anthropic: {
+    label: 'Anthropic',
+    anthropicBaseUrl: 'https://api.anthropic.com',
+    openaiBaseUrl: '',
+    defaultModel: 'claude-sonnet-4-6',
+  },
+  deepseek: {
+    label: 'DeepSeek',
+    anthropicBaseUrl: 'https://api.deepseek.com/anthropic',
+    openaiBaseUrl: 'https://api.deepseek.com',
+    defaultModel: 'deepseek-chat',
+  },
+  glm: {
+    label: '智谱 GLM',
+    anthropicBaseUrl: 'https://open.bigmodel.cn/api/anthropic',
+    openaiBaseUrl: 'https://open.bigmodel.cn/api/paas/v4',
+    defaultModel: 'glm-4-flash',
+  },
+  qwen: {
+    label: '通义千问',
+    anthropicBaseUrl: 'https://coding.dashscope.aliyuncs.com',
+    openaiBaseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    defaultModel: 'qwen-plus',
+  },
+  moonshot: {
+    label: 'Moonshot/Kimi',
+    anthropicBaseUrl: 'https://api.moonshot.cn/anthropic',
+    openaiBaseUrl: 'https://api.moonshot.cn/v1',
+    defaultModel: 'moonshot-v1-8k',
+  },
+  siliconflow: {
+    label: '硅基流动',
+    anthropicBaseUrl: 'https://api.siliconflow.cn/',
+    openaiBaseUrl: 'https://api.siliconflow.cn/v1',
+    defaultModel: 'deepseek-ai/DeepSeek-V3',
+  },
+  openai: {
+    label: 'OpenAI',
+    anthropicBaseUrl: '',
+    openaiBaseUrl: 'https://api.openai.com/v1',
+    defaultModel: 'gpt-4o',
+  },
+  custom: { label: '自定义', anthropicBaseUrl: '', openaiBaseUrl: '', defaultModel: '' },
 }
 
 /** 默认设置值（唯一权威来源） */
@@ -136,6 +193,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   // Meshy
   meshyApiKey: '',
+
+  // CAD / 结构件预览
+  cadBackend: 'none',
+  freecadPath: '',
+  cadCacheEnabled: true,
+  cadCacheLimitMb: 1024,
 
   // 编辑器
   editorFontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif',

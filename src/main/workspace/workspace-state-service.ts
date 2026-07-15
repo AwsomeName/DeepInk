@@ -1,8 +1,12 @@
 import { app } from 'electron'
 import { createHash } from 'crypto'
-import { mkdir, readFile, writeFile } from 'fs/promises'
+import { copyFile, mkdir, readFile, rename, writeFile } from 'fs/promises'
 import { dirname, join } from 'path'
-import type { WorkspaceStateSnapshot } from '../../shared/ipc/workspace-state'
+import type {
+  WorkspaceStateDiagnostics,
+  WorkspaceStateSnapshot,
+} from '../../shared/ipc/workspace-state'
+import { getUserDataMigrationDiagnostics } from '../runtime/user-data-path'
 
 interface WorkspaceStateFile {
   version: number
@@ -92,24 +96,43 @@ function normalizeSnapshot(
 /** WorkspaceStateService 持有可跨重启恢复的工作台状态，逐步替代 renderer localStorage。 */
 export class WorkspaceStateService {
   private readonly stateFilePath: string
+  private readonly backupFilePath: string
+  private readonly tempFilePath: string
   private state: WorkspaceStateFile = { version: CURRENT_FILE_VERSION, workspaces: {} }
+  private saveQueue: Promise<void> = Promise.resolve()
 
   constructor() {
     this.stateFilePath = join(app.getPath('userData'), 'workspace-state.json')
+    this.backupFilePath = `${this.stateFilePath}.bak`
+    this.tempFilePath = `${this.stateFilePath}.${process.pid}.tmp`
   }
 
   async loadState(): Promise<void> {
     try {
-      const raw = await readFile(this.stateFilePath, 'utf-8')
-      const parsed = JSON.parse(raw)
-      this.state = migrateWorkspaceStateFile(parsed)
+      this.state = await this.readStateFile(this.stateFilePath)
       console.log('[WorkspaceStateService] 工作台状态已加载')
     } catch (error: unknown) {
       const isEnoent = error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
-      if (!isEnoent) {
-        console.warn('[WorkspaceStateService] 工作台状态读取失败，使用空状态:', error)
+      if (isEnoent) {
+        this.state = { version: CURRENT_FILE_VERSION, workspaces: {} }
+        return
       }
-      this.state = { version: CURRENT_FILE_VERSION, workspaces: {} }
+
+      console.warn('[WorkspaceStateService] 工作台状态读取失败，尝试读取备份:', error)
+      try {
+        this.state = await this.readStateFile(this.backupFilePath)
+        console.warn('[WorkspaceStateService] 已从备份恢复工作台状态')
+        return
+      } catch (backupError: unknown) {
+        const backupMissing =
+          backupError instanceof Error &&
+          'code' in backupError &&
+          (backupError as NodeJS.ErrnoException).code === 'ENOENT'
+        if (!backupMissing) {
+          console.warn('[WorkspaceStateService] 工作台状态备份读取失败，使用空状态:', backupError)
+        }
+        this.state = { version: CURRENT_FILE_VERSION, workspaces: {} }
+      }
     }
   }
 
@@ -157,8 +180,39 @@ export class WorkspaceStateService {
     await this.saveState()
   }
 
+  getDiagnostics(): WorkspaceStateDiagnostics {
+    return {
+      userDataPath: app.getPath('userData'),
+      stateFilePath: this.stateFilePath,
+      backupFilePath: this.backupFilePath,
+      workspaceCount: Object.keys(this.state.workspaces).length,
+      fileVersion: this.state.version,
+      migration: getUserDataMigrationDiagnostics(),
+    }
+  }
+
   private async saveState(): Promise<void> {
+    this.saveQueue = this.saveQueue
+      .catch(() => {})
+      .then(() => this.writeStateFile())
+    await this.saveQueue
+  }
+
+  private async readStateFile(filePath: string): Promise<WorkspaceStateFile> {
+    const raw = await readFile(filePath, 'utf-8')
+    return migrateWorkspaceStateFile(JSON.parse(raw))
+  }
+
+  private async writeStateFile(): Promise<void> {
     await mkdir(dirname(this.stateFilePath), { recursive: true })
-    await writeFile(this.stateFilePath, JSON.stringify(this.state, null, 2), 'utf-8')
+    await writeFile(this.tempFilePath, JSON.stringify(this.state, null, 2), 'utf-8')
+    await copyFile(this.stateFilePath, this.backupFilePath).catch((error: unknown) => {
+      const isEnoent =
+        error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code === 'ENOENT'
+      if (!isEnoent) throw error
+    })
+    await rename(this.tempFilePath, this.stateFilePath)
   }
 }

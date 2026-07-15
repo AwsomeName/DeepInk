@@ -83,6 +83,7 @@ export function LocalSessionsList({
   archiveConversation,
   restoreArchivedConversation,
   deleteConversation,
+  renameConversation,
   tabs,
   openTab,
   closeTab,
@@ -97,6 +98,7 @@ export function LocalSessionsList({
     typeof useAgentStore.getState
   >['restoreArchivedConversation']
   deleteConversation: ReturnType<typeof useAgentStore.getState>['deleteConversation']
+  renameConversation: ReturnType<typeof useAgentStore.getState>['renameConversation']
   tabs: ReturnType<typeof useTabStore.getState>['tabs']
   openTab: ReturnType<typeof useTabStore.getState>['openTab']
   closeTab: ReturnType<typeof useTabStore.getState>['closeTab']
@@ -213,6 +215,11 @@ export function LocalSessionsList({
                 conversations={filteredSessionGroups.current}
                 activeConversationId={activeConversationId}
                 onOpen={openWorkConversation}
+                onRename={(conversation) => {
+                  const title = window.prompt('重命名会话', conversation.title)
+                  if (title == null) return
+                  renameConversation(conversation.id, title)
+                }}
                 onArchive={(conversationId) => {
                   archiveConversation(conversationId)
                   closeConversationTabs(tabs, closeTab, conversationId)
@@ -223,6 +230,11 @@ export function LocalSessionsList({
                 conversations={filteredSessionGroups.unbound}
                 activeConversationId={activeConversationId}
                 onOpen={openWorkConversation}
+                onRename={(conversation) => {
+                  const title = window.prompt('重命名会话', conversation.title)
+                  if (title == null) return
+                  renameConversation(conversation.id, title)
+                }}
                 onArchive={(conversationId) => {
                   archiveConversation(conversationId)
                   closeConversationTabs(tabs, closeTab, conversationId)
@@ -236,6 +248,11 @@ export function LocalSessionsList({
               conversations={showClosed ? filteredSessionGroups.closed : []}
               activeConversationId={activeConversationId}
               onOpen={openWorkConversation}
+              onRename={(conversation) => {
+                const title = window.prompt('重命名会话', conversation.title)
+                if (title == null) return
+                renameConversation(conversation.id, title)
+              }}
               onRestore={restoreArchivedConversation}
               onDelete={(conversationId) => {
                 if (window.confirm('删除后将移除这个本地会话历史，确定删除吗？')) {
@@ -263,6 +280,7 @@ function ConversationGroup({
   conversations,
   activeConversationId,
   onOpen,
+  onRename,
   onArchive,
   onRestore,
   onDelete,
@@ -275,6 +293,7 @@ function ConversationGroup({
   conversations: AgentConversationState[]
   activeConversationId: string
   onOpen: (conversation: AgentConversationState) => void
+  onRename?: (conversation: AgentConversationState) => void
   onArchive?: (conversationId: string) => void
   onRestore?: (conversationId: string) => void
   onDelete?: (conversationId: string) => void
@@ -300,6 +319,7 @@ function ConversationGroup({
           active={conversation.id === activeConversationId}
           muted={muted}
           onOpen={() => onOpen(conversation)}
+          onRename={onRename ? () => onRename(conversation) : undefined}
           onArchive={onArchive ? () => onArchive(conversation.id) : undefined}
           onRestore={onRestore ? () => onRestore(conversation.id) : undefined}
           onDelete={onDelete ? () => onDelete(conversation.id) : undefined}
@@ -314,6 +334,7 @@ function ConversationRow({
   active,
   muted,
   onOpen,
+  onRename,
   onArchive,
   onRestore,
   onDelete,
@@ -322,6 +343,7 @@ function ConversationRow({
   active: boolean
   muted: boolean
   onOpen: () => void
+  onRename?: () => void
   onArchive?: () => void
   onRestore?: () => void
   onDelete?: () => void
@@ -330,6 +352,7 @@ function ConversationRow({
   const activity = getConversationActivity(conversation)
   const preview = getConversationPreview(conversation)
   const actions: SessionSidebarAction[] = [
+    ...(onRename ? [{ label: '重命名', title: '重命名会话', onAction: onRename }] : []),
     ...(onArchive ? [{ label: '关闭', title: '关闭会话，保留历史', onAction: onArchive }] : []),
     ...(onRestore ? [{ label: '恢复', title: '恢复会话', onAction: onRestore }] : []),
     ...(onDelete

@@ -2,6 +2,7 @@ import type { ReactElement } from 'react'
 import type { AgentMountedResource, AgentMountedResourceKind } from '../../types'
 import {
   IconClose,
+  IconDatabase,
   IconFile,
   IconGlobe,
   IconMobile,
@@ -50,5 +51,12 @@ function resourceIcon(kind: AgentMountedResourceKind): ReactElement {
       return <IconMobile size={12} />
     case 'terminal':
       return <IconRobot size={12} />
+    case 'data-source':
+    case 'saved-query':
+    case 'data-query':
+    case 'data-record':
+      return <IconDatabase size={12} />
+    default:
+      return <IconFile size={12} />
   }
 }

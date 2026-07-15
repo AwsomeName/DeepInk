@@ -3,6 +3,7 @@ import {
   useAgentStore,
   useBrowserDownloadStore,
   useBrowserTaskStore,
+  useDataSourceStore,
   useEditorStore,
   useFsStore,
   useSettingsStore,
@@ -50,6 +51,7 @@ import {
   IconGlobe,
   IconFile,
   IconClipboard,
+  IconPlus,
 } from '../common/Icons'
 
 interface AgentPanelProps {
@@ -96,6 +98,10 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const browserDownloads = useBrowserDownloadStore((s) => s.downloads)
   const upsertBrowserDownload = useBrowserDownloadStore((s) => s.upsertDownload)
   const refreshBrowserDownloads = useBrowserDownloadStore((s) => s.refresh)
+  const dataSources = useDataSourceStore((s) => s.sources)
+  const savedQueriesBySourceId = useDataSourceStore((s) => s.savedQueriesBySourceId)
+  const loadDataSources = useDataSourceStore((s) => s.loadSources)
+  const loadSavedQueries = useDataSourceStore((s) => s.loadSavedQueries)
   const showToast = useToastStore((s) => s.show)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const restoredConversationIdsRef = useRef<Set<string>>(new Set())
@@ -125,6 +131,11 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   useEffect(() => {
     void refreshBrowserDownloads()
   }, [refreshBrowserDownloads])
+
+  useEffect(() => {
+    void loadDataSources()
+    void loadSavedQueries()
+  }, [loadDataSources, loadSavedQueries])
 
   useEffect(() => {
     void loadSettings()
@@ -252,6 +263,16 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     openTab({ type: 'settings', title: 'Agent 设置', icon: '⚙️', settingsSection: 'agent' })
   }, [openTab])
 
+  const handleNewConversation = useCallback(() => {
+    const conversationId = createConversation({
+      runtime: createConversationRuntimeForWorkspace(activeWorkspaceRef),
+      activate: true,
+    })
+    setResourceQuery(null)
+    setSkillQuery(null)
+    void window.deepink.agent.resetSession(conversationId)
+  }, [activeWorkspaceRef, createConversation])
+
   const handleCopyDiagnostics = useCallback(async () => {
     const conversation = useAgentStore.getState().conversations[activeConversationId] ?? null
     const currentMessages = conversation?.messages ?? messages
@@ -371,6 +392,8 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
 
   useEffect(() => {
     if (variant !== 'side') return
+    const active = conversations[activeConversationId]
+    if (active?.surface === 'assistant-panel' && !active.archivedAt) return
     if (projectSessions.active.some((session) => session.id === activeConversationId)) return
     const fallback = projectSessions.active[0]
     if (fallback) {
@@ -383,6 +406,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   }, [
     activeConversationId,
     activeWorkspaceRef,
+    conversations,
     createConversation,
     projectSessions.active,
     switchConversation,
@@ -450,6 +474,10 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const activeConversation = conversations[activeConversationId]
   const mountedResources = activeConversation?.mountedResources ?? []
   const mountedSkills = activeConversation?.mountedSkills ?? []
+  const savedQueries = useMemo(
+    () => Object.values(savedQueriesBySourceId).flat(),
+    [savedQueriesBySourceId],
+  )
   const resourceCandidates = useMemo(
     () =>
       buildResourceCandidates({
@@ -457,9 +485,11 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
         tabs,
         editorFiles,
         selectedPath,
+        dataSources,
+        savedQueries,
         query: resourceQuery ?? '',
       }),
-    [editorFiles, resourceQuery, selectedPath, tabs],
+    [activeWorkspaceRef, dataSources, editorFiles, resourceQuery, savedQueries, selectedPath, tabs],
   )
   const skillCandidates = useMemo(() => buildSkillCandidates(skillQuery ?? ''), [skillQuery])
   const isStartConversation =
@@ -537,6 +567,35 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
 
   return (
     <div className={`agent-panel agent-panel-${variant}`}>
+      {variant === 'side' && (
+        <div className="agent-header">
+          <div className="agent-header-main">
+            <span className="agent-header-icon">
+              <IconSparkle size={14} />
+            </span>
+            <div className="agent-header-title-block">
+              <span className="agent-header-title" title={activeConversation?.title ?? '新会话'}>
+                {activeConversation?.title ?? '新会话'}
+              </span>
+              <span className="agent-header-subtitle">
+                {workspaceName}
+                <em>{activeConversationId.slice(0, 12)}</em>
+              </span>
+            </div>
+          </div>
+          <div className="agent-header-actions">
+            <button
+              type="button"
+              className="agent-header-btn"
+              onClick={handleNewConversation}
+              title="新建右侧 Agent 会话"
+            >
+              <IconPlus size={13} />
+              新建
+            </button>
+          </div>
+        </div>
+      )}
       <div className="agent-conversation-main">
         <div className="agent-resource-diagnostic-row">
           <MountedResourceBar resources={mountedResources} onRemove={handleRemoveMountedResource} />

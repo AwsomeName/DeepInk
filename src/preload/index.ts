@@ -2,6 +2,13 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { AgentSendMessageInput } from '../shared/ipc/agent'
 import type { CclinkFileReadRequest, CclinkFileTreeRequest } from '../shared/ipc/cclink'
 import type {
+  CreateDataSourceInput,
+  GetRecordInput,
+  RunDataQueryInput,
+  SaveDataQueryInput,
+  UpdateDataSourceInput,
+} from '../shared/ipc/data-source'
+import type {
   RemoteAgentMessageRequest,
   RemoteFileCreateRequest,
   RemoteFileDeleteRequest,
@@ -171,8 +178,7 @@ contextBridge.exposeInMainWorld('deepink', {
     listFileTree: (request: RemoteFileTreeRequest) =>
       ipcRenderer.invoke('remote:listFileTree', request),
     readFile: (request: RemoteFileReadRequest) => ipcRenderer.invoke('remote:readFile', request),
-    writeFile: (request: RemoteFileWriteRequest) =>
-      ipcRenderer.invoke('remote:writeFile', request),
+    writeFile: (request: RemoteFileWriteRequest) => ipcRenderer.invoke('remote:writeFile', request),
     createFile: (request: RemoteFileCreateRequest) =>
       ipcRenderer.invoke('remote:createFile', request),
     renameFile: (request: RemoteFileRenameRequest) =>
@@ -377,12 +383,24 @@ contextBridge.exposeInMainWorld('deepink', {
       ipcRenderer.invoke('hardware:scanWorkspace', workspacePath),
     inspectProductionPackage: (workspacePath: string) =>
       ipcRenderer.invoke('hardware:inspectProductionPackage', workspacePath),
+    prepareFpcShapeContext: (workspacePath: string) =>
+      ipcRenderer.invoke('hardware:prepareFpcShapeContext', workspacePath),
     readGerberLayerPreview: (workspacePath: string, packagePath: string, entry: string) =>
       ipcRenderer.invoke('hardware:readGerberLayerPreview', workspacePath, packagePath, entry),
     readGerberLayerGeometry: (workspacePath: string, packagePath: string, entry: string) =>
       ipcRenderer.invoke('hardware:readGerberLayerGeometry', workspacePath, packagePath, entry),
     writeProductionReportMarkdown: (workspacePath: string) =>
       ipcRenderer.invoke('hardware:writeProductionReportMarkdown', workspacePath),
+  },
+
+  // CAD 转换：STEP/STP 可选预览后端。
+  cad: {
+    getBackendStatus: () => ipcRenderer.invoke('cad:getBackendStatus'),
+    getModelSupport: (inputPath: string) => ipcRenderer.invoke('cad:getModelSupport', inputPath),
+    inspectModel: (inputPath: string) => ipcRenderer.invoke('cad:inspectModel', inputPath),
+    getCacheStatus: () => ipcRenderer.invoke('cad:getCacheStatus'),
+    clearCache: () => ipcRenderer.invoke('cad:clearCache'),
+    convertModel: (request: unknown) => ipcRenderer.invoke('cad:convertModel', request),
   },
 
   // 对话框（文件选择、保存）
@@ -650,6 +668,22 @@ contextBridge.exposeInMainWorld('deepink', {
     },
   },
 
+  // 数据源：远程 ES/数据库资料的只读接入。Renderer 只能走白名单 IPC，不接触明文凭证。
+  dataSource: {
+    listSources: () => ipcRenderer.invoke('data-source:list'),
+    createSource: (input: CreateDataSourceInput) => ipcRenderer.invoke('data-source:create', input),
+    updateSource: (id: string, patch: UpdateDataSourceInput) =>
+      ipcRenderer.invoke('data-source:update', id, patch),
+    deleteSource: (id: string) => ipcRenderer.invoke('data-source:delete', id),
+    testConnection: (id: string) => ipcRenderer.invoke('data-source:test', id),
+    listCollections: (id: string) => ipcRenderer.invoke('data-source:list-collections', id),
+    runQuery: (input: RunDataQueryInput) => ipcRenderer.invoke('data-source:query', input),
+    getRecord: (input: GetRecordInput) => ipcRenderer.invoke('data-source:get-record', input),
+    listSavedQueries: (sourceId?: string) =>
+      ipcRenderer.invoke('data-source:list-saved-queries', sourceId),
+    saveQuery: (input: SaveDataQueryInput) => ipcRenderer.invoke('data-source:save-query', input),
+  },
+
   // Terminal 命令确认、执行事件与受限提交
   terminal: {
     onRequestCommandConfirmation: (callback: (request: any) => void) => {
@@ -708,6 +742,8 @@ contextBridge.exposeInMainWorld('deepink', {
     /** 清空指定工作区的工作台状态；空路径表示全局状态 */
     clear: (workspacePath?: string | null, ownerKey?: string | null) =>
       ipcRenderer.invoke('workspaceState:clear', workspacePath, ownerKey),
+    /** 获取工作台状态文件和 userData 迁移诊断信息 */
+    diagnostics: () => ipcRenderer.invoke('workspaceState:diagnostics'),
   },
 
   // Meshy 3D 资产生成

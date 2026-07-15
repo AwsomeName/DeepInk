@@ -18,6 +18,7 @@ export type ActivityPanel =
   | 'projects'
   | 'browser'
   | 'files'
+  | 'data-sources'
   | 'production'
   | 'terminal'
   | 'operations'
@@ -37,6 +38,8 @@ export type TabType =
   | 'hardware-gerber'
   | 'terminal'
   | 'terminal-record'
+  | 'data-source-query'
+  | 'data-source-result'
 
 export type ConversationSurface = 'assistant-panel' | 'workbench-tab'
 
@@ -54,6 +57,10 @@ export type AgentMountedResourceKind =
   | 'terminal'
   | 'artifact'
   | 'project'
+  | 'data-source'
+  | 'saved-query'
+  | 'data-query'
+  | 'data-record'
 
 /** 会话已挂载资源：M3 先作为前端会话状态，M5 再进入发送协议。 */
 export interface AgentMountedResource {
@@ -66,6 +73,18 @@ export interface AgentMountedResource {
     path?: string
     tabId?: string
     workspaceKey?: string | null
+    sourceId?: string
+    collection?: string
+    savedQueryId?: string
+    queryId?: string
+    recordId?: string
+    sourceUrl?: string
+    publishedAt?: string
+    collectedAt?: string
+    executedAt?: string
+    total?: number
+    returned?: number
+    truncated?: boolean
   }
 }
 
@@ -148,6 +167,12 @@ export interface Tab {
   terminal?: TerminalTabRef
   /** Terminal 只读历史记录 */
   terminalRecord?: TerminalSessionSnapshot
+  /** 数据源查询现场 */
+  dataSourceQuery?: {
+    sourceId: string
+    collection?: string
+    savedQueryId?: string
+  }
 }
 
 // ─── Playwright 类型 ───────────────────────────────

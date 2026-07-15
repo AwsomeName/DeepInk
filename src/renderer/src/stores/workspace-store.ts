@@ -9,10 +9,12 @@ import {
 } from '../../../shared/workspace-ref'
 import {
   getWorkspaceStateKey,
-  getWorkspaceStateOwnerKey,
   setWorkspaceStateRef,
 } from '../utils/workspace-state'
-import { hydrateRuntimeSections, persistRuntimeSections } from '../utils/workspace-runtime'
+import {
+  applyWorkspaceRuntimeTransition,
+  prepareWorkspaceRuntimeTransition,
+} from '../utils/workspace-transition'
 
 interface WorkspaceState {
   activeWorkspaceRef: WorkspaceRef
@@ -46,17 +48,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
   },
 
   switchToGlobalWorkspace: async () => {
-    const currentKey = getWorkspaceStateKey()
-    persistRuntimeSections(currentKey)
+    const ref = globalWorkspaceRef()
     set({ activating: true, error: null })
 
     try {
-      const ref = globalWorkspaceRef()
-      const snapshot = await window.deepink.workspaceState
-        .get(null, getWorkspaceStateOwnerKey())
-        .catch(() => null)
-      setWorkspaceStateRef(ref)
-      hydrateRuntimeSections(snapshot)
+      const transition = await prepareWorkspaceRuntimeTransition(ref)
+      applyWorkspaceRuntimeTransition(transition)
       set({ activeWorkspaceRef: ref, activating: false, error: null })
     } catch (error) {
       set({ activating: false, error: describeError(error) })
@@ -71,15 +68,11 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       return
     }
 
-    persistRuntimeSections(currentKey)
     set({ activating: true, error: null })
 
     try {
-      const snapshot = await window.deepink.workspaceState
-        .get(nextKey, getWorkspaceStateOwnerKey())
-        .catch(() => null)
-      setWorkspaceStateRef(ref)
-      hydrateRuntimeSections(snapshot)
+      const transition = await prepareWorkspaceRuntimeTransition(ref)
+      applyWorkspaceRuntimeTransition(transition)
       set({ activeWorkspaceRef: ref, activating: false, error: null })
     } catch (error) {
       set({ activating: false, error: describeError(error) })

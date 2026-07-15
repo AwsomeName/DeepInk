@@ -25,6 +25,8 @@ import type { WorkspaceStateService } from '../workspace/workspace-state-service
 import type { MeshyService } from '../meshy/meshy-service'
 import type { ProjectOpsService } from '../project-ops/project-ops-service'
 import type { HardwareService } from '../hardware/hardware-service'
+import type { CadConversionService } from '../cad/cad-conversion-service'
+import type { DataSourceService } from '../data-source/data-source-service'
 import type { CclinkStore } from '../cclink/cclink-store'
 import type { CclinkIdentityStore } from '../cclink/cclink-identity-store'
 import type { CclinkIdentityService } from '../cclink/cclink-identity-service'
@@ -71,6 +73,8 @@ export interface DeepInkRuntimeState {
   meshyService: MeshyService | null
   projectOpsService: ProjectOpsService | null
   hardwareService: HardwareService | null
+  cadConversionService: CadConversionService | null
+  dataSourceService: DataSourceService | null
   cclinkStore: CclinkStore | null
   cclinkIdentityStore: CclinkIdentityStore | null
   cclinkIdentityService: CclinkIdentityService | null
@@ -119,6 +123,8 @@ export function createRuntimeState(isDev: boolean): DeepInkRuntimeState {
     meshyService: null,
     projectOpsService: null,
     hardwareService: null,
+    cadConversionService: null,
+    dataSourceService: null,
     cclinkStore: null,
     cclinkIdentityStore: null,
     cclinkIdentityService: null,

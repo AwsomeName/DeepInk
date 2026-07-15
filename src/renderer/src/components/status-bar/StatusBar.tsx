@@ -19,6 +19,8 @@ const TAB_TYPE_LABEL: Record<string, string> = {
   browser: '浏览器',
   editor: '编辑器',
   preview: '预览',
+  'data-source-query': '数据源查询',
+  'data-source-result': '数据源结果',
 }
 
 export function StatusBar(): React.ReactElement {

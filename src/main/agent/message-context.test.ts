@@ -47,6 +47,48 @@ describe('buildAgentMessageWithContext', () => {
     expect(message).not.toContain('"file-20.md"')
   })
 
+  it('keeps data source resource references traceable without injecting raw records', () => {
+    const message = buildAgentMessageWithContext('基于这些素材写摘要', {
+      resources: [
+        {
+          id: 'data-query:snapshot-1',
+          kind: 'data-query',
+          label: '文章素材库 / articles-*',
+          detail: 'total 1280, returned 20, 已截断',
+          ref: {
+            type: 'data-query',
+            sourceId: 'source-1',
+            collection: 'articles-*',
+            queryId: 'snapshot-1',
+            executedAt: '2026-07-15T00:00:00.000Z',
+            total: 1280,
+            returned: 20,
+            truncated: true,
+          },
+        },
+        {
+          id: 'data-record:source-1:articles-*:doc-1',
+          kind: 'data-record',
+          label: '第一篇文章',
+          ref: {
+            type: 'data-record',
+            sourceId: 'source-1',
+            collection: 'articles-*',
+            recordId: 'doc-1',
+            sourceUrl: 'https://example.com/article',
+            publishedAt: '2026-07-14T00:00:00.000Z',
+          },
+        },
+      ],
+    })
+
+    expect(message).toContain('"sourceId": "source-1"')
+    expect(message).toContain('"queryId": "snapshot-1"')
+    expect(message).toContain('"recordId": "doc-1"')
+    expect(message).toContain('"sourceUrl": "https://example.com/article"')
+    expect(message).not.toContain('"raw"')
+  })
+
   it('injects mounted skills as execution preferences', () => {
     const message = buildAgentMessageWithContext('评审这个计划', {
       skills: [

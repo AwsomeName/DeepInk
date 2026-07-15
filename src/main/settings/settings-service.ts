@@ -20,8 +20,18 @@ const VALID_VALUES: Record<string, Set<string>> = {
   defaultZoomMode: new Set<string>(['fit', 'manual']),
   defaultDeviceMode: new Set<string>(['desktop', 'mobile']),
   agentEngine: new Set<string>(['local-claude-code']),
-  provider: new Set<string>(['anthropic', 'deepseek', 'glm', 'qwen', 'moonshot', 'siliconflow', 'openai', 'custom']),
+  provider: new Set<string>([
+    'anthropic',
+    'deepseek',
+    'glm',
+    'qwen',
+    'moonshot',
+    'siliconflow',
+    'openai',
+    'custom',
+  ]),
   apiFormat: new Set<string>(['anthropic', 'openai']),
+  cadBackend: new Set<string>(['none', 'local-freecad', 'managed-freecad', 'occt-experimental']),
 }
 
 export class SettingsService {
@@ -59,7 +69,8 @@ export class SettingsService {
       console.log('[SettingsService] 设置已加载')
     } catch (err: unknown) {
       // 文件不存在或 JSON 损坏 → 使用默认值
-      const isEnoent = err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT'
+      const isEnoent =
+        err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT'
       if (!isEnoent) {
         console.warn('[SettingsService] 设置文件读取失败，使用默认值:', err)
       }

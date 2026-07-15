@@ -1,10 +1,17 @@
 import { create } from 'zustand'
 import type { ActivityPanel } from '../types'
-import { persistWorkspaceSection } from '../utils/workspace-state'
+import { isWorkspaceStateRestoring, persistWorkspaceSection } from '../utils/workspace-state'
 
 export type AgentPanelMode = 'center' | 'right' | 'hidden'
 export type AgentPanelModeSource = 'system' | 'user'
-export type WorkContext = 'empty' | 'browser' | 'editor' | 'android' | 'preview' | 'settings'
+export type WorkContext =
+  | 'empty'
+  | 'browser'
+  | 'editor'
+  | 'android'
+  | 'preview'
+  | 'settings'
+  | 'data-source'
 
 interface UIState {
   /** 当前激活的 Activity Bar 面板 */
@@ -52,6 +59,7 @@ const VISIBLE_ACTIVITY_PANELS = new Set<ActivityPanel>([
   'projects',
   'browser',
   'files',
+  'data-sources',
   'production',
   'terminal',
   'operations',
@@ -132,6 +140,7 @@ function loadStoredUI(): Partial<
 
 function saveStoredUI(state: UIState): void {
   try {
+    if (isWorkspaceStateRestoring()) return
     if (typeof localStorage === 'undefined') return
     localStorage.setItem(
       UI_STORAGE_KEY,

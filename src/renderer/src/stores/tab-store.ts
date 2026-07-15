@@ -3,11 +3,10 @@ import type { ConversationTabRef, Tab, TabType } from '../types'
 import { useBrowserStore } from './browser-store'
 import { useEditorStore } from './editor-store'
 import { getModelFileIcon, getTabTypeForFile } from '../utils/model-files'
-import { persistWorkspaceSection } from '../utils/workspace-state'
+import { isWorkspaceStateRestoring, persistWorkspaceSection } from '../utils/workspace-state'
 
 /** 自增 ID 计数器 */
 let nextId = 1
-const TAB_STORAGE_KEY = 'deepink-workbench-tabs'
 const DEFAULT_TABS: Tab[] = []
 
 /** 生成唯一 Tab ID */
@@ -75,28 +74,17 @@ function getConversationKey(
   return null
 }
 
-function normalizePersistedTab(tab: Tab): Tab {
-  return { ...tab, dirty: false }
+function getDataSourceQueryKey(query: Tab['dataSourceQuery']): string | null {
+  if (!query) return null
+  return [
+    query.sourceId,
+    query.collection ?? '',
+    query.savedQueryId ? `saved:${query.savedQueryId}` : 'ad-hoc',
+  ].join(':')
 }
 
-function loadStoredTabs(): Pick<TabState, 'tabs' | 'activeTabId'> {
-  try {
-    if (typeof localStorage === 'undefined') return { tabs: DEFAULT_TABS, activeTabId: null }
-    const raw = localStorage.getItem(TAB_STORAGE_KEY)
-    if (!raw) return { tabs: DEFAULT_TABS, activeTabId: null }
-    const parsed = JSON.parse(raw) as { tabs?: Tab[]; activeTabId?: string | null }
-    const tabs = (parsed.tabs ?? [])
-      .filter((tab): tab is Tab => Boolean(tab?.id && tab.type && tab.title && tab.icon))
-      .map(normalizeFileTab)
-    if (tabs.length === 0) return { tabs: DEFAULT_TABS, activeTabId: null }
-    const activeTabId =
-      parsed.activeTabId && tabs.some((tab) => tab.id === parsed.activeTabId)
-        ? parsed.activeTabId
-        : tabs[0].id
-    return { tabs, activeTabId }
-  } catch {
-    return { tabs: DEFAULT_TABS, activeTabId: null }
-  }
+function normalizePersistedTab(tab: Tab): Tab {
+  return { ...tab, dirty: false }
 }
 
 function normalizeTabsSnapshot(value: unknown): Pick<TabState, 'tabs' | 'activeTabId'> | null {
@@ -116,7 +104,7 @@ function normalizeTabsSnapshot(value: unknown): Pick<TabState, 'tabs' | 'activeT
 
 function saveStoredTabs(state: TabState): void {
   try {
-    if (typeof localStorage === 'undefined') return
+    if (isWorkspaceStateRestoring()) return
     const allTabs = state.tabs.map(normalizePersistedTab)
     const projectTabs = allTabs.filter(isProjectTab)
     const projectActiveTabId =
@@ -124,19 +112,12 @@ function saveStoredTabs(state: TabState): void {
         ? state.activeTabId
         : (projectTabs[0]?.id ?? null)
 
-    localStorage.setItem(
-      TAB_STORAGE_KEY,
-      JSON.stringify({
-        tabs: allTabs,
-        activeTabId: state.activeTabId,
-      }),
-    )
     persistWorkspaceSection('tabs', {
       tabs: projectTabs,
       activeTabId: projectActiveTabId,
     })
   } catch {
-    // localStorage 可能不可用，忽略持久化失败。
+    // WorkspaceState 镜像失败不应影响当前 Tab 状态。
   }
 }
 
@@ -174,6 +155,8 @@ interface OpenTabOptions {
   terminal?: Tab['terminal']
   /** Terminal 只读历史记录 */
   terminalRecord?: Tab['terminalRecord']
+  /** 数据源查询现场 */
+  dataSourceQuery?: Tab['dataSourceQuery']
   /** 强制新建，跳过所有去重 */
   forceNew?: boolean
 }
@@ -209,11 +192,10 @@ interface TabState {
   hydrateFromWorkspaceState: (value: unknown) => void
 }
 
-const initialTabState = loadStoredTabs()
-
 export const useTabStore = create<TabState>((set, get) => ({
-  tabs: initialTabState.tabs,
-  activeTabId: initialTabState.activeTabId,
+  // 项目 Tab 由 WorkspaceState 恢复；localStorage 只作为短期镜像写入，不再作为启动种子。
+  tabs: DEFAULT_TABS,
+  activeTabId: null,
 
   openTab: ({
     type,
@@ -231,6 +213,7 @@ export const useTabStore = create<TabState>((set, get) => ({
     hardwareGerber,
     terminal,
     terminalRecord,
+    dataSourceQuery,
     forceNew,
   }) => {
     set((state) => {
@@ -308,6 +291,15 @@ export const useTabStore = create<TabState>((set, get) => ({
           if (existing) {
             return { activeTabId: existing.id }
           }
+        } else if (type === 'data-source-query' && dataSourceQuery) {
+          const targetKey = getDataSourceQueryKey(dataSourceQuery)
+          const existing = state.tabs.find(
+            (t) =>
+              t.type === 'data-source-query' && getDataSourceQueryKey(t.dataSourceQuery) === targetKey,
+          )
+          if (existing) {
+            return { activeTabId: existing.id }
+          }
         }
         // browser / 未命名 editor 不去重 → 可开多个
       }
@@ -329,6 +321,7 @@ export const useTabStore = create<TabState>((set, get) => ({
         hardwareGerber,
         terminal,
         terminalRecord,
+        dataSourceQuery,
       }
       return {
         tabs: [...state.tabs, newTab],

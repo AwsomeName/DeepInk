@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   useAgentStore,
+  useDataSourceStore,
   useEditorStore,
   useFsStore,
   useSettingsStore,
@@ -69,6 +70,10 @@ export function WorkbenchAgentConversation({
   const editorFiles = useEditorStore((state) => state.files)
   const selectedPath = useFsStore((state) => state.selectedPath)
   const activeWorkspaceRef = useWorkspaceStore((state) => state.activeWorkspaceRef)
+  const dataSources = useDataSourceStore((state) => state.sources)
+  const savedQueriesBySourceId = useDataSourceStore((state) => state.savedQueriesBySourceId)
+  const loadDataSources = useDataSourceStore((state) => state.loadSources)
+  const loadSavedQueries = useDataSourceStore((state) => state.loadSavedQueries)
   const listRef = useRef<HTMLDivElement>(null)
   const [resourceQuery, setResourceQuery] = useState<string | null>(null)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
@@ -88,10 +93,19 @@ export function WorkbenchAgentConversation({
     void loadSettings()
   }, [loadSettings])
 
+  useEffect(() => {
+    void loadDataSources()
+    void loadSavedQueries()
+  }, [loadDataSources, loadSavedQueries])
+
   const conversationInput = conversation?.input ?? ''
   const mountedResources = conversation?.mountedResources ?? []
   const mountedSkills = conversation?.mountedSkills ?? []
   const composerWorkspaceRef = conversation?.runtime.workspaceRef ?? activeWorkspaceRef
+  const savedQueries = useMemo(
+    () => Object.values(savedQueriesBySourceId).flat(),
+    [savedQueriesBySourceId],
+  )
   const conversationConfirmations = useMemo(
     () => pendingConfirmations.filter((request) => request.conversationId === conversationId),
     [conversationId, pendingConfirmations],
@@ -103,9 +117,11 @@ export function WorkbenchAgentConversation({
         tabs,
         editorFiles,
         selectedPath,
+        dataSources,
+        savedQueries,
         query: resourceQuery ?? '',
       }),
-    [composerWorkspaceRef, editorFiles, resourceQuery, selectedPath, tabs],
+    [composerWorkspaceRef, dataSources, editorFiles, resourceQuery, savedQueries, selectedPath, tabs],
   )
   const skillCandidates = useMemo(() => buildSkillCandidates(skillQuery ?? ''), [skillQuery])
   const updateMentionQueryFromInput = useCallback((text: string) => {

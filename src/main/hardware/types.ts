@@ -9,6 +9,10 @@ export type {
   GerberLayerCandidate,
   GerberLayerKind,
   GerberLayerPreview,
+  FpcShapeContext,
+  FpcShapeContextReadiness,
+  FpcShapeOutlineCandidateSummary,
+  FpcShapeOutlineContext,
   HardwareArtifact,
   HardwareArtifactType,
   HardwareProjectSummary,
@@ -16,6 +20,7 @@ export type {
   HardwareReportMarkdownResult,
   HardwareRisk,
   HardwareRiskLevel,
+  HardwareStructuralArtifact,
   HardwareTablePreview,
   ProductionPackageReport,
 } from '../../shared/ipc/hardware'

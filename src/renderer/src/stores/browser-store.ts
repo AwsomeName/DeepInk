@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import type { BrowserViewModeType, BrowserZoomModeType } from '@shared/ipc/browser'
-import { persistWorkspaceSection } from '../utils/workspace-state'
+import { isWorkspaceStateRestoring, persistWorkspaceSection } from '../utils/workspace-state'
 
 /** 设备模式：桌面 / 移动 */
 export type ViewMode = BrowserViewModeType
@@ -9,7 +9,6 @@ export type ZoomMode = BrowserZoomModeType
 
 /** 默认首页 */
 const DEFAULT_URL = 'https://www.baidu.com'
-const BROWSER_STORAGE_KEY = 'deepink-browser-state'
 
 /** 单个浏览器 Tab 的状态（每个浏览器 Tab 对应一个独立视图） */
 export interface BrowserTabState {
@@ -68,34 +67,6 @@ function defaultTab(url: string = DEFAULT_URL): BrowserTabState {
   }
 }
 
-function loadStoredBrowserTabs(): Record<string, BrowserTabState> {
-  try {
-    if (typeof localStorage === 'undefined') return { browser: defaultTab() }
-    const raw = localStorage.getItem(BROWSER_STORAGE_KEY)
-    if (!raw) return { browser: defaultTab() }
-    const parsed = JSON.parse(raw) as { tabs?: Record<string, BrowserTabState> }
-    const tabs: Record<string, BrowserTabState> = {}
-    for (const [id, tab] of Object.entries(parsed.tabs ?? {})) {
-      if (!tab?.url) continue
-      tabs[id] = {
-        url: tab.url,
-        urlInput: tab.urlInput || tab.url,
-        viewMode: tab.viewMode === 'mobile' ? 'mobile' : 'desktop',
-        zoomMode: tab.zoomMode === 'manual' ? 'manual' : 'fit',
-        zoomFactor: typeof tab.zoomFactor === 'number' ? tab.zoomFactor : 1,
-        history: Array.isArray(tab.history) && tab.history.length > 0 ? tab.history : [tab.url],
-        historyIndex: typeof tab.historyIndex === 'number'
-          ? Math.min(Math.max(tab.historyIndex, 0), Math.max((tab.history?.length ?? 1) - 1, 0))
-          : 0,
-        ready: false,
-      }
-    }
-    return Object.keys(tabs).length > 0 ? tabs : { browser: defaultTab() }
-  } catch {
-    return { browser: defaultTab() }
-  }
-}
-
 function normalizeBrowserTabsSnapshot(value: unknown): Record<string, BrowserTabState> | null {
   if (!value || typeof value !== 'object') return null
   const parsed = value as { tabs?: Record<string, BrowserTabState> }
@@ -122,21 +93,20 @@ function normalizeBrowserTabsSnapshot(value: unknown): Record<string, BrowserTab
 
 function saveStoredBrowserTabs(state: BrowserState): void {
   try {
-    if (typeof localStorage === 'undefined') return
+    if (isWorkspaceStateRestoring()) return
     const tabs: Record<string, BrowserTabState> = {}
     for (const [id, tab] of Object.entries(state.tabs)) {
       tabs[id] = { ...tab, ready: false }
     }
-    localStorage.setItem(BROWSER_STORAGE_KEY, JSON.stringify({ tabs }))
     persistWorkspaceSection('browserTabs', { tabs })
   } catch {
-    // localStorage 可能不可用，忽略持久化失败。
+    // WorkspaceState 镜像失败不应影响当前浏览器状态。
   }
 }
 
 export const useBrowserStore = create<BrowserState>((set, get) => ({
-  // 种子浏览器 Tab（与 tab-store 的种子 'browser' 对应）
-  tabs: loadStoredBrowserTabs(),
+  // 项目相关浏览器状态以 main process WorkspaceState 为权威，避免全局 localStorage 串项目。
+  tabs: {},
 
   ensureTab: (tabId, initialUrl) => {
     const existing = get().tabs[tabId]

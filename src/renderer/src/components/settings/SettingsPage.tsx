@@ -32,12 +32,22 @@ import {
 import { SubscriptionSettings } from '../subscription/SubscriptionSettings'
 import { Toggle } from '../common/Toggle'
 import { CclinkPanel } from '../cclink/CclinkPanel'
-import type { SyncPhase, SyncResult } from '@shared/ipc/sync'
+import type { SyncResult } from '@shared/ipc/sync'
 import { SYNC_PHASE_LABEL } from '../../constants/sync-labels'
 import { DEFAULT_SETTINGS } from '@shared/ipc/settings'
 import type { AppSettings, ClaudeCodeStatus } from '@shared/ipc/settings'
+import type { CadBackendStatus, CadCacheStatus } from '@shared/ipc/cad'
 import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
-import type { TerminalAuditEvent, TerminalAuditEventKind, TerminalPermissionRisk } from '@shared/terminal'
+import type { WorkspaceStateDiagnostics } from '@shared/ipc/workspace-state'
+import type {
+  TerminalAuditEvent,
+  TerminalAuditEventKind,
+  TerminalPermissionRisk,
+} from '@shared/terminal'
+import {
+  formatWorkspaceDiagnosticsMarkdown,
+  summarizeDiagnosticList,
+} from '../../utils/workspace-diagnostics'
 
 type AppSettingKey = Extract<keyof AppSettings, string>
 
@@ -85,6 +95,7 @@ const SETTINGS_SECTIONS = [
   { id: 'devices', label: '设备', icon: IconMobile },
   { id: 'browser', label: '浏览器', icon: IconGlobe },
   { id: 'editor', label: '编辑器', icon: IconFile },
+  { id: 'cad', label: '硬件与 CAD', icon: IconFile },
   { id: 'meshy', label: 'Meshy', icon: IconFile },
   { id: 'sync', label: '同步', icon: IconCloud },
   { id: 'subscription', label: '订阅', icon: IconCrown },
@@ -106,6 +117,12 @@ const SETTINGS_SEARCH_INDEX = [
     label: 'CCLink 身份',
     description: 'DeepInk 账号对应的远程连接 / TIM 身份',
     keywords: ['cclink', 'tim', 'remote', 'agent', '远程', '身份'],
+  },
+  {
+    sectionId: 'about',
+    label: '工作台诊断',
+    description: 'userData、workspace-state 和历史项目迁移诊断',
+    keywords: ['diagnostics', 'userdata', 'workspace-state', 'migration', '历史项目', '诊断'],
   },
   // 外观
   {
@@ -221,6 +238,28 @@ const SETTINGS_SEARCH_INDEX = [
     description: '文件树中显示以 . 开头的文件和目录',
     keywords: ['hidden', 'dotfile', 'dot', '隐藏'],
     settingKey: 'showHiddenFiles',
+  },
+  // CAD
+  {
+    sectionId: 'cad',
+    label: 'STEP/STP 支持',
+    description: '选择 CAD 转换后端，启用 STEP/STP 预览',
+    keywords: ['cad', 'step', 'stp', 'freecad', 'opencascade', '结构件', '转换'],
+    settingKey: 'cadBackend',
+  },
+  {
+    sectionId: 'cad',
+    label: 'FreeCAD 路径',
+    description: '绑定本机 FreeCADCmd / FreeCAD 可执行文件路径',
+    keywords: ['freecad', 'path', 'cad', '路径', '检测'],
+    settingKey: 'freecadPath',
+  },
+  {
+    sectionId: 'cad',
+    label: 'CAD 转换缓存',
+    description: 'STEP/STP 转换后的预览 mesh 缓存',
+    keywords: ['cad', 'cache', '缓存', 'mesh', 'step'],
+    settingKey: 'cadCacheEnabled',
   },
   // Meshy
   {
@@ -636,6 +675,7 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
             {activeSection === 'devices' && <DeviceSettings />}
             {activeSection === 'browser' && <BrowserSettings onReset={handleResetSetting} />}
             {activeSection === 'editor' && <EditorSettings onReset={handleResetSetting} />}
+            {activeSection === 'cad' && <CadSettings onReset={handleResetSetting} />}
             {activeSection === 'meshy' && <MeshySettings onReset={handleResetSetting} />}
             {activeSection === 'sync' && <SyncSettings />}
             {activeSection === 'subscription' && <SubscriptionSettings />}
@@ -658,12 +698,6 @@ function formatDateTime(value?: number | string | null): string {
 function maskPhone(phone?: string | null): string {
   if (!phone) return '手机号资料未同步'
   return phone.replace(/^(\d{3})\d{4}(\d{4})$/, '$1****$2')
-}
-
-function maskSecret(value?: string | null): string {
-  if (!value) return '未生成'
-  if (value.length <= 10) return '已生成'
-  return `${value.slice(0, 4)}••••${value.slice(-4)}`
 }
 
 function shortId(value?: string | null): string {
@@ -1050,9 +1084,7 @@ function AccountSettings({ onLogout }: { onLogout: () => Promise<void> }): React
   const displayName = loggedIn ? user?.nickname || user?.phone || 'DeepInk 用户' : '本机工作台'
   const tierLabel = subscriptionTier === 'pro' ? 'Pro' : 'Free'
   const statusLabel = subscriptionStatus === 'active' ? '有效' : '未激活'
-  const cclinkReady = Boolean(
-    identity?.clientImUserId && identity?.imUserSig && identity?.authToken,
-  )
+  const cclinkReady = Boolean(identity?.ready)
   const handleLogoutClick = async (): Promise<void> => {
     if (!logoutConfirming) {
       setLogoutConfirming(true)
@@ -1164,8 +1196,7 @@ function AccountSettings({ onLogout }: { onLogout: () => Promise<void> }): React
           />
           <AccountInfoRow label="设备名" value={identity?.deviceName ?? '—'} />
           <AccountInfoRow label="设备 ID" value={identity?.deviceId ?? '—'} muted />
-          <AccountInfoRow label="Auth Token" value={maskSecret(identity?.authToken)} muted />
-          <AccountInfoRow label="UserSig" value={maskSecret(identity?.imUserSig)} muted />
+          <AccountInfoRow label="链路凭证" value={identity?.ready ? '已配置' : '未配置'} />
           <AccountInfoRow label="更新时间" value={formatDateTime(identity?.updatedAt)} />
           <AccountInfoRow label="过期时间" value={formatDateTime(identity?.expiresAt)} />
           {cclinkError && <div className="settings-account-error">{cclinkError}</div>}
@@ -1356,7 +1387,9 @@ function AgentSettings({ onReset }: { onReset: (key: AppSettingKey) => void }): 
         <div className="settings-row">
           <div className="settings-label">
             <span>Claude Code 状态</span>
-            <span className="settings-description">模型登录、API Key 和服务商配置由本机 Claude Code 管理</span>
+            <span className="settings-description">
+              模型登录、API Key 和服务商配置由本机 Claude Code 管理
+            </span>
           </div>
           <div className="settings-value">
             {claudeStatus?.installed
@@ -1555,7 +1588,8 @@ function TerminalAuditSettings(): React.ReactElement {
     <section className="settings-account-card terminal-audit-card">
       <div className="settings-account-card-title">Terminal 审计</div>
       <div className="settings-description">
-        这里只展示 Terminal Tab 的命令确认、审批、超时、错误和退出记录；本地 Terminal 已接入本机 shell，远程 Terminal 走对应远程执行通道。
+        这里只展示 Terminal Tab 的命令确认、审批、超时、错误和退出记录；本地 Terminal 已接入本机
+        shell，远程 Terminal 走对应远程执行通道。
       </div>
 
       <div className="terminal-audit-actions">
@@ -1589,9 +1623,7 @@ function TerminalAuditSettings(): React.ReactElement {
               <span className="terminal-audit-kind">
                 {TERMINAL_SESSION_STATUS_LABEL[session.status]}
               </span>
-              <span className="terminal-audit-time">
-                {formatTerminalSessionUpdatedAt(session)}
-              </span>
+              <span className="terminal-audit-time">{formatTerminalSessionUpdatedAt(session)}</span>
             </div>
             <div className="terminal-audit-command">{session.sessionId}</div>
             <div className="terminal-audit-meta">{formatTerminalSessionRuntime(session)}</div>
@@ -1606,17 +1638,21 @@ function TerminalAuditSettings(): React.ReactElement {
       </div>
 
       <div className="terminal-audit-list">
-        {loading && events.length === 0 && <div className="terminal-audit-empty">正在加载审计记录…</div>}
-        {!loading && events.length === 0 && <div className="terminal-audit-empty">暂无 Terminal 审计记录</div>}
+        {loading && events.length === 0 && (
+          <div className="terminal-audit-empty">正在加载审计记录…</div>
+        )}
+        {!loading && events.length === 0 && (
+          <div className="terminal-audit-empty">暂无 Terminal 审计记录</div>
+        )}
         {events.map((event) => {
           const meta = getTerminalAuditMeta(event)
           return (
             <div key={event.id} className={`terminal-audit-item kind-${event.kind}`}>
               <div className="terminal-audit-item-head">
-                <span className="terminal-audit-kind">
-                  {TERMINAL_AUDIT_KIND_LABEL[event.kind]}
+                <span className="terminal-audit-kind">{TERMINAL_AUDIT_KIND_LABEL[event.kind]}</span>
+                <span className="terminal-audit-time">
+                  {formatTerminalAuditTime(event.timestamp)}
                 </span>
-                <span className="terminal-audit-time">{formatTerminalAuditTime(event.timestamp)}</span>
               </div>
               <div className="terminal-audit-command">{getTerminalAuditSummary(event)}</div>
               {meta && <div className="terminal-audit-meta">{meta}</div>}
@@ -1797,6 +1833,266 @@ function EditorSettings({
             onChange={(v) => updateSettings({ showHiddenFiles: v })}
           />
         </SettingsRow>
+      </div>
+    </div>
+  )
+}
+
+function cadBackendLabel(status: CadBackendStatus | null): string {
+  if (!status) return '尚未检测'
+  if (status.available) {
+    return `已就绪：${status.version ? `${status.version} · ` : ''}${status.path ?? '已配置'}`
+  }
+  return status.error?.message ?? '不可用'
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  const kb = bytes / 1024
+  if (kb < 1024) return `${kb.toFixed(1)} KB`
+  const mb = kb / 1024
+  if (mb < 1024) return `${mb.toFixed(1)} MB`
+  return `${(mb / 1024).toFixed(1)} GB`
+}
+
+/** 硬件与 CAD 设置 */
+function CadSettings({ onReset }: { onReset: (key: AppSettingKey) => void }): React.ReactElement {
+  const settings = useSettingsStore((s) => s.settings)
+  const updateSettings = useSettingsStore((s) => s.updateSettings)
+  const error = useSettingsStore((s) => s.error)
+  const clearError = useSettingsStore((s) => s.clearError)
+  const [status, setStatus] = useState<CadBackendStatus | null>(null)
+  const [cacheStatus, setCacheStatus] = useState<CadCacheStatus | null>(null)
+  const [detecting, setDetecting] = useState(false)
+  const [clearingCache, setClearingCache] = useState(false)
+
+  const refreshCadStatus = useCallback(async (): Promise<void> => {
+    setDetecting(true)
+    try {
+      const cadApi = window.deepink.cad
+      if (!cadApi?.getBackendStatus) {
+        setStatus({
+          kind: 'none',
+          available: false,
+          source: 'disabled',
+          error: {
+            code: 'backend-not-configured',
+            message: 'CAD 配置接口尚未加载，请重启 DeepInk。',
+            retryable: true,
+          },
+        })
+        setCacheStatus(null)
+        return
+      }
+      const [backend, cache] = await Promise.all([
+        cadApi.getBackendStatus(),
+        cadApi.getCacheStatus?.() ?? Promise.resolve(null),
+      ])
+      setStatus(backend)
+      setCacheStatus(cache)
+    } finally {
+      setDetecting(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void refreshCadStatus()
+  }, [
+    refreshCadStatus,
+    settings.cadBackend,
+    settings.freecadPath,
+    settings.cadCacheEnabled,
+    settings.cadCacheLimitMb,
+  ])
+
+  const chooseFreeCadPath = async (): Promise<void> => {
+    const result = await window.deepink.dialog.showOpenDialog({
+      title: '选择 FreeCADCmd / FreeCAD 可执行文件',
+      multiSelections: false,
+      filters: [{ name: 'FreeCAD', extensions: ['*'] }],
+    })
+    const filePath = result.filePaths?.[0]
+    if (filePath) {
+      await updateSettings({ freecadPath: filePath, cadBackend: 'local-freecad' })
+    }
+  }
+
+  const clearCadCache = async (): Promise<void> => {
+    const cadApi = window.deepink.cad
+    if (!cadApi?.clearCache) return
+    setClearingCache(true)
+    try {
+      setCacheStatus(await cadApi.clearCache())
+    } finally {
+      setClearingCache(false)
+    }
+  }
+
+  return (
+    <div className="settings-section">
+      <h2>硬件与 CAD</h2>
+      <div className="settings-group">
+        <SettingsInfoCard
+          title="CAD 转换插件"
+          description="STL/3MF/GLB/FBX 已内置预览。STEP/STP 是 CAD B-Rep，需要启用可选转换后端后再生成预览 mesh。"
+        />
+
+        <SettingsRow settingKey="cadBackend" settings={settings} onReset={onReset}>
+          <div className="settings-label">
+            <span>STEP/STP 支持</span>
+            <span className="settings-description">
+              选择 CAD 转换后端；第一版优先支持本机 FreeCAD
+            </span>
+          </div>
+          <select
+            className="settings-select"
+            value={settings.cadBackend}
+            onChange={(event) =>
+              updateSettings({
+                cadBackend: event.target.value as AppSettings['cadBackend'],
+              })
+            }
+          >
+            <option value="none">关闭</option>
+            <option value="local-freecad">使用本机 FreeCAD</option>
+            <option value="managed-freecad">下载托管转换器（规划中）</option>
+            <option value="occt-experimental">OpenCascade 实验后端（规划中）</option>
+          </select>
+        </SettingsRow>
+
+        <SettingsRow settingKey="freecadPath" settings={settings} onReset={onReset}>
+          <div className="settings-label">
+            <span>FreeCAD 路径</span>
+            <span className="settings-description">
+              Finder 启动时可能没有 shell PATH，可手动选择 FreeCADCmd 或 FreeCAD
+            </span>
+          </div>
+          <div className="settings-input-group">
+            <input
+              type="text"
+              className="settings-input settings-input-wide"
+              value={settings.freecadPath}
+              onChange={(event) => updateSettings({ freecadPath: event.target.value })}
+              placeholder="/Applications/FreeCAD.app/Contents/MacOS/FreeCADCmd"
+            />
+            <button className="settings-format-btn" onClick={() => void chooseFreeCadPath()}>
+              选择
+            </button>
+            <button
+              className="settings-format-btn"
+              onClick={() => void refreshCadStatus()}
+              disabled={detecting}
+            >
+              {detecting ? '检测中...' : '检测'}
+            </button>
+          </div>
+        </SettingsRow>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <span>CAD 后端状态</span>
+            <span className="settings-description">
+              转换失败会保留结构化错误，STEP 文件不会被静默当作普通文本打开
+            </span>
+          </div>
+          <div className="settings-value">{cadBackendLabel(status)}</div>
+        </div>
+
+        {status?.path && (
+          <div className="settings-row">
+            <div className="settings-label">
+              <span>当前后端路径</span>
+              <span className="settings-description">
+                由配置路径、常见路径或 shell PATH 检测得到
+              </span>
+            </div>
+            <div className="settings-value">{status.path}</div>
+          </div>
+        )}
+
+        <SettingsRow settingKey="cadCacheEnabled" settings={settings} onReset={onReset}>
+          <div className="settings-label">
+            <span>转换缓存</span>
+            <span className="settings-description">
+              缓存 STEP/STP 转换后的预览文件，避免重复转换
+            </span>
+          </div>
+          <Toggle
+            checked={settings.cadCacheEnabled}
+            onChange={(value) => updateSettings({ cadCacheEnabled: value })}
+          />
+        </SettingsRow>
+
+        <SettingsRow settingKey="cadCacheLimitMb" settings={settings} onReset={onReset}>
+          <div className="settings-label">
+            <span>缓存上限 (MB)</span>
+            <span className="settings-description">
+              第一版先记录配置，清理策略在托管运行时阶段补齐
+            </span>
+          </div>
+          <input
+            type="number"
+            className="settings-input"
+            min={128}
+            max={8192}
+            step={128}
+            value={settings.cadCacheLimitMb}
+            onChange={(event) => {
+              const value = Number(event.target.value)
+              if (!Number.isNaN(value) && value >= 128) {
+                updateSettings({ cadCacheLimitMb: value })
+              }
+            }}
+          />
+        </SettingsRow>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <span>缓存状态</span>
+            <span className="settings-description">
+              转换文件会写入本地 userData/cad-cache，可在排查预览问题时清理
+            </span>
+          </div>
+          <div className="settings-input-group">
+            <div className="settings-value">
+              {cacheStatus
+                ? `${cacheStatus.entryCount} 项 · ${formatBytes(cacheStatus.bytes)} / ${cacheStatus.limitMb} MB`
+                : '尚未读取'}
+            </div>
+            <button
+              className="settings-format-btn"
+              onClick={() => void clearCadCache()}
+              disabled={clearingCache || !cacheStatus || cacheStatus.bytes === 0}
+            >
+              {clearingCache ? '清理中...' : '清理缓存'}
+            </button>
+          </div>
+        </div>
+
+        {cacheStatus?.cachePath && (
+          <div className="settings-row">
+            <div className="settings-label">
+              <span>缓存目录</span>
+              <span className="settings-description">转换失败时可用来定位 FreeCAD 输出</span>
+            </div>
+            <div className="settings-value">{cacheStatus.cachePath}</div>
+          </div>
+        )}
+
+        {status?.error && (
+          <div className="settings-error">
+            {status.error.message}
+            {status.error.detail ? `：${status.error.detail}` : ''}
+          </div>
+        )}
+        {error && (
+          <div className="settings-error">
+            {error}
+            <button className="settings-error-dismiss" onClick={clearError}>
+              关闭
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
@@ -2320,6 +2616,38 @@ function ShortcutsSettings(): React.ReactElement {
 
 /** 关于 */
 function AboutSettings(): React.ReactElement {
+  const [diagnostics, setDiagnostics] = useState<WorkspaceStateDiagnostics | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
+
+  const loadDiagnostics = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      setDiagnostics(await window.deepink.workspaceState.diagnostics())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载工作台诊断失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    void loadDiagnostics()
+  }, [loadDiagnostics])
+
+  const copyDiagnostics = useCallback(async () => {
+    if (!diagnostics) return
+    try {
+      await navigator.clipboard.writeText(formatWorkspaceDiagnosticsMarkdown(diagnostics))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1200)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '复制诊断失败')
+    }
+  }, [diagnostics])
+
   return (
     <div className="settings-section">
       <h2>关于 DeepInk</h2>
@@ -2329,6 +2657,71 @@ function AboutSettings(): React.ReactElement {
           <p>下一代一站式 AI 桌面服务</p>
           <p className="settings-version">版本 0.1.0</p>
         </div>
+      </div>
+      <div className="settings-group">
+        <div className="settings-diagnostics-head">
+          <div>
+            <h3>工作台诊断</h3>
+            <p>userData / workspace-state / 历史项目迁移</p>
+          </div>
+          <div className="settings-diagnostics-actions">
+            <button className="settings-secondary-btn" onClick={loadDiagnostics} disabled={loading}>
+              {loading ? '刷新中' : '刷新'}
+            </button>
+            <button
+              className="settings-secondary-btn"
+              onClick={copyDiagnostics}
+              disabled={!diagnostics || loading}
+            >
+              {copied ? '已复制' : '复制诊断'}
+            </button>
+          </div>
+        </div>
+        {error && <div className="settings-inline-error">{error}</div>}
+        {diagnostics && (
+          <div className="settings-diagnostics">
+            <div className="settings-diagnostic-grid">
+              <span>userData</span>
+              <code>{diagnostics.userDataPath}</code>
+              <span>workspace-state</span>
+              <code>{diagnostics.stateFilePath}</code>
+              <span>backup</span>
+              <code>{diagnostics.backupFilePath}</code>
+              <span>工作区数量</span>
+              <strong>{diagnostics.workspaceCount}</strong>
+              <span>文件版本</span>
+              <strong>{diagnostics.fileVersion}</strong>
+            </div>
+            <div className="settings-diagnostic-migration">
+              <div className="settings-diagnostic-subtitle">迁移候选</div>
+              {!diagnostics.migration ? (
+                <div className="settings-diagnostic-empty">无迁移诊断记录</div>
+              ) : (
+                diagnostics.migration.candidates.map((candidate) => (
+                  <details key={candidate.path} className="settings-diagnostic-candidate">
+                    <summary>
+                      <code>{candidate.path}</code>
+                      <span>
+                        迁移 {candidate.migrated.length} · 合并 {candidate.merged.length} · 错误{' '}
+                        {candidate.errors.length}
+                      </span>
+                    </summary>
+                    <div className="settings-diagnostic-candidate-body">
+                      <span>migrated</span>
+                      <code>{summarizeDiagnosticList(candidate.migrated)}</code>
+                      <span>merged</span>
+                      <code>{summarizeDiagnosticList(candidate.merged)}</code>
+                      <span>skipped</span>
+                      <code>{summarizeDiagnosticList(candidate.skippedExisting)}</code>
+                      <span>errors</span>
+                      <code>{summarizeDiagnosticList(candidate.errors)}</code>
+                    </div>
+                  </details>
+                ))
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

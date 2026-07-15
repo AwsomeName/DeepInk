@@ -3,7 +3,11 @@ import { useAgentStore } from '../stores/agent-store'
 import { useBrowserStore } from '../stores/browser-store'
 import { useEditorStore } from '../stores/editor-store'
 import { useTabStore } from '../stores/tab-store'
-import { persistWorkspaceSection } from './workspace-state'
+import {
+  beginWorkspaceStateRestore,
+  endWorkspaceStateRestore,
+  persistWorkspaceSection,
+} from './workspace-state'
 
 function isWorkspaceTab(tab: ReturnType<typeof useTabStore.getState>['tabs'][number]): boolean {
   return tab.type !== 'settings'
@@ -11,14 +15,19 @@ function isWorkspaceTab(tab: ReturnType<typeof useTabStore.getState>['tabs'][num
 
 export function hydrateRuntimeSections(snapshot: WorkspaceStateSnapshot | null): void {
   const sections = snapshot?.sections ?? {}
-  useBrowserStore.getState().hydrateFromWorkspaceState(sections.browserTabs ?? { tabs: {} })
-  useTabStore.getState().hydrateFromWorkspaceState(sections.tabs ?? { tabs: [], activeTabId: null })
-  useEditorStore.getState().hydrateFromWorkspaceState(sections.editorDrafts ?? { files: {} })
-  useAgentStore.getState().hydrateFromWorkspaceState(sections.agentConversations ?? {
-    conversations: {},
-    conversationOrder: [],
-    activeConversationId: null,
-  })
+  beginWorkspaceStateRestore()
+  try {
+    useBrowserStore.getState().hydrateFromWorkspaceState(sections.browserTabs ?? { tabs: {} })
+    useTabStore.getState().hydrateFromWorkspaceState(sections.tabs ?? { tabs: [], activeTabId: null })
+    useEditorStore.getState().hydrateFromWorkspaceState(sections.editorDrafts ?? { files: {} })
+    useAgentStore.getState().hydrateFromWorkspaceState(sections.agentConversations ?? {
+      conversations: {},
+      conversationOrder: [],
+      activeConversationId: null,
+    })
+  } finally {
+    endWorkspaceStateRestore()
+  }
 }
 
 export function persistRuntimeSections(workspaceKey?: string | null): void {

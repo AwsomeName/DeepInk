@@ -9,7 +9,7 @@ import {
   useTabContextMenuStore,
 } from '../../stores'
 import type { ChatccSession } from '@shared/chatcc'
-import type { TerminalAuditEvent, TerminalStatus } from '@shared/terminal'
+import type { TerminalStatus } from '@shared/terminal'
 import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
 import {
@@ -48,6 +48,7 @@ import { FileTree } from './FileTree'
 import { RemoteFileTree } from './RemoteFileTree'
 import { ProjectOperationsSection } from './ProjectOperationsSection'
 import { HardwareProductionSection } from './HardwareProductionSection'
+import { DataSourcesPanel } from '../data-sources/DataSourcesPanel'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   buildTerminalRecordTabDraft,
@@ -76,6 +77,8 @@ function getSidebarTitle(
       return '项目'
     case 'browser':
       return '浏览器'
+    case 'data-sources':
+      return '数据源'
     case 'production':
       return '生产'
     case 'terminal':
@@ -134,6 +137,7 @@ function ProjectSidebarContent({
   const archiveConversation = useAgentStore((s) => s.archiveConversation)
   const restoreArchivedConversation = useAgentStore((s) => s.restoreArchivedConversation)
   const deleteConversation = useAgentStore((s) => s.deleteConversation)
+  const renameConversation = useAgentStore((s) => s.renameConversation)
   const cclinkServers = useCclinkStore((s) => s.servers)
   const cclinkSessions = useCclinkStore((s) => s.sessions)
   const archivedCclinkSessionIds = useCclinkStore((s) => s.archivedSessionIds)
@@ -196,6 +200,8 @@ function ProjectSidebarContent({
 
       {activePanel === 'browser' && <BrowserManagementView />}
 
+      {activePanel === 'data-sources' && <DataSourcesPanel />}
+
       {activePanel === 'files' && (
         <FilesSidebarView workspaceRef={activeWorkspaceRef} workspacePath={workspacePath} />
       )}
@@ -222,6 +228,7 @@ function ProjectSidebarContent({
           archiveConversation={archiveConversation}
           restoreArchivedConversation={restoreArchivedConversation}
           deleteConversation={deleteConversation}
+          renameConversation={renameConversation}
           tabs={tabs}
           remoteSessions={activeRemoteSessions}
           archivedRemoteSessions={activeArchivedRemoteSessions}
@@ -523,20 +530,6 @@ const TERMINAL_STATUS_LABEL: Record<TerminalStatus, string> = {
   running: '运行中',
   blocked: '等待确认',
   exited: '已退出',
-  error: '异常',
-}
-
-const TERMINAL_AUDIT_LABEL: Partial<Record<TerminalAuditEvent['kind'], string>> = {
-  created: '已创建',
-  closed: '已关闭',
-  terminated: '已终止',
-  'command-submitted': '执行命令',
-  'command-approved': '命令已允许',
-  'command-denied': '命令已拒绝',
-  'command-confirmation-requested': '等待确认',
-  'command-confirmation-timeout': '确认超时',
-  output: '有输出',
-  exit: '已退出',
   error: '异常',
 }
 
@@ -855,6 +848,7 @@ function SessionsSidebarView({
   archiveConversation,
   restoreArchivedConversation,
   deleteConversation,
+  renameConversation,
   tabs,
   remoteSessions,
   archivedRemoteSessions,
@@ -874,6 +868,7 @@ function SessionsSidebarView({
     typeof useAgentStore.getState
   >['restoreArchivedConversation']
   deleteConversation: ReturnType<typeof useAgentStore.getState>['deleteConversation']
+  renameConversation: ReturnType<typeof useAgentStore.getState>['renameConversation']
   tabs: ReturnType<typeof useTabStore.getState>['tabs']
   remoteSessions: ChatccSession[]
   archivedRemoteSessions: ChatccSession[]
@@ -907,6 +902,7 @@ function SessionsSidebarView({
       archiveConversation={archiveConversation}
       restoreArchivedConversation={restoreArchivedConversation}
       deleteConversation={deleteConversation}
+      renameConversation={renameConversation}
       tabs={tabs}
       openTab={openTab}
       closeTab={closeTab}

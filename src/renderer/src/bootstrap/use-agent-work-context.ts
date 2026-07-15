@@ -8,6 +8,7 @@ function workContextFromTab(tab: Tab | undefined): WorkContext {
   if (tab.type === 'browser' || tab.type === 'editor' || tab.type === 'android' || tab.type === 'preview' || tab.type === 'settings') {
     return tab.type
   }
+  if (tab.type === 'data-source-query' || tab.type === 'data-source-result') return 'data-source'
   return 'preview'
 }
 

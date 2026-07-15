@@ -13,6 +13,12 @@ beforeEach(() => {
       },
     },
   })
+  vi.stubGlobal('localStorage', {
+    getItem: vi.fn().mockReturnValue(null),
+    setItem: vi.fn(),
+    removeItem: vi.fn(),
+    clear: vi.fn(),
+  })
   useTabStore.setState(useTabStore.getInitialState(), true)
   useBrowserStore.setState(useBrowserStore.getInitialState(), true)
   useEditorStore.setState(useEditorStore.getInitialState(), true)
@@ -88,5 +94,64 @@ describe('workspace-runtime', () => {
     expect(useTabStore.getState().activeTabId).toBe(
       useTabStore.getState().tabs.find((tab) => tab.type === 'settings')?.id,
     )
+  })
+
+  it('hydrate 期间不触发 store 订阅持久化，避免恢复中间态写回', () => {
+    const setSection = window.deepink.workspaceState.setSection as ReturnType<typeof vi.fn>
+    setSection.mockClear()
+
+    hydrateRuntimeSections({
+      version: 1,
+      workspaceId: '/workspace/restored',
+      ownerKey: null,
+      workspaceKey: '/workspace/restored',
+      workspacePath: '/workspace/restored',
+      sections: {
+        tabs: {
+          tabs: [{ id: 'browser-restored', type: 'browser', title: 'Restored', icon: '🌐' }],
+          activeTabId: 'browser-restored',
+        },
+        browserTabs: {
+          tabs: {
+            'browser-restored': {
+              url: 'https://example.com',
+              urlInput: 'https://example.com',
+              viewMode: 'desktop',
+              zoomMode: 'fit',
+              zoomFactor: 1,
+              history: ['https://example.com'],
+              historyIndex: 0,
+              ready: false,
+            },
+          },
+        },
+        editorDrafts: { files: {} },
+        agentConversations: {
+          conversations: {},
+          conversationOrder: [],
+          activeConversationId: null,
+        },
+      },
+      updatedAt: Date.now(),
+    })
+
+    expect(setSection).not.toHaveBeenCalled()
+  })
+
+  it('runtime store 只写 WorkspaceState，不再写全局 localStorage 镜像', () => {
+    const setSection = window.deepink.workspaceState.setSection as ReturnType<typeof vi.fn>
+    const setLocalStorage = localStorage.setItem as ReturnType<typeof vi.fn>
+    setSection.mockClear()
+    setLocalStorage.mockClear()
+
+    useBrowserStore.getState().ensureTab('browser-a', 'https://example.com')
+    useTabStore.getState().openTab({ type: 'browser', title: '浏览器', icon: '🌐' })
+    useEditorStore.getState().initVirtualFile('virtual:draft', 'draft')
+    useAgentStore.getState().createConversation({ activate: true })
+
+    expect(setSection.mock.calls.map((call) => call[1])).toEqual(
+      expect.arrayContaining(['browserTabs', 'tabs', 'editorDrafts', 'agentConversations']),
+    )
+    expect(setLocalStorage).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useAgentStore, useBrowserStore, useEditorStore, useFsStore, useTabStore, useUIStore } from '../stores'
-import { getWorkspaceStateOwnerKey, setWorkspaceStatePath } from '../utils/workspace-state'
+import {
+  beginWorkspaceStateRestore,
+  endWorkspaceStateRestore,
+  getWorkspaceStateOwnerKey,
+  setWorkspaceStatePath,
+} from '../utils/workspace-state'
 import { restoreWorkspaceState, type WorkspaceBootstrapDeps } from './workspace-bootstrap-core'
 
 export type { WorkspaceBootstrapDeps } from './workspace-bootstrap-core'
@@ -12,6 +17,8 @@ export function createWorkspaceBootstrapDeps(): WorkspaceBootstrapDeps {
     getWorkspaceState: (workspacePath) =>
       window.deepink.workspaceState.get(workspacePath, getWorkspaceStateOwnerKey()),
     setWorkspacePath: setWorkspaceStatePath,
+    beginRestore: beginWorkspaceStateRestore,
+    endRestore: endWorkspaceStateRestore,
     hydrateLayout: (value) => useUIStore.getState().hydrateFromWorkspaceState(value),
     hydrateBrowserTabs: (value) => useBrowserStore.getState().hydrateFromWorkspaceState(value),
     hydrateTabs: (value) => useTabStore.getState().hydrateFromWorkspaceState(value),

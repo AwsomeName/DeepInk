@@ -4,6 +4,7 @@ import { workspaceRefKey } from '../../../shared/workspace-ref'
 
 let activeWorkspaceKey: string | null = null
 let activeOwnerKey: string | null = null
+let restoreDepth = 0
 
 /** 设置后续 WorkspaceState 镜像写入的默认身份 key。 */
 export function setWorkspaceStateOwnerKey(ownerKey: string | null | undefined): void {
@@ -38,6 +39,20 @@ export function getWorkspaceStatePath(): string | null {
   return getWorkspaceStateKey()
 }
 
+/** 进入工作台状态恢复事务；事务期间 store 自动订阅不应写回持久化层。 */
+export function beginWorkspaceStateRestore(): void {
+  restoreDepth += 1
+}
+
+/** 结束工作台状态恢复事务。 */
+export function endWorkspaceStateRestore(): void {
+  restoreDepth = Math.max(0, restoreDepth - 1)
+}
+
+export function isWorkspaceStateRestoring(): boolean {
+  return restoreDepth > 0
+}
+
 /** 渐进式把 renderer 状态镜像到 main process；失败不影响 UI 当前会话。 */
 export function persistWorkspaceSection(
   section: WorkspaceStateSection,
@@ -46,6 +61,7 @@ export function persistWorkspaceSection(
   ownerKey?: string | null,
 ): void {
   try {
+    if (isWorkspaceStateRestoring()) return
     if (typeof window === 'undefined' || !window.deepink?.workspaceState) return
     void window.deepink.workspaceState
       .setSection(workspaceKey ?? activeWorkspaceKey, section, value, ownerKey ?? activeOwnerKey)

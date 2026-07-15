@@ -297,6 +297,21 @@ describe('agent conversation view model', () => {
           dirty: true,
         },
       },
+      dataSources: [
+        {
+          id: 'source-1',
+          type: 'elasticsearch',
+          scope: 'workspace',
+          name: '文章素材库',
+          endpoint: 'https://es.example.com',
+          defaultCollection: 'articles-*',
+          readOnly: true,
+          timeoutMs: 10000,
+          maxRows: 100,
+          createdAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T00:00:00.000Z',
+        },
+      ],
     })
 
     expect(candidates.map((candidate) => candidate.id)).toEqual([
@@ -307,6 +322,7 @@ describe('agent conversation view model', () => {
       'android:android-1',
       'terminal:terminal-1',
       'draft:virtual:draft-1',
+      'data-source:source-1',
     ])
     expect(candidates[0]).toMatchObject({
       kind: 'project',
@@ -317,6 +333,60 @@ describe('agent conversation view model', () => {
       kind: 'file',
       label: '选题库.md',
       source: 'selected-file',
+    })
+    expect(candidates[7]).toMatchObject({
+      kind: 'data-source',
+      label: '文章素材库',
+      source: 'data-source',
+      ref: {
+        type: 'data-source',
+        sourceId: 'source-1',
+        collection: 'articles-*',
+      },
+    })
+  })
+
+  it('builds data source candidates when filtering by @ query', () => {
+    const candidates = buildResourceCandidates({
+      activeWorkspaceRef: workspace,
+      query: '最近',
+      tabs: [],
+      dataSources: [
+        {
+          id: 'source-1',
+          type: 'elasticsearch',
+          scope: 'workspace',
+          name: '文章素材库',
+          endpoint: 'https://es.example.com',
+          defaultCollection: 'articles-*',
+          readOnly: true,
+          timeoutMs: 10000,
+          maxRows: 100,
+          createdAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T00:00:00.000Z',
+        },
+      ],
+      savedQueries: [
+        {
+          id: 'saved-1',
+          sourceId: 'source-1',
+          name: '最近文章',
+          collection: 'articles-*',
+          query: { query: { match_all: {} } },
+          createdAt: '2026-07-15T00:00:00.000Z',
+          updatedAt: '2026-07-15T00:00:00.000Z',
+        },
+      ],
+    })
+
+    expect(candidates.map((candidate) => candidate.id)).toEqual(['saved-query:saved-1'])
+    expect(candidates[0]).toMatchObject({
+      kind: 'saved-query',
+      ref: {
+        sourceId: 'source-1',
+        collection: 'articles-*',
+        savedQueryId: 'saved-1',
+      },
     })
   })
 

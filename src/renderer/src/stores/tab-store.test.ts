@@ -236,6 +236,39 @@ describe('useTabStore', () => {
       expect(useTabStore.getState().tabs).toHaveLength(2)
       expect(useTabStore.getState().activeTabId).toBe(firstId)
     })
+
+    it('数据源查询按 source、collection、Saved Query 区分去重', () => {
+      useTabStore.getState().openTab({
+        type: 'data-source-query',
+        title: '查询 articles-*',
+        icon: '🗄️',
+        dataSourceQuery: { sourceId: 'source-1', collection: 'articles-*' },
+      })
+      const adHocId = useTabStore.getState().activeTabId
+
+      useTabStore.getState().openTab({
+        type: 'data-source-query',
+        title: '查询 articles-*',
+        icon: '🗄️',
+        dataSourceQuery: { sourceId: 'source-1', collection: 'articles-*' },
+      })
+      useTabStore.getState().openTab({
+        type: 'data-source-query',
+        title: '最近文章',
+        icon: '🗄️',
+        dataSourceQuery: { sourceId: 'source-1', collection: 'articles-*', savedQueryId: 'saved-1' },
+      })
+      useTabStore.getState().openTab({
+        type: 'data-source-query',
+        title: '热门文章',
+        icon: '🗄️',
+        dataSourceQuery: { sourceId: 'source-1', collection: 'articles-*', savedQueryId: 'saved-2' },
+      })
+
+      const dataSourceTabs = useTabStore.getState().tabs.filter((tab) => tab.type === 'data-source-query')
+      expect(dataSourceTabs).toHaveLength(3)
+      expect(dataSourceTabs[0].id).toBe(adHocId)
+    })
   })
 
   describe('closeTab', () => {

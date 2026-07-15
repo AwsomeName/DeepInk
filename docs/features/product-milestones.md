@@ -1,8 +1,8 @@
 # DeepInk 产品与架构里程碑
 
 > 状态：里程碑验收稿
-> 最后更新：2026-07-14
-> 关联文档：`docs/features/product-experience-pages.md`、`docs/features/ui-entry-migration-audit.md`、`docs/features/remote-error-model.md`、`docs/features/remote-codex-workspace-plan.md`、`docs/features/founder-operations-workbench.md`、`docs/features/local-first-identity.md`、`docs/features/project-operations-assistant.md`、`docs/features/agent-diagnostic-log.md`、`docs/features/hardware-workspace.md`
+> 最后更新：2026-07-15
+> 关联文档：`docs/features/product-experience-pages.md`、`docs/features/ui-entry-migration-audit.md`、`docs/features/remote-error-model.md`、`docs/features/remote-codex-workspace-plan.md`、`docs/features/founder-operations-workbench.md`、`docs/features/local-first-identity.md`、`docs/features/project-operations-assistant.md`、`docs/features/agent-diagnostic-log.md`、`docs/features/hardware-workspace.md`、`docs/features/cad-conversion-plugins.md`、`docs/features/data-sources.md`、`docs/features/data-sources-development-plan.md`
 
 ## 结论
 
@@ -19,6 +19,8 @@ M5 远程能力闭环
 M6 Terminal 与执行权限
 M7 项目内运营助手
 M8 硬件工作区与生产助手
+M9 本机 Claude Code Agent 开源底座
+M10 数据源与远程资料接入
 ```
 
 当前判断：
@@ -32,7 +34,9 @@ M8 硬件工作区与生产助手
 - **M5 只完成 CCLink 设备发现链路**：能同步服务器不等于远程工作空间闭环完成。
 - **M6 第一版受控执行已可测，M6.1 本地 PTY 链路已打通**：Terminal 已有 Tab、权限、审计、本地 `node-pty + xterm.js`、CCLink 单命令远程执行和输出事件；远程 PTY、Direct Remote 尚未完成。
 - **M7 已实现到 M7.6 第一版，待人工验收**：项目内运营助手以“项目文档 + `deepink-accounts.json` + 文案会话 + 平台操作会话 + 发布记录 + 一键复制诊断日志”为第一版，不做独立运营平台。真实知乎/公众号测试前，还需要跑真实失败样本验收。
-- **M8 规划完成，部分底座已实现**：硬件工作区以 AI 眼镜 FPC 外形改版为核心真实需求，主线调整为“读取/渲染相关文件 → 按用户要求修改副本 → 对比检查”；生产包检查底座已实现，嘉立创报价后移为后续生产闭环。
+- **M8 规划完成，部分底座已实现**：硬件工作区以 AI 眼镜 FPC 外形改版为核心真实需求，主线调整为“读取/渲染相关文件 → 按用户要求修改副本 → 对比检查”；生产包检查底座已实现；STL/3MF 已进入内置模型预览；STEP/STP 作为可选 CAD 转换插件推进；嘉立创报价后移为后续生产闭环。
+- **M9 已完成开源底座迁移，待人工体验验收**：Agent runtime、MCP ToolHost 和本机 Claude Code 后端已回收到本仓库。
+- **M10 进入规划**：数据源作为新增内容入口，先支持 Elasticsearch 只读查询、结果 Tab、Agent 挂载和 MCP 只读工具，不做数据库管理器。
 
 ## 2026-07-14 优先级重排：先服务真实项目运营
 
@@ -53,6 +57,7 @@ M8 硬件工作区与生产助手
 | 硬件工作区与生产助手            | P0/P1    | 直接服务 AI 眼镜 FPC 外形改版；先做 Gerber/FPC 渲染、标注、低风险外形修改副本和对比检查             |
 | 本地优先身份                    | P0 前置  | 不登录也必须进入工作台并恢复本机工作现场；登录只解锁云能力                                          |
 | 平台浏览器 Profile              | P0/P1    | 平台登录态要能按项目配置复用；不做密码库和全自动登录                                                |
+| 数据源与远程资料接入            | P0/P1    | 本地写作和运营需要直接使用远程采集项目里的 ES/数据库资料；第一版只读查询并挂载给 Agent              |
 | Android 真机连接                | P2       | 只保留用户自有手机 USB / Wi-Fi 连接，不再推进模拟器或云手机                                         |
 | IM / 记忆 / 云盘 / 垂直行业集成 | P2+      | 重要但不应抢近期可用闭环                                                                            |
 
@@ -106,7 +111,7 @@ Settings：管理账号、连接、设备、诊断
 
 ### 拷问
 
-如果一个新能力无法归入这四类之一，优先怀疑产品模型，而不是立刻新增一个 Activity Bar 入口。
+如果一个新能力无法归入工作空间、Tab、Settings、右侧助手或资料内容入口，优先怀疑产品模型，而不是立刻新增一个 Activity Bar 入口。
 
 ## M0.5：本地优先身份
 
@@ -183,23 +188,24 @@ L1-L4 已实现，进入人工体验验收：
 
 ### 方案
 
-Activity Bar 收敛为：
+Activity Bar 收敛为工作内容入口和设置入口：
 
 ```text
-工作空间 / 搜索 / 浏览器 / 设置
+工作空间 / 搜索 / 浏览器 / 数据源 / 设置
 ```
 
 其中：
 
 - 工作空间承载本地/远程工作空间、文件、会话、草稿、未归档。
 - 浏览器作为网页内容库保留。
+- 数据源作为资料入口保留，用于连接远程 ES/数据库、执行只读查询、打开查询结果 Tab，并把结果挂载给 Agent。
 - 设置承载账号、同步、远程连接、Android、诊断、模型后端。
 - CCLink 不再是一级入口，只是 `设置 > 远程连接` 中的一种连接通道。
 - Android 管理不再是一级入口，Android 运行态只是一个 Tab。
 
 ### 验收标准
 
-- Activity Bar 没有 CCLink、远程 Agent、Android 管理、同步配置入口。
+- Activity Bar 没有 CCLink、远程 Agent、Android 管理、同步配置入口；数据源入口只承载查询和资料浏览，不承载敏感凭证管理。
 - Settings 左侧没有“远程 Agent”作为产品名，统一叫“远程连接”。
 - 工作空间面板只展示工作内容，不展示账号导入、配对、缓存清理。
 - Status Bar 只显示轻量状态，不变成第二个设置页。
@@ -210,7 +216,7 @@ Activity Bar 收敛为：
 
 ### 拷问
 
-如果用户说“左侧还是乱”，不要马上恢复入口，而要检查工作空间 Sidebar 内部层级、折叠策略和视觉权重。
+如果用户说“左侧还是乱”，不要马上恢复入口，而要检查工作空间 Sidebar 内部层级、折叠策略和视觉权重。数据源能成为一级入口，是因为它是资料内容入口；这不代表每个连接配置都可以升到 Activity Bar。
 
 ## M2：工作空间模型统一
 
@@ -900,10 +906,11 @@ src/main/hardware/
 2. `M8.1 Gerber 层识别与文件预览`
 3. `M8.2 FPC 外形渲染`
 4. `M8.3 关键区域识别与保护`
-5. `M8.4 用户标注与自然语言意图`
-6. `M8.5 低风险外形修改副本`
-7. `M8.6 修改前后对比与生产检查`
-8. `M8.7 源工程路径与更高风险修改`
+5. `M8.3.5 结构件约束接入`
+6. `M8.4 用户标注与自然语言意图`
+7. `M8.5 低风险外形修改副本`
+8. `M8.6 修改前后对比与生产检查`
+9. `M8.7 源工程路径与更高风险修改`
 
 详见 `docs/features/fpc-shape-change-assistant.md`。
 
@@ -948,6 +955,26 @@ src/main/hardware/
 - 能在图上标出连接器/焊盘/钻孔候选。
 - 用户能手动标记固定区域。
 - 触碰固定区域的修改会升级为高风险。
+
+### M8.3.5：结构件约束接入
+
+目标：让光机、镜腿、连接件等结构件成为 FPC 改版的机械约束来源。
+
+方案：
+
+- STL/3MF 继续作为默认内置模型预览能力。
+- STEP/STP 不默认打包转换器，而是接入 `docs/features/cad-conversion-plugins.md` 定义的可选 CAD 转换插件。
+- 第一阶段优先绑定本机 FreeCAD，后续再做托管下载和 OpenCascade 实验后端。
+- AI 使用结构件前必须确认装配坐标、对齐点或参考尺寸；没有坐标时只能作为视觉参考。
+
+验收：
+
+- 当前 AI 眼镜目录能识别 STEP、STL、3MF 结构件。
+- STL/3MF 可直接渲染。
+- STEP 未启用插件时提示需要 CAD 转换插件。
+- 配置本机 FreeCAD 后，STEP 能转换成可预览 mesh 并缓存。
+- Agent 能读取结构件预览状态和基础尺寸元数据。
+- AI 在缺少装配对齐关系时会追问，而不是直接判断干涉。
 
 ### M8.4：用户标注与自然语言意图
 
@@ -1047,15 +1074,68 @@ src/main/hardware/
 
 如果硬件能力新增顶层入口，而不是作为工作空间视图出现，DeepInk 的产品骨架会重新变乱。
 
+## M10：数据源与远程资料接入
+
+### 解决什么问题
+
+本地写作和运营项目需要使用远程数据采集项目里的资料。远程数据已经在 Elasticsearch 或数据库中，并且每天更新；如果每次都手动导出、下载或让 Agent 猜上下文，DeepInk 不能真正成为工作入口。
+
+### 方案
+
+新增数据源系统，第一版只做 Elasticsearch 只读接入：
+
+```text
+数据源 Activity
+├─ 连接列表
+├─ Index / Collection
+├─ Saved Queries
+└─ 最近查询
+
+主工作区 Tab
+├─ 查询编辑器
+├─ 结果表格
+├─ JSON 详情
+└─ 挂载给 Agent
+
+Agent
+├─ @ 挂载数据源、查询结果、单条记录
+└─ MCP 只读工具 search / get_record / run_saved_query
+```
+
+凭证不写入项目文件。项目或工作空间只保存非敏感配置、Saved Queries 和字段映射；密码、API Key、token 进入本机 safeStorage / Keychain。
+
+第一版不做写入、删除、索引管理、mapping 编辑、ES 集群监控或 ETL。详细方案见 `docs/features/data-sources.md`，开发执行按 `docs/features/data-sources-development-plan.md`。
+
+### 验收标准
+
+- Activity Bar 有数据源入口，但只承担资料浏览和查询，不承担敏感凭证管理。
+- 能新增一个 ES 只读连接，测试连接，列出 index。
+- 能打开数据源查询 Tab，执行 DSL 查询，查看表格和 JSON 详情。
+- 查询结果能保存为快照，并作为 Agent context chip 挂载。
+- Agent 能通过只读 MCP 工具搜索、读取单条记录和运行 Saved Query。
+- 首次让 Agent 读取某数据源时需要用户确认。
+- 明文凭证不会出现在工作空间文件、settings、日志、查询快照或 MCP 响应中。
+- 查询和工具响应有条数、字节数和超时限制。
+- 生成文章时能追溯到 sourceId、recordId、sourceUrl、collectedAt/publishedAt。
+
+### 当前状态
+
+规划完成，尚未实现。第一步应先做主进程 `DataSourceService`、凭证存储和 ES adapter，再接 UI。
+
+### 拷问
+
+如果这一步做成数据库管理器，就会拖慢写作闭环；如果凭证进入项目文件，就会制造安全事故。M10 的价值不是“能连数据库”，而是“远程采集资料能被本地文章和 Agent 可信地引用”。
+
 ## 推进顺序
 
 当前最合理顺序：
 
 1. **先验收 M0.5**：确认未登录工作台、本机身份、工作现场恢复没有阻塞。
-2. **并行推进 M7、M8 与 M5/M6**：M7 服务宣发运营；M8 服务 AI 眼镜硬件生产；M5/M6 服务远程项目维护。
+2. **并行推进 M7、M8、M10 与 M5/M6**：M7 服务宣发运营；M8 服务 AI 眼镜硬件生产；M10 服务远程采集数据写作；M5/M6 服务远程项目维护。
 3. **M7 先打真实任务闭环**：项目配置、Markdown 文案、浏览器 profile、提交确认、发布记录。
 4. **M8 先打 FPC 改形状闭环**：Gerber 层识别、FPC 外形渲染、图上标注、低风险外形修改副本、修改前后对比。
-5. **M5/M6 继续补远程闭环**：Direct Remote、完整 PTY、远程错误和执行体验。
+5. **M10 先打 ES 只读查询闭环**：连接、查询、结果 Tab、Agent 挂载、MCP 只读工具。
+6. **M5/M6 继续补远程闭环**：Direct Remote、完整 PTY、远程错误和执行体验。
 
 暂时不做：
 
@@ -1067,6 +1147,8 @@ src/main/hardware/
 - 不先做 Terminal 真 shell。
 - 不把 Word/PPT 做成无闭环假 Tab。
 - 不把项目运营做成独立社媒管理平台。
+- 不把数据源做成数据库管理器或 Kibana 替代品。
+- 不在第一版做数据源写入、删除、索引管理和 ETL。
 - 不把硬件工作区做成 EDA 替代品。
 - 不自动改板、自动提交订单或自动付款。
 - 不做密码库和全自动登录。
@@ -1186,7 +1268,7 @@ src/main/hardware/
 
 ### 已确认
 
-- Activity Bar 已收敛为工作空间、搜索、浏览器、设置；CCLink、Android、同步、账号相关入口迁入设置页。
+- Activity Bar 已收敛为工作空间、搜索、浏览器、设置；CCLink、Android、同步、账号相关入口迁入设置页。M10 规划新增的数据源入口属于资料内容入口，不恢复配置类入口膨胀。
 - 设置页已提供账户、远程连接、设备、同步等分组；CCLink 只作为远程连接通道配置，不再作为左侧一级工作入口。
 - 工作空间面板平铺本地和远程工作空间；远程来源通过 `workspaceRefSourceLabel` 作为标识显示，不新增“服务器”目录层。
 - 激活工作空间时，会保存当前工作空间的运行态，并恢复目标工作空间的 Tab、浏览器、草稿和工作会话快照。
@@ -1208,7 +1290,8 @@ src/main/hardware/
 
 ### M1 / M2 / M3 验收
 
-- [x] Activity Bar 只有工作空间、搜索、浏览器、设置。
+- [x] Activity Bar 已清理为工作空间、搜索、浏览器、设置，配置类入口不再堆到左侧。
+- [ ] M10 数据源入口接入后，Activity Bar 为工作空间、搜索、浏览器、数据源、设置，且数据源只承载资料浏览和只读查询。
 - [x] 设置页中能找到远程连接、同步、Android、账号相关配置。
 - [x] 工作空间面板能平铺展示本地和远程工作空间。
 - [x] 远程工作空间以 badge 展示来源，不新增“服务器”一级目录。
@@ -1284,6 +1367,12 @@ src/main/hardware/
 - [ ] Agent 能调用硬件 MCP 工具读取项目摘要和生产检查报告。
 - [ ] 能识别 Gerber 外形层、铜层和钻孔层候选。
 - [ ] 能渲染 FPC 外形预览。
+- [ ] 能识别 STEP、STL、3MF 结构件。
+- [ ] STL/3MF 能直接渲染。
+- [ ] STEP/STP 未启用插件时能提示需要 CAD 转换插件。
+- [ ] 配置本机 FreeCAD 后，STEP/STP 能转换成可预览 mesh。
+- [ ] Agent 能读取结构件预览状态和基础尺寸元数据。（已接入 CAD 后端/模型支持/缓存状态/metadata inspect MCP；真实 STEP 样本与装配对齐待验收）
+- [ ] Agent 能准备 FPC 改形状上下文包，列出外形候选、结构约束、缺失对齐问题和下一步建议。（只读上下文已接入，侧栏“改形状”入口已接入，真实项目待验收）
 - [ ] 能在图上标注修改区域和固定区域。
 - [ ] 能把自然语言改版要求转成结构化 `FpcShapeEditIntent`。
 - [ ] 能对低风险外形区域生成修改文件副本，不覆盖原文件。
@@ -1302,3 +1391,17 @@ src/main/hardware/
 - [x] 主进程支持检测常见 Claude Code 路径和 shell PATH，并允许手动配置路径。
 - [x] Claude Code 检测有确定性单测覆盖。
 - [ ] 仍需人工验收：从 Finder 启动 App 后检测 PATH、手动填写路径、真实 Claude Code 登录状态和浏览器工具调用。
+
+### M10 验收：数据源与远程资料接入
+
+- [ ] 架构和功能文档明确数据源是资料入口，不是数据库管理器。
+- [ ] 主进程有 `DataSourceService`、凭证存储、审计日志和 Elasticsearch adapter。
+- [ ] Renderer 只能通过 preload 白名单调用数据源 IPC，不能直接访问数据库凭证。
+- [ ] 能创建 ES 只读连接、测试连接、列出 index。
+- [ ] 能打开数据源查询 Tab，执行 DSL 查询并展示表格/JSON 详情。
+- [ ] 查询结果能生成快照并挂载给 Agent。
+- [ ] MCP 注册 `data_source.list_sources`、`data_source.list_collections`、`data_source.search`、`data_source.get_record`、`data_source.run_saved_query`。
+- [ ] Agent 首次读取某个数据源或 Saved Query 需要用户确认。
+- [ ] 查询结果和 MCP 响应有条数、字节数、raw 字段和超时限制。
+- [ ] 明文凭证不会出现在工作空间配置、settings、日志、查询快照和 MCP 响应中。
+- [ ] 真实 ES 全链路验收通过：连接、查询、挂载、Agent 总结、来源追溯。

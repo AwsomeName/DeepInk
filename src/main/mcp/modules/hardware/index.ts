@@ -51,6 +51,22 @@ const HARDWARE_TOOL_DEFINITIONS: ToolDefinition[] = [
     annotations: { readOnlyHint: false, destructiveHint: false },
   },
   {
+    name: 'hardware_prepare_fpc_shape_context',
+    description:
+      '准备“让 AI 带我调整 FPC 排线形状”的只读上下文包，包含外形层候选摘要、结构件预览/尺寸状态、缺失的装配对齐问题和下一步建议。不修改任何文件。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspacePath: {
+          type: 'string',
+          description: '本地硬件项目工作空间路径。',
+        },
+      },
+      required: ['workspacePath'],
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  },
+  {
     name: 'hardware_read_gerber_layer_geometry',
     description:
       '读取 Gerber zip 内指定层的几何线段，用于判断 FPC/PCB 外形、尺寸和可视化轮廓。当前支持常见线段和圆弧近似，不是完整 DRC。',
@@ -93,6 +109,8 @@ export class HardwareToolModule implements ToolModule {
         return this.hardwareService.inspectProductionPackage(workspacePath)
       case 'hardware_write_production_report':
         return this.hardwareService.writeProductionReportMarkdown(workspacePath)
+      case 'hardware_prepare_fpc_shape_context':
+        return this.hardwareService.prepareFpcShapeContext(workspacePath)
       case 'hardware_read_gerber_layer_geometry': {
         const packagePath = typeof params.packagePath === 'string' ? params.packagePath : ''
         const entry = typeof params.entry === 'string' ? params.entry : ''

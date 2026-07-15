@@ -12,19 +12,34 @@ import {
 import type {
   GerberLayerGeometry,
   GerberLayerPreview,
+  FpcShapeContext,
+  FpcShapeContextReadiness,
+  FpcShapeOutlineCandidateSummary,
+  FpcShapeOutlineContext,
   HardwareArtifact,
   HardwareArtifactType,
   HardwareProjectSummary,
   HardwareRisk,
   HardwareReportConclusion,
   HardwareReportMarkdownResult,
+  HardwareStructuralArtifact,
   ProductionPackageReport,
 } from './types'
+import type { CadInspectModelResult } from '../../shared/ipc/cad'
 
 const MAX_SCAN_FILES = 2_000
 const MAX_SCAN_DEPTH = 5
 const GERBER_PREVIEW_BYTES = 64 * 1024
 const GERBER_GEOMETRY_BYTES = 2 * 1024 * 1024
+const STRUCTURAL_MODEL_EXTENSIONS = new Set([
+  '.step',
+  '.stp',
+  '.stl',
+  '.3mf',
+  '.glb',
+  '.gltf',
+  '.fbx',
+])
 
 const ALL_ARTIFACT_TYPES: HardwareArtifactType[] = [
   'schematic',
@@ -45,6 +60,10 @@ interface FileCandidate {
   name: string
   relativePath: string
   extension: string
+}
+
+interface CadModelInspector {
+  inspectModel(inputPath: string): Promise<CadInspectModelResult>
 }
 
 function normalizeText(value: string): string {
@@ -77,10 +96,16 @@ function classifyFile(candidate: FileCandidate): {
   if (extension === '.zip' && /gerber|生产|pcb|fpc|打样/.test(path)) {
     return { type: 'gerber-package', confidence: /gerber/.test(path) ? 0.96 : 0.72 }
   }
-  if (/bom|物料|bill.?of.?materials/.test(path) && ['.csv', '.tsv', '.txt', '.xlsx', '.xls'].includes(extension)) {
+  if (
+    /bom|物料|bill.?of.?materials/.test(path) &&
+    ['.csv', '.tsv', '.txt', '.xlsx', '.xls'].includes(extension)
+  ) {
     return { type: 'bom', confidence: 0.92 }
   }
-  if (/coord|centroid|position|pick.?place|坐标|贴片坐标|位置/.test(path) && ['.csv', '.tsv', '.txt', '.xlsx', '.xls'].includes(extension)) {
+  if (
+    /coord|centroid|position|pick.?place|坐标|贴片坐标|位置/.test(path) &&
+    ['.csv', '.tsv', '.txt', '.xlsx', '.xls'].includes(extension)
+  ) {
     return { type: 'centroid', confidence: 0.92 }
   }
   if (['.kicad_pcb', '.kicad_pro', '.pcbdoc', '.schdoc'].includes(extension)) {
@@ -92,10 +117,16 @@ function classifyFile(candidate: FileCandidate): {
   if (/\.(drl|xln)$/i.test(candidate.name) || /drill|钻孔/.test(path)) {
     return { type: 'drill', confidence: 0.85 }
   }
-  if (/装配|assembly|位号图|placement/.test(path) && ['.pdf', '.png', '.jpg', '.jpeg'].includes(extension)) {
+  if (
+    /装配|assembly|位号图|placement/.test(path) &&
+    ['.pdf', '.png', '.jpg', '.jpeg'].includes(extension)
+  ) {
     return { type: 'assembly-drawing', confidence: 0.82 }
   }
-  if (['.step', '.stp', '.stl', '.dxf'].includes(extension) || /外壳|结构|enclosure|housing/.test(path)) {
+  if (
+    ['.step', '.stp', '.stl', '.dxf'].includes(extension) ||
+    /外壳|结构|enclosure|housing/.test(path)
+  ) {
     return { type: 'enclosure', confidence: 0.78 }
   }
   if (['.hex', '.bin', '.elf', '.uf2'].includes(extension) || /firmware|固件|烧录/.test(path)) {
@@ -114,7 +145,10 @@ function artifactId(type: HardwareArtifactType, relativePath: string): string {
   return `${type}:${relativePath}`
 }
 
-function pickPrimary(artifacts: HardwareArtifact[], type: HardwareArtifactType): HardwareArtifact | undefined {
+function pickPrimary(
+  artifacts: HardwareArtifact[],
+  type: HardwareArtifactType,
+): HardwareArtifact | undefined {
   return artifacts
     .filter((artifact) => artifact.type === type)
     .sort((a, b) => b.confidence - a.confidence || a.path.localeCompare(b.path))[0]
@@ -158,10 +192,47 @@ function formatTimestamp(date = new Date()): string {
   ].join('')
 }
 
+function summarizeOutlineCandidate(
+  candidate: GerberLayerGeometry['outlineCandidates'][number],
+): FpcShapeOutlineCandidateSummary {
+  return {
+    id: candidate.id,
+    role: candidate.role,
+    bounds: candidate.bounds,
+    closed: candidate.closed,
+    areaMm2: candidate.areaMm2,
+    perimeterMm: candidate.perimeterMm,
+    confidence: candidate.confidence,
+    reasons: candidate.reasons,
+  }
+}
+
+function determineFpcShapeReadiness({
+  reportBlocked,
+  hasOutline,
+  hasStructuralArtifacts,
+  hasUnavailableCad,
+}: {
+  reportBlocked: boolean
+  hasOutline: boolean
+  hasStructuralArtifacts: boolean
+  hasUnavailableCad: boolean
+}): FpcShapeContextReadiness {
+  if (reportBlocked) return 'blocked'
+  if (!hasOutline) return 'needs-outline-selection'
+  if (hasUnavailableCad) return 'needs-cad-backend'
+  if (hasStructuralArtifacts) return 'needs-structure-alignment'
+  return 'ready-for-review'
+}
+
+function uniqueStrings(values: string[]): string[] {
+  return [...new Set(values)]
+}
+
 export class HardwareService {
   private readonly allowedRoots: string[]
 
-  constructor() {
+  constructor(private readonly cadModelInspector?: CadModelInspector) {
     const home = app.getPath('home')
     this.allowedRoots = [
       home,
@@ -182,6 +253,7 @@ export class HardwareService {
     const primaryGerberPackage = pickPrimary(artifacts, 'gerber-package')
     const primaryBom = pickPrimary(artifacts, 'bom')
     const primaryCentroid = pickPrimary(artifacts, 'centroid')
+    const structuralArtifacts = await this.inspectStructuralArtifacts(artifacts)
     const sourceEditable = artifacts.some((artifact) => artifact.type === 'pcb-source')
     const hasHardwareSignals = artifacts.some((artifact) => artifact.type !== 'unknown')
     const risks: HardwareRisk[] = []
@@ -224,6 +296,7 @@ export class HardwareService {
       workspacePath: workspace,
       projectName: basename(workspace),
       artifacts,
+      structuralArtifacts,
       counts: countArtifacts(artifacts),
       hasHardwareSignals,
       sourceEditable,
@@ -327,8 +400,14 @@ export class HardwareService {
     }
 
     if (bom && centroid && !bom.unsupported && !centroid.unsupported) {
-      const missingInCentroid = refsDifference(bom.referenceDesignators, centroid.referenceDesignators)
-      const extraInCentroid = refsDifference(centroid.referenceDesignators, bom.referenceDesignators)
+      const missingInCentroid = refsDifference(
+        bom.referenceDesignators,
+        centroid.referenceDesignators,
+      )
+      const extraInCentroid = refsDifference(
+        centroid.referenceDesignators,
+        bom.referenceDesignators,
+      )
 
       if (missingInCentroid.length > 0) {
         risks.push(
@@ -379,10 +458,108 @@ export class HardwareService {
       conclusion,
       risks,
       artifacts: summary.artifacts,
+      structuralArtifacts: summary.structuralArtifacts,
       bom,
       centroid,
       gerber,
       suggestedJlcParams,
+    }
+  }
+
+  async prepareFpcShapeContext(workspacePath: string): Promise<FpcShapeContext> {
+    const report = await this.inspectProductionPackage(workspacePath)
+    const risks = [...report.risks]
+    const questions: string[] = []
+    const nextActions: string[] = []
+    let outline: FpcShapeOutlineContext | undefined
+
+    const gerberPackage =
+      report.artifacts.find((artifact) => artifact.id === report.gerber?.filePath) ??
+      report.artifacts.find((artifact) => artifact.path === report.gerber?.filePath) ??
+      report.artifacts.find((artifact) => artifact.type === 'gerber-package')
+
+    const outlineEntry = report.gerber?.layerHints.outline[0]
+    if (report.gerber?.filePath && outlineEntry) {
+      const geometry = await this.readGerberLayerGeometry(
+        report.workspacePath,
+        report.gerber.filePath,
+        outlineEntry,
+      ).catch((error) => {
+        risks.push(
+          createRisk(
+            'warning',
+            '外形层几何读取失败',
+            error instanceof Error ? error.message : '无法读取外形层几何。',
+            gerberPackage ? [gerberPackage.id] : [],
+            '人工选择或重新导出外形层后再准备 FPC 改形状上下文。',
+          ),
+        )
+        return undefined
+      })
+      if (geometry) {
+        outline = {
+          packagePath: geometry.packagePath,
+          entry: geometry.entry,
+          unit: geometry.unit,
+          bounds: geometry.bounds,
+          outlineCandidates: geometry.outlineCandidates.map(summarizeOutlineCandidate),
+          warnings: geometry.warnings,
+          truncated: geometry.truncated,
+        }
+      }
+    }
+
+    if (!report.gerber) {
+      questions.push('请先提供或选择 Gerber/FPC 生产包。')
+      nextActions.push('从 EDA 工具重新导出 Gerber zip，或在文件树中确认哪一个 zip 是 FPC 生产包。')
+    } else if (!outlineEntry) {
+      questions.push('请确认哪一层是 FPC 外形层。')
+      nextActions.push('打开 Gerber 预览，选择 Edge/Outline/Profile/机械层后再继续。')
+    } else if (!outline || outline.outlineCandidates.length === 0) {
+      questions.push('当前外形层未识别到闭合 FPC 外形，请确认外形层是否正确。')
+      nextActions.push('人工选择其它外形层，或补充 DXF/机械层文件。')
+    }
+
+    const structuralArtifacts = report.structuralArtifacts
+    if (structuralArtifacts.length === 0) {
+      questions.push('是否有光机、镜腿、连接件等结构件文件可作为避让参考？')
+      nextActions.push('如有结构件，请把 STEP/STP/STL/3MF 文件放入项目目录后重新扫描。')
+    } else {
+      const unavailable = structuralArtifacts.filter((artifact) => !artifact.canPreview)
+      if (unavailable.length > 0) {
+        questions.push('部分 STEP/STP 结构件还不能预览，是否要先启用本机 FreeCAD？')
+        nextActions.push(
+          '在设置 > 硬件与 CAD 中启用本机 FreeCAD，或先只把这些结构件作为文件名参考。',
+        )
+      }
+      const missingMetadata = structuralArtifacts.filter((artifact) => !artifact.metadata?.bounds)
+      if (missingMetadata.length > 0) {
+        questions.push('部分结构件缺少尺寸 metadata，是否先打开/转换这些模型以生成尺寸？')
+        nextActions.push('打开结构件预览；STEP/STP 需要 CAD 后端转换后才会生成 metadata。')
+      }
+      questions.push('请确认 FPC 外形坐标和结构件坐标如何对齐，或指出至少两个共同参考点。')
+      nextActions.push('在没有装配坐标/参考点前，AI 只能把结构件作为视觉参考，不能断言干涉。')
+    }
+
+    const readiness = determineFpcShapeReadiness({
+      reportBlocked: report.conclusion === 'blocked',
+      hasOutline: Boolean(outline && outline.outlineCandidates.length > 0),
+      hasStructuralArtifacts: structuralArtifacts.length > 0,
+      hasUnavailableCad: structuralArtifacts.some(
+        (artifact) => artifact.requiresBackend && !artifact.canPreview,
+      ),
+    })
+
+    return {
+      workspacePath: report.workspacePath,
+      createdAt: new Date().toISOString(),
+      readiness,
+      gerberPackage,
+      outline,
+      structuralArtifacts,
+      risks,
+      questions: uniqueStrings(questions),
+      nextActions: uniqueStrings(nextActions),
     }
   }
 
@@ -472,6 +649,74 @@ export class HardwareService {
         ...classification.metadata,
         workspace,
       },
+    }
+  }
+
+  private async inspectStructuralArtifacts(
+    artifacts: HardwareArtifact[],
+  ): Promise<HardwareStructuralArtifact[]> {
+    const structuralCandidates = artifacts.filter(
+      (artifact) =>
+        artifact.type === 'enclosure' &&
+        STRUCTURAL_MODEL_EXTENSIONS.has(String(artifact.metadata.extension ?? '').toLowerCase()),
+    )
+
+    const inspected = await Promise.all(
+      structuralCandidates.map(async (artifact) => this.inspectStructuralArtifact(artifact)),
+    )
+    return inspected.sort((a, b) => a.path.localeCompare(b.path))
+  }
+
+  private async inspectStructuralArtifact(
+    artifact: HardwareArtifact,
+  ): Promise<HardwareStructuralArtifact> {
+    const extension = String(artifact.metadata.extension ?? extname(artifact.path)).toLowerCase()
+    if (!this.cadModelInspector) {
+      const nativeMesh = ['.stl', '.3mf', '.glb', '.gltf', '.fbx'].includes(extension)
+      return {
+        artifactId: artifact.id,
+        path: artifact.path,
+        displayName: artifact.displayName,
+        extension,
+        previewMode: nativeMesh ? 'native-mesh' : 'cad-conversion',
+        canPreview: nativeMesh,
+        requiresBackend: !nativeMesh,
+        message: nativeMesh
+          ? '该模型格式可直接使用内置 3D 预览器打开。'
+          : '该 CAD 文件需要 CAD 转换服务提供 STEP/STP 预览状态。',
+        cacheHit: false,
+      }
+    }
+
+    const inspected = await this.cadModelInspector.inspectModel(artifact.path).catch(
+      (error): CadInspectModelResult => ({
+        support: {
+          inputPath: artifact.path,
+          extension,
+          mode: 'unsupported' as const,
+          canPreview: false,
+          requiresBackend: false,
+          message: error instanceof Error ? error.message : '结构件检查失败。',
+        },
+        sourceHash: undefined,
+        cacheHit: false,
+        metadata: undefined,
+        diagnostics: [],
+      }),
+    )
+
+    return {
+      artifactId: artifact.id,
+      path: artifact.path,
+      displayName: artifact.displayName,
+      extension,
+      previewMode: inspected.support.mode,
+      canPreview: inspected.support.canPreview,
+      requiresBackend: inspected.support.requiresBackend,
+      message: inspected.support.message,
+      sourceHash: inspected.sourceHash,
+      cacheHit: inspected.cacheHit,
+      metadata: inspected.metadata,
     }
   }
 
@@ -597,6 +842,26 @@ export class HardwareService {
       lines.push('')
     } else {
       lines.push('- 未生成 Gerber 结构信息。', '')
+    }
+
+    lines.push('## 结构件 / CAD 约束', '')
+    if (report.structuralArtifacts.length === 0) {
+      lines.push('- 未识别到可作为结构约束的 STEP/STP/STL/3MF/GLB/FBX 文件。', '')
+    } else {
+      for (const artifact of report.structuralArtifacts) {
+        const size = artifact.metadata?.bounds?.size
+        const sizeText = size
+          ? ` · size=${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} ${artifact.metadata?.unit ?? 'unknown'}`
+          : ''
+        const cacheText = artifact.cacheHit ? ' · metadata=缓存命中' : ''
+        lines.push(
+          `- ${artifact.previewMode} · ${rel(artifact.path)} · canPreview=${artifact.canPreview}${cacheText}${sizeText}`,
+        )
+        if (!artifact.canPreview || artifact.requiresBackend) {
+          lines.push(`  - 提示：${artifact.message}`)
+        }
+      }
+      lines.push('')
     }
 
     lines.push('## 嘉立创参数建议', '')

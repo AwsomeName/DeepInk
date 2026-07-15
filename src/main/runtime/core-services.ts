@@ -11,6 +11,10 @@ import { ProjectOpsService } from '../project-ops/project-ops-service'
 import { registerProjectOpsIpc } from '../project-ops/project-ops-ipc'
 import { HardwareService } from '../hardware/hardware-service'
 import { registerHardwareIpc } from '../hardware/hardware-ipc'
+import { CadConversionService } from '../cad/cad-conversion-service'
+import { registerCadIpc } from '../cad/cad-ipc'
+import { DataSourceService } from '../data-source/data-source-service'
+import { registerDataSourceIpc } from '../data-source/data-source-ipc'
 import { MeshyService } from '../meshy/meshy-service'
 import { registerMeshyIpc } from '../meshy/meshy-ipc'
 import { registerWechatIPC } from '../ipc/wechat-ipc'
@@ -82,7 +86,11 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
         runtime.cclinkRequestRouter ?? undefined,
       ),
     )
-    registerRemoteIpc(runtime.remoteProviderRegistry, runtime.tokenManager, runtime.subscriptionService)
+    registerRemoteIpc(
+      runtime.remoteProviderRegistry,
+      runtime.tokenManager,
+      runtime.subscriptionService,
+    )
     console.log('[DeepInk] Remote Provider IPC 已注册')
   }
 
@@ -94,9 +102,18 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
   registerProjectOpsIpc(runtime.projectOpsService)
   console.log('[DeepInk] 项目运营 IPC 已注册')
 
-  runtime.hardwareService = new HardwareService()
+  runtime.cadConversionService = new CadConversionService(() => runtime.settingsService!.getAll())
+  registerCadIpc(runtime.cadConversionService)
+  console.log('[DeepInk] CAD 转换 IPC 已注册')
+
+  runtime.hardwareService = new HardwareService(runtime.cadConversionService)
   registerHardwareIpc(runtime.hardwareService)
   console.log('[DeepInk] 硬件工作区 IPC 已注册')
+
+  runtime.dataSourceService = new DataSourceService()
+  await runtime.dataSourceService.load()
+  registerDataSourceIpc(runtime.dataSourceService)
+  console.log('[DeepInk] 数据源 IPC 已注册')
 
   runtime.meshyService = new MeshyService(() => runtime.settingsService!.getAll())
   registerMeshyIpc(runtime.meshyService)
@@ -109,7 +126,13 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
   await runtime.syncCredentialStore.load()
   runtime.syncService = new SyncService()
   await runtime.syncService.loadState()
-  registerSyncIpc(runtime.mainWindow, runtime.syncService, runtime.syncCredentialStore, runtime.tokenManager, runtime.subscriptionService)
+  registerSyncIpc(
+    runtime.mainWindow,
+    runtime.syncService,
+    runtime.syncCredentialStore,
+    runtime.tokenManager,
+    runtime.subscriptionService,
+  )
   console.log('[DeepInk] 云同步系统已初始化')
 
   runtime.permissionManager = new PermissionManager(runtime.mainWindow)
@@ -138,7 +161,12 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
             featureName: '远程 Terminal',
             entitlement: 'remote_terminal',
             checkAccess: () =>
-              checkEntitlement('远程 Terminal', 'remote_terminal', runtime.tokenManager!, runtime.subscriptionService!),
+              checkEntitlement(
+                '远程 Terminal',
+                'remote_terminal',
+                runtime.tokenManager!,
+                runtime.subscriptionService!,
+              ),
           },
         )
       : undefined

@@ -2,7 +2,9 @@ import type { AgentApiContract } from '../shared/ipc/agent'
 import type { AndroidApiContract } from '../shared/ipc/android'
 import type { AuthApiContract } from '../shared/ipc/auth'
 import type { BrowserApiContract } from '../shared/ipc/browser'
+import type { CadApiContract } from '../shared/ipc/cad'
 import type { CclinkApiContract } from '../shared/ipc/cclink'
+import type { DataSourceApiContract } from '../shared/ipc/data-source'
 import type { DialogApiContract } from '../shared/ipc/dialog'
 import type { EditorApiContract } from '../shared/ipc/editor'
 import type { FsApiContract } from '../shared/ipc/fs'
@@ -21,16 +23,15 @@ import type { WindowApiContract } from '../shared/ipc/window'
 import type { WorkspaceStateApiContract } from '../shared/ipc/workspace-state'
 
 export interface DeepinkAPI {
-  reportWorkbenchBounds: (bounds: {
-    x: number
-    y: number
-    width: number
-    height: number
-  }) => void
+  reportWorkbenchBounds: (bounds: { x: number; y: number; width: number; height: number }) => void
 
   window: WindowApiContract
 
   browser: BrowserApiContract
+
+  cad: CadApiContract
+
+  dataSource: DataSourceApiContract
 
   auth: AuthApiContract
 

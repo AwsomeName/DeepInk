@@ -90,14 +90,7 @@ function createStoredZip(entries: Record<string, string>): Buffer {
 }
 
 async function writeMinimalXlsx(filePath: string): Promise<void> {
-  const sharedStrings = [
-    'Designator',
-    'Value',
-    'R1, R2',
-    '10k',
-    'U1',
-    'MCU',
-  ]
+  const sharedStrings = ['Designator', 'Value', 'R1, R2', '10k', 'U1', 'MCU']
   const sheet = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">',
@@ -124,8 +117,14 @@ describe('HardwareService', () => {
   it('detects hardware production artifacts in a workspace', async () => {
     await mkdir(join(workspacePath, 'FPC生产文件', '右眼生产文件'), { recursive: true })
     await writeFile(join(workspacePath, '20260210_pcb_原理图.pdf'), 'pdf')
-    await writeFile(join(workspacePath, 'FPC生产文件', '右眼生产文件', 'bom_51PIN_0.3FPC_R_V4.0.csv'), 'Designator,Value\nR1,10k\n')
-    await writeFile(join(workspacePath, 'FPC生产文件', '右眼生产文件', 'coord_51PIN_0.3FPC_R_V4.0.csv'), 'Designator,X,Y\nR1,1,1\n')
+    await writeFile(
+      join(workspacePath, 'FPC生产文件', '右眼生产文件', 'bom_51PIN_0.3FPC_R_V4.0.csv'),
+      'Designator,Value\nR1,10k\n',
+    )
+    await writeFile(
+      join(workspacePath, 'FPC生产文件', '右眼生产文件', 'coord_51PIN_0.3FPC_R_V4.0.csv'),
+      'Designator,X,Y\nR1,1,1\n',
+    )
     await writeFile(join(workspacePath, 'gerber_51PIN_0.3FPC_R_V4.0.zip'), 'not-a-real-zip')
 
     const result = await new HardwareService().scanWorkspace(workspacePath)
@@ -137,6 +136,182 @@ describe('HardwareService', () => {
     expect(result.counts.schematic).toBe(1)
     expect(result.sourceEditable).toBe(false)
     expect(result.risks.some((risk) => risk.title === '缺少可编辑源工程')).toBe(true)
+  })
+
+  it('adds structural artifacts to the workspace summary', async () => {
+    await mkdir(join(workspacePath, '外壳结构'), { recursive: true })
+    await writeFile(join(workspacePath, '外壳结构', '光机左镜框精简.STEP'), 'ISO-10303-21;')
+    await writeFile(
+      join(workspacePath, '外壳结构', '光机左镜腿小盖板beta01.STL'),
+      'solid part\nendsolid part\n',
+    )
+
+    const result = await new HardwareService().scanWorkspace(workspacePath)
+
+    expect(result.structuralArtifacts.map((artifact) => artifact.displayName)).toEqual([
+      '光机左镜框精简.STEP',
+      '光机左镜腿小盖板beta01.STL',
+    ])
+    expect(result.structuralArtifacts[0]).toMatchObject({
+      extension: '.step',
+      previewMode: 'cad-conversion',
+      canPreview: false,
+      requiresBackend: true,
+    })
+    expect(result.structuralArtifacts[1]).toMatchObject({
+      extension: '.stl',
+      previewMode: 'native-mesh',
+      canPreview: true,
+      requiresBackend: false,
+    })
+  })
+
+  it('includes CAD metadata from the inspector in summaries and reports', async () => {
+    const stepPath = join(workspacePath, '光机左镜框精简.STEP')
+    await writeFile(stepPath, 'ISO-10303-21;')
+    const cadInspector = {
+      inspectModel: vi.fn().mockResolvedValue({
+        support: {
+          inputPath: stepPath,
+          extension: '.step',
+          mode: 'cad-conversion',
+          canPreview: true,
+          requiresBackend: true,
+          preferredFormat: 'stl',
+          message: '该 CAD 文件可通过已配置后端转换为预览 mesh。',
+        },
+        sourceHash: 'hash-step',
+        cacheHit: true,
+        metadata: {
+          inputPath: stepPath,
+          sourceHash: 'hash-step',
+          previewPath: join(tempDir, 'cad-cache', 'hash-step', 'preview.stl'),
+          previewFormat: 'stl',
+          bounds: {
+            min: { x: 0, y: 0, z: 0 },
+            max: { x: 20, y: 8, z: 1.5 },
+            size: { x: 20, y: 8, z: 1.5 },
+          },
+          unit: 'mm',
+          unitConfidence: 'cad-backend',
+          generatedAt: '2026-07-15T00:00:00.000Z',
+          generator: 'FreeCAD',
+          diagnostics: [],
+        },
+        diagnostics: [],
+      }),
+    }
+
+    const service = new HardwareService(cadInspector)
+    const summary = await service.scanWorkspace(workspacePath)
+    const reportResult = await service.writeProductionReportMarkdown(workspacePath)
+    const reportContent = await readFile(reportResult.filePath, 'utf-8')
+
+    expect(cadInspector.inspectModel).toHaveBeenCalledWith(stepPath)
+    expect(summary.structuralArtifacts[0].metadata?.bounds?.size).toEqual({
+      x: 20,
+      y: 8,
+      z: 1.5,
+    })
+    expect(reportResult.report.structuralArtifacts[0].cacheHit).toBe(true)
+    expect(reportContent).toContain('结构件 / CAD 约束')
+    expect(reportContent).toContain('size=20.00 × 8.00 × 1.50 mm')
+  })
+
+  it('prepares an FPC shape context with outline summaries and next questions', async () => {
+    const gerberPath = join(workspacePath, 'gerber_51PIN.zip')
+    await writeFile(
+      gerberPath,
+      createStoredZip({
+        'Edge_Cuts.gm1': [
+          '%FSLAX24Y24*%',
+          '%MOMM*%',
+          'G01*',
+          'X000000Y000000D02*',
+          'X100000Y000000D01*',
+          'X100000Y050000D01*',
+          'X000000Y050000D01*',
+          'X000000Y000000D01*',
+          'M02*',
+        ].join('\n'),
+      }),
+    )
+
+    const context = await new HardwareService().prepareFpcShapeContext(workspacePath)
+
+    expect(context.readiness).toBe('ready-for-review')
+    expect(context.outline?.entry).toBe('Edge_Cuts.gm1')
+    expect(context.outline?.outlineCandidates[0]).toMatchObject({
+      role: 'outer',
+      closed: true,
+    })
+    expect(context.outline?.outlineCandidates[0]).not.toHaveProperty('points')
+    expect(context.questions).toContain('是否有光机、镜腿、连接件等结构件文件可作为避让参考？')
+  })
+
+  it('marks FPC shape context as needing structure alignment when structural metadata exists', async () => {
+    const gerberPath = join(workspacePath, 'gerber_51PIN.zip')
+    const stepPath = join(workspacePath, '光机左镜框精简.STEP')
+    await writeFile(
+      gerberPath,
+      createStoredZip({
+        'Edge_Cuts.gm1': [
+          '%FSLAX24Y24*%',
+          '%MOMM*%',
+          'G01*',
+          'X000000Y000000D02*',
+          'X080000Y000000D01*',
+          'X080000Y030000D01*',
+          'X000000Y030000D01*',
+          'X000000Y000000D01*',
+          'M02*',
+        ].join('\n'),
+      }),
+    )
+    await writeFile(stepPath, 'ISO-10303-21;')
+
+    const service = new HardwareService({
+      inspectModel: vi.fn().mockResolvedValue({
+        support: {
+          inputPath: stepPath,
+          extension: '.step',
+          mode: 'cad-conversion',
+          canPreview: true,
+          requiresBackend: true,
+          preferredFormat: 'stl',
+          message: '该 CAD 文件可通过已配置后端转换为预览 mesh。',
+        },
+        sourceHash: 'hash-step',
+        cacheHit: true,
+        metadata: {
+          inputPath: stepPath,
+          sourceHash: 'hash-step',
+          bounds: {
+            min: { x: 0, y: 0, z: 0 },
+            max: { x: 20, y: 8, z: 1.5 },
+            size: { x: 20, y: 8, z: 1.5 },
+          },
+          unit: 'mm',
+          unitConfidence: 'cad-backend',
+          generatedAt: '2026-07-15T00:00:00.000Z',
+          generator: 'FreeCAD',
+          diagnostics: [],
+        },
+        diagnostics: [],
+      }),
+    })
+
+    const context = await service.prepareFpcShapeContext(workspacePath)
+
+    expect(context.readiness).toBe('needs-structure-alignment')
+    expect(context.structuralArtifacts[0].metadata?.bounds?.size).toEqual({
+      x: 20,
+      y: 8,
+      z: 1.5,
+    })
+    expect(context.questions).toContain(
+      '请确认 FPC 外形坐标和结构件坐标如何对齐，或指出至少两个共同参考点。',
+    )
   })
 
   it('reports blocking risk when no Gerber package exists', async () => {
@@ -343,7 +518,9 @@ describe('HardwareService', () => {
   it('rejects workspaces outside allowed roots', async () => {
     const service = new HardwareService()
 
-    await expect(service.scanWorkspace('/private/outside')).rejects.toThrow('工作空间不在允许范围内')
+    await expect(service.scanWorkspace('/private/outside')).rejects.toThrow(
+      '工作空间不在允许范围内',
+    )
   })
 })
 

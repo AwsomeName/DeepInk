@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  FpcShapeContext,
   HardwareProjectSummary,
   HardwareReportMarkdownResult,
   ProductionPackageReport,
@@ -9,14 +10,19 @@ interface HardwareState {
   workspacePath: string | null
   summary: HardwareProjectSummary | null
   report: ProductionPackageReport | null
+  fpcShapeContext: FpcShapeContext | null
   lastReportFilePath: string | null
   loading: boolean
   inspecting: boolean
+  preparingFpcShapeContext: boolean
   savingReport: boolean
   error: string | null
   scanWorkspace: (workspacePath: string) => Promise<void>
   inspectProductionPackage: (workspacePath: string) => Promise<void>
-  writeProductionReportMarkdown: (workspacePath: string) => Promise<HardwareReportMarkdownResult | null>
+  prepareFpcShapeContext: (workspacePath: string) => Promise<FpcShapeContext | null>
+  writeProductionReportMarkdown: (
+    workspacePath: string,
+  ) => Promise<HardwareReportMarkdownResult | null>
   clear: () => void
 }
 
@@ -28,9 +34,11 @@ export const useHardwareStore = create<HardwareState>((set) => ({
   workspacePath: null,
   summary: null,
   report: null,
+  fpcShapeContext: null,
   lastReportFilePath: null,
   loading: false,
   inspecting: false,
+  preparingFpcShapeContext: false,
   savingReport: false,
   error: null,
 
@@ -38,7 +46,13 @@ export const useHardwareStore = create<HardwareState>((set) => ({
     set({ workspacePath, loading: true, error: null })
     try {
       const summary = await window.deepink.hardware.scanWorkspace(workspacePath)
-      set({ summary, loading: false, report: null, lastReportFilePath: null })
+      set({
+        summary,
+        loading: false,
+        report: null,
+        fpcShapeContext: null,
+        lastReportFilePath: null,
+      })
     } catch (error) {
       set({ error: describeError(error), loading: false })
     }
@@ -48,9 +62,25 @@ export const useHardwareStore = create<HardwareState>((set) => ({
     set({ workspacePath, inspecting: true, error: null })
     try {
       const report = await window.deepink.hardware.inspectProductionPackage(workspacePath)
-      set({ report, summary: { ...reportToSummaryFallback(workspacePath, report) }, inspecting: false })
+      set({
+        report,
+        summary: { ...reportToSummaryFallback(workspacePath, report) },
+        inspecting: false,
+      })
     } catch (error) {
       set({ error: describeError(error), inspecting: false })
+    }
+  },
+
+  prepareFpcShapeContext: async (workspacePath) => {
+    set({ workspacePath, preparingFpcShapeContext: true, error: null })
+    try {
+      const fpcShapeContext = await window.deepink.hardware.prepareFpcShapeContext(workspacePath)
+      set({ fpcShapeContext, preparingFpcShapeContext: false })
+      return fpcShapeContext
+    } catch (error) {
+      set({ error: describeError(error), preparingFpcShapeContext: false })
+      return null
     }
   },
 
@@ -61,6 +91,7 @@ export const useHardwareStore = create<HardwareState>((set) => ({
       set({
         report: result.report,
         summary: { ...reportToSummaryFallback(workspacePath, result.report) },
+        fpcShapeContext: null,
         lastReportFilePath: result.filePath,
         savingReport: false,
       })
@@ -76,9 +107,11 @@ export const useHardwareStore = create<HardwareState>((set) => ({
       workspacePath: null,
       summary: null,
       report: null,
+      fpcShapeContext: null,
       lastReportFilePath: null,
       loading: false,
       inspecting: false,
+      preparingFpcShapeContext: false,
       savingReport: false,
       error: null,
     }),
@@ -93,6 +126,7 @@ function reportToSummaryFallback(
     return {
       ...existing,
       artifacts: report.artifacts,
+      structuralArtifacts: report.structuralArtifacts,
       risks: report.risks,
     }
   }
@@ -100,6 +134,7 @@ function reportToSummaryFallback(
     workspacePath,
     projectName: workspacePath.split('/').filter(Boolean).pop() ?? workspacePath,
     artifacts: report.artifacts,
+    structuralArtifacts: report.structuralArtifacts,
     counts: report.artifacts.reduce(
       (acc, artifact) => ({ ...acc, [artifact.type]: (acc[artifact.type] ?? 0) + 1 }),
       {

@@ -1,11 +1,15 @@
 import { create } from 'zustand'
+import { globalWorkspaceRef, localWorkspaceRef } from '../../../shared/workspace-ref'
 import {
   getWorkspaceStateKey,
   getWorkspaceStateOwnerKey,
   persistWorkspaceSection,
   setWorkspaceStatePath,
 } from '../utils/workspace-state'
-import { hydrateRuntimeSections, persistRuntimeSections } from '../utils/workspace-runtime'
+import {
+  applyWorkspaceRuntimeTransition,
+  prepareWorkspaceRuntimeTransition,
+} from '../utils/workspace-transition'
 import { useEditorStore } from './editor-store'
 import { useWorkspaceStore } from './workspace-store'
 
@@ -254,8 +258,6 @@ export const useFsStore = create<FsState>((set, get) => ({
         children: undefined,
         expanded: expandedSet.has(e.path),
       }))
-      setWorkspaceStatePath(path)
-      useWorkspaceStore.getState().activateLocalWorkspace(path)
       set((state) => ({
         workspacePath: path,
         tree,
@@ -300,8 +302,18 @@ export const useFsStore = create<FsState>((set, get) => ({
       // 静默恢复：目录失效不报错（silent），仅清掉失效的持久化记录
       const ok = await get().setWorkspace(last, { silent: true })
       if (!ok) {
+        const transition = await prepareWorkspaceRuntimeTransition(globalWorkspaceRef(), {
+          persistCurrent: false,
+        })
+        useWorkspaceStore.getState().activateGlobalWorkspace()
+        get().hydrateFromWorkspaceState(
+          transition.snapshot?.sections.fileTree ?? { expandedPaths: [], selectedPath: null },
+        )
+        applyWorkspaceRuntimeTransition(transition)
         await window.deepink.settings.set({ lastWorkspacePath: '' }).catch(() => {})
         setWorkspaceStatePath(null)
+      } else {
+        useWorkspaceStore.getState().activateLocalWorkspace(last)
       }
     } catch {
       // 读设置失败 → 保持空工作区状态
@@ -319,15 +331,12 @@ export const useFsStore = create<FsState>((set, get) => ({
       })
       if (result.canceled || result.filePaths.length === 0) return
       const path = result.filePaths[0]!
-      persistRuntimeSections(getWorkspaceStateKey())
-      const snapshot = await window.deepink.workspaceState
-        .get(path, getWorkspaceStateOwnerKey())
-        .catch(() => null)
-      if (snapshot) get().hydrateFromWorkspaceState(snapshot.sections.fileTree)
+      const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef(path))
+      if (transition.snapshot) get().hydrateFromWorkspaceState(transition.snapshot.sections.fileTree)
       const ok = await get().setWorkspace(path)
       if (ok) {
-        hydrateRuntimeSections(snapshot)
-        setWorkspaceStatePath(path)
+        useWorkspaceStore.getState().activateLocalWorkspace(path)
+        applyWorkspaceRuntimeTransition(transition)
         const recentWorkspacePaths = get().recentWorkspacePaths
         saveRecentWorkspaceFallback(recentWorkspacePaths)
         const r = await window.deepink.settings.set({ lastWorkspacePath: path, recentWorkspacePaths })
@@ -347,14 +356,12 @@ export const useFsStore = create<FsState>((set, get) => ({
     if (!path) return
     if (path === get().workspacePath && useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local') return
     if (!confirmProjectSwitch(get().workspacePath, path)) return
-    persistRuntimeSections(getWorkspaceStateKey())
-    const snapshot = await window.deepink.workspaceState
-      .get(path, getWorkspaceStateOwnerKey())
-      .catch(() => null)
-    if (snapshot) get().hydrateFromWorkspaceState(snapshot.sections.fileTree)
+    const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef(path))
+    if (transition.snapshot) get().hydrateFromWorkspaceState(transition.snapshot.sections.fileTree)
     const ok = await get().setWorkspace(path)
     if (ok) {
-      hydrateRuntimeSections(snapshot)
+      useWorkspaceStore.getState().activateLocalWorkspace(path)
+      applyWorkspaceRuntimeTransition(transition)
       const recentWorkspacePaths = get().recentWorkspacePaths
       saveRecentWorkspaceFallback(recentWorkspacePaths)
       await window.deepink.settings.set({ lastWorkspacePath: path, recentWorkspacePaths }).catch(() => {})
@@ -370,13 +377,12 @@ export const useFsStore = create<FsState>((set, get) => ({
     saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: get().selectedPath }, currentPath)
 
     try {
-      const snapshot = await window.deepink.workspaceState
-        .get(null, getWorkspaceStateOwnerKey())
-        .catch(() => null)
-      setWorkspaceStatePath(null)
+      const transition = await prepareWorkspaceRuntimeTransition(globalWorkspaceRef())
       useWorkspaceStore.getState().activateGlobalWorkspace()
-      get().hydrateFromWorkspaceState(snapshot?.sections.fileTree ?? { expandedPaths: [], selectedPath: null })
-      hydrateRuntimeSections(snapshot)
+      get().hydrateFromWorkspaceState(
+        transition.snapshot?.sections.fileTree ?? { expandedPaths: [], selectedPath: null },
+      )
+      applyWorkspaceRuntimeTransition(transition)
       set({
         workspacePath: null,
         tree: [],

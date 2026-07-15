@@ -5,6 +5,7 @@ import { ThreeMFLoader } from 'three/examples/jsm/loaders/3MFLoader.js'
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js'
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { STLLoader } from 'three/examples/jsm/loaders/STLLoader.js'
+import { useTabStore } from '../../stores/tab-store'
 
 interface ModelViewerProps {
   filePath: string
@@ -15,6 +16,11 @@ interface ModelInfo {
   triangles: number
   objects: number
   animations: number
+  size?: {
+    x: number
+    y: number
+    z: number
+  }
 }
 
 type STLGeometryWithColor = THREE.BufferGeometry & {
@@ -39,6 +45,10 @@ function getExtension(filePath: string): string {
 
 function getFileName(filePath: string): string {
   return filePath.split('/').pop() ?? filePath
+}
+
+function isStepExtension(extension: string): boolean {
+  return extension === '.step' || extension === '.stp'
 }
 
 function createSTLModel(arrayBuffer: ArrayBuffer, fileName: string): THREE.Mesh {
@@ -117,7 +127,11 @@ function computeModelBox(root: THREE.Object3D): THREE.Box3 {
   return box
 }
 
-function calculateModelInfo(root: THREE.Object3D, animations: THREE.AnimationClip[]): ModelInfo {
+function calculateModelInfo(
+  root: THREE.Object3D,
+  animations: THREE.AnimationClip[],
+  size?: THREE.Vector3,
+): ModelInfo {
   let vertices = 0
   let triangles = 0
   let objects = 0
@@ -143,6 +157,13 @@ function calculateModelInfo(root: THREE.Object3D, animations: THREE.AnimationCli
     triangles: Math.round(triangles),
     objects,
     animations: animations.length,
+    size: size
+      ? {
+          x: size.x,
+          y: size.y,
+          z: size.z,
+        }
+      : undefined,
   }
 }
 
@@ -159,6 +180,7 @@ function normalizeModel(root: THREE.Object3D): void {
 }
 
 export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement {
+  const openTab = useTabStore((state) => state.openTab)
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
@@ -169,6 +191,7 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [conversionNotice, setConversionNotice] = useState('')
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null)
   const [wireframe, setWireframe] = useState(false)
   const [showGrid, setShowGrid] = useState(true)
@@ -176,6 +199,10 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
   useEffect(() => {
     showGridRef.current = showGrid
   }, [showGrid])
+
+  const openCadSettings = useCallback(() => {
+    openTab({ type: 'settings', title: '硬件与 CAD', icon: '⚙️', settingsSection: 'cad' })
+  }, [openTab])
 
   const resetCamera = useCallback(() => {
     const camera = cameraRef.current
@@ -255,16 +282,42 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
       try {
         setLoading(true)
         setError('')
+        setConversionNotice('')
         setModelInfo(null)
 
-        const extension = getExtension(filePath)
-        if (extension === '.step' || extension === '.stp') {
-          throw new Error(
-            'STEP/STP 是 CAD B-Rep 格式，需要接入 OpenCascade/FreeCAD 转换后才能可靠预览。当前先识别为模型文件，但暂不直接渲染。',
-          )
+        let sourceFilePath = filePath
+        let extension = getExtension(filePath)
+        if (isStepExtension(extension)) {
+          const cadApi = window.deepink.cad
+          if (!cadApi?.convertModel || !cadApi.getModelSupport) {
+            throw new Error(
+              'CAD 转换能力尚未加载。请重启 DeepInk 让主进程和 preload 生效，然后在设置 > 硬件与 CAD 启用本机 FreeCAD。',
+            )
+          }
+
+          const support = await cadApi.getModelSupport(filePath)
+          if (!support.canPreview) {
+            const detail = support.backend?.error?.detail ? `\n${support.backend.error.detail}` : ''
+            throw new Error(
+              `${support.message}\n请在设置 > 硬件与 CAD 选择“本机 FreeCAD”并完成检测。${detail}`,
+            )
+          }
+
+          setConversionNotice('正在用 CAD 转换后端生成 STEP 预览...')
+          const converted = await cadApi.convertModel({
+            inputPath: filePath,
+            targetFormat: 'stl',
+          })
+          if (!converted.success || !converted.previewPath || !converted.format) {
+            const detail = converted.error?.detail ? `\n${converted.error.detail}` : ''
+            throw new Error(`${converted.error?.message ?? 'STEP/STP 转换失败。'}${detail}`)
+          }
+          sourceFilePath = converted.previewPath
+          extension = `.${converted.format}`
+          setConversionNotice(converted.cached ? '已使用缓存的 STEP 预览。' : 'STEP 预览转换完成。')
         }
 
-        const result = await window.deepink.fs.readFile(filePath)
+        const result = await window.deepink.fs.readFile(sourceFilePath)
         const content = typeof result === 'string' ? result : result.content
         const arrayBuffer = base64ToArrayBuffer(content)
 
@@ -290,6 +343,7 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
           throw new Error(`暂不支持的 3D 模型格式: ${extension || 'unknown'}`)
         }
 
+        const originalSize = computeModelBox(model).getSize(new THREE.Vector3())
         normalizeModel(model)
         modelRef.current = model
         scene.add(model)
@@ -300,7 +354,7 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
           mixer.clipAction(animations[0]).play()
         }
 
-        setModelInfo(calculateModelInfo(model, animations))
+        setModelInfo(calculateModelInfo(model, animations, originalSize))
         initialCameraRef.current = {
           position: new THREE.Vector3(4, 3, 6),
           target: new THREE.Vector3(0, 0, 0),
@@ -372,8 +426,12 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
               {modelInfo.objects} objects · {modelInfo.vertices.toLocaleString()} vertices ·{' '}
               {modelInfo.triangles.toLocaleString()} tris
               {modelInfo.animations > 0 ? ` · ${modelInfo.animations} animations` : ''}
+              {modelInfo.size
+                ? ` · ${modelInfo.size.x.toFixed(2)} × ${modelInfo.size.y.toFixed(2)} × ${modelInfo.size.z.toFixed(2)} mm`
+                : ''}
             </span>
           )}
+          {conversionNotice && <span className="model-viewer-meta">{conversionNotice}</span>}
         </div>
         <div className="model-viewer-actions">
           <button onClick={resetCamera} title="重置视角">
@@ -399,7 +457,7 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
         {loading && (
           <div className="model-viewer-overlay">
             <div className="wechat-preview-spinner" />
-            <span>正在加载 3D 模型...</span>
+            <span>{conversionNotice || '正在加载 3D 模型...'}</span>
           </div>
         )}
         {error && (
@@ -407,6 +465,11 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
             <span className="model-viewer-error-icon">⚠️</span>
             <span>模型加载失败</span>
             <span className="model-viewer-error-msg">{error}</span>
+            {isStepExtension(getExtension(filePath)) && (
+              <button className="model-viewer-error-action" onClick={openCadSettings}>
+                打开 CAD 设置
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -1,4 +1,5 @@
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
+import type { DataSourceConfig, SavedDataQuery } from '@shared/ipc/data-source'
 import {
   workspaceRefKey,
   workspaceRefLabel,
@@ -74,7 +75,7 @@ export interface ProjectAssistantSessions {
 }
 
 export type AgentResourceCandidate = AgentMountedResource & {
-  source: 'workspace' | 'selected-file' | 'open-tab' | 'draft'
+  source: 'workspace' | 'selected-file' | 'open-tab' | 'draft' | 'data-source'
   searchText: string
 }
 
@@ -462,12 +463,16 @@ export function buildResourceCandidates({
   tabs,
   editorFiles,
   selectedPath,
+  dataSources = [],
+  savedQueries = [],
   query = '',
 }: {
   activeWorkspaceRef?: WorkspaceRef | null
   tabs: Tab[]
   editorFiles?: Record<string, { dirty: boolean; loading?: boolean }>
   selectedPath?: string | null
+  dataSources?: DataSourceConfig[]
+  savedQueries?: SavedDataQuery[]
   query?: string
 }): AgentResourceCandidate[] {
   const candidates: AgentResourceCandidate[] = []
@@ -515,6 +520,43 @@ export function buildResourceCandidates({
         detail: key.startsWith('virtual:') ? '草稿' : key,
         source: 'draft',
         ref: { type: 'file', path: key },
+      }),
+    )
+  }
+
+  for (const source of dataSources) {
+    candidates.push(
+      createResourceCandidate({
+        id: `data-source:${source.id}`,
+        kind: 'data-source',
+        label: source.name,
+        detail: source.defaultCollection
+          ? `${source.type} · ${source.defaultCollection}`
+          : `${source.type} · ${source.endpoint}`,
+        source: 'data-source',
+        ref: {
+          type: 'data-source',
+          sourceId: source.id,
+          collection: source.defaultCollection,
+        },
+      }),
+    )
+  }
+
+  for (const savedQuery of savedQueries) {
+    candidates.push(
+      createResourceCandidate({
+        id: `saved-query:${savedQuery.id}`,
+        kind: 'saved-query',
+        label: savedQuery.name,
+        detail: savedQuery.collection,
+        source: 'data-source',
+        ref: {
+          type: 'saved-query',
+          sourceId: savedQuery.sourceId,
+          collection: savedQuery.collection,
+          savedQueryId: savedQuery.id,
+        },
       }),
     )
   }
@@ -694,6 +736,23 @@ function tabResourceCandidate(tab: Tab): AgentResourceCandidate | null {
         detail: '命令会话',
         source: 'open-tab',
         ref: { type: 'terminal', tabId: tab.id },
+      })
+    case 'data-source-query':
+      return createResourceCandidate({
+        id: tab.dataSourceQuery?.savedQueryId
+          ? `saved-query:${tab.dataSourceQuery.savedQueryId}:tab:${tab.id}`
+          : `data-query-tab:${tab.id}`,
+        kind: tab.dataSourceQuery?.savedQueryId ? 'saved-query' : 'data-query',
+        label: tab.title || '数据源查询',
+        detail: tab.dataSourceQuery?.collection ?? '数据源查询 Tab',
+        source: 'open-tab',
+        ref: {
+          type: tab.dataSourceQuery?.savedQueryId ? 'saved-query' : 'data-query',
+          tabId: tab.id,
+          sourceId: tab.dataSourceQuery?.sourceId,
+          collection: tab.dataSourceQuery?.collection,
+          savedQueryId: tab.dataSourceQuery?.savedQueryId,
+        },
       })
     case 'remote-file':
       return createResourceCandidate({

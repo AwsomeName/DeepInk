@@ -6,9 +6,11 @@ import { EditorToolModule } from '../mcp/modules/editor'
 import { registerEditorIpc } from '../ipc/editor-ipc'
 import { MeshyToolModule } from '../mcp/modules/meshy'
 import { HardwareToolModule } from '../mcp/modules/hardware'
+import { CadToolModule } from '../mcp/modules/cad'
 import { AndroidToolModule } from '../mcp/modules/android'
 import { AgentDeviceManager } from '../android/agent-device-manager'
 import { AgentDeviceToolModule } from '../mcp/modules/agent-device'
+import { DataSourceToolModule } from '../mcp/modules/data-source'
 import type { DeepInkRuntimeState } from './app-runtime'
 
 export async function bootstrapAutomationRuntime(runtime: DeepInkRuntimeState): Promise<void> {
@@ -20,7 +22,10 @@ export async function bootstrapAutomationRuntime(runtime: DeepInkRuntimeState): 
     const cdpPort = await discoverCdpPort()
     console.log(`[DeepInk] CDP 端口: ${cdpPort}`)
 
-    runtime.playwrightBridge = new PlaywrightBridge(runtime.browserDownloadStore, runtime.browserTaskRuntime)
+    runtime.playwrightBridge = new PlaywrightBridge(
+      runtime.browserDownloadStore,
+      runtime.browserTaskRuntime,
+    )
     await runtime.playwrightBridge.connect(cdpPort)
     console.log('[DeepInk] Playwright 已连接')
 
@@ -29,7 +34,9 @@ export async function bootstrapAutomationRuntime(runtime: DeepInkRuntimeState): 
     }
 
     runtime.toolHost = new McpToolHost(runtime.permissionManager)
-    runtime.toolHost.registerModule(new BrowserToolModule(runtime.playwrightBridge, runtime.browserTaskRuntime))
+    runtime.toolHost.registerModule(
+      new BrowserToolModule(runtime.playwrightBridge, runtime.browserTaskRuntime),
+    )
 
     runtime.editorModule = new EditorToolModule(runtime.mainWindow)
     runtime.toolHost.registerModule(runtime.editorModule)
@@ -41,13 +48,26 @@ export async function bootstrapAutomationRuntime(runtime: DeepInkRuntimeState): 
     runtime.toolHost.registerModule(new HardwareToolModule(runtime.hardwareService!))
     console.log('[DeepInk] 硬件 MCP 工具模块已注册')
 
-    runtime.toolHost.registerModule(new AndroidToolModule(runtime.adbBridge!, runtime.scrcpyBridge!))
+    runtime.toolHost.registerModule(new CadToolModule(runtime.cadConversionService!))
+    console.log('[DeepInk] CAD MCP 工具模块已注册')
+
+    runtime.toolHost.registerModule(new DataSourceToolModule(runtime.dataSourceService!))
+    console.log('[DeepInk] 数据源 MCP 工具模块已注册')
+
+    runtime.toolHost.registerModule(
+      new AndroidToolModule(runtime.adbBridge!, runtime.scrcpyBridge!),
+    )
     console.log('[DeepInk] Android MCP 工具模块已注册')
 
-    runtime.agentDeviceManager = new AgentDeviceManager(runtime.activeDeviceManager!, runtime.adbBridge!)
+    runtime.agentDeviceManager = new AgentDeviceManager(
+      runtime.activeDeviceManager!,
+      runtime.adbBridge!,
+    )
     await runtime.agentDeviceManager.init()
     runtime.toolHost.registerModule(new AgentDeviceToolModule(runtime.agentDeviceManager))
-    console.log(`[DeepInk] agent-device 工具模块已注册 (available=${runtime.agentDeviceManager.isAvailable()})`)
+    console.log(
+      `[DeepInk] agent-device 工具模块已注册 (available=${runtime.agentDeviceManager.isAvailable()})`,
+    )
 
     const mcpPort = await runtime.toolHost.start()
     console.log(`[DeepInk] MCP server 已启动 (端口: ${mcpPort})`)

@@ -3,6 +3,9 @@ import {
   getWorkspaceStateKey,
   getWorkspaceStateOwnerKey,
   getWorkspaceStatePath,
+  beginWorkspaceStateRestore,
+  endWorkspaceStateRestore,
+  isWorkspaceStateRestoring,
   persistWorkspaceSection,
   setWorkspaceStateOwnerKey,
   setWorkspaceStatePath,
@@ -14,6 +17,7 @@ afterEach(() => {
   vi.unstubAllGlobals()
   setWorkspaceStatePath(null)
   setWorkspaceStateOwnerKey(null)
+  while (isWorkspaceStateRestoring()) endWorkspaceStateRestore()
 })
 
 describe('workspace-state utils', () => {
@@ -90,5 +94,16 @@ describe('workspace-state utils', () => {
     })
 
     expect(getWorkspaceStateKey()).toBe('direct://server-1/project-a')
+  })
+
+  it('恢复事务期间跳过 section 持久化', () => {
+    const setSection = vi.fn().mockResolvedValue({ success: true })
+    vi.stubGlobal('window', { deepink: { workspaceState: { setSection } } })
+
+    beginWorkspaceStateRestore()
+    persistWorkspaceSection('tabs', { tabs: [] })
+    endWorkspaceStateRestore()
+
+    expect(setSection).not.toHaveBeenCalled()
   })
 })

@@ -1,6 +1,11 @@
 import { create } from 'zustand'
-import type { ChatccIdentity, ChatccMessage, ChatccServer, ChatccSession } from '@shared/chatcc'
-import type { CclinkLegacyImportPreflight, CclinkRealtimeStatus, CclinkRemoteError } from '@shared/ipc/cclink'
+import type { ChatccMessage, ChatccServer, ChatccSession } from '@shared/chatcc'
+import type {
+  CclinkIdentitySnapshot,
+  CclinkLegacyImportPreflight,
+  CclinkRealtimeStatus,
+  CclinkRemoteError,
+} from '@shared/ipc/cclink'
 import { remoteWorkspaceRef, type RemoteWorkspaceRef } from '../../../shared/workspace-ref'
 
 const CCLINK_ARCHIVE_STORAGE_KEY = 'deepink-cclink-archived-sessions'
@@ -68,7 +73,7 @@ function resolveSessionWorkspaceRef(
 }
 
 interface CclinkState {
-  identity: ChatccIdentity | null
+  identity: CclinkIdentitySnapshot | null
   servers: ChatccServer[]
   sessions: ChatccSession[]
   archivedSessionIds: Record<string, number>

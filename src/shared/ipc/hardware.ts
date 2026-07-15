@@ -1,3 +1,5 @@
+import type { CadModelMetadata, CadModelPreviewMode } from './cad'
+
 export type HardwareArtifactType =
   | 'schematic'
   | 'pcb-source'
@@ -21,10 +23,65 @@ export interface HardwareArtifact {
   metadata: Record<string, unknown>
 }
 
+export interface HardwareStructuralArtifact {
+  artifactId: string
+  path: string
+  displayName: string
+  extension: string
+  previewMode: CadModelPreviewMode
+  canPreview: boolean
+  requiresBackend: boolean
+  message: string
+  sourceHash?: string
+  cacheHit: boolean
+  metadata?: CadModelMetadata
+}
+
+export type FpcShapeContextReadiness =
+  | 'ready-for-review'
+  | 'needs-outline-selection'
+  | 'needs-structure-alignment'
+  | 'needs-cad-backend'
+  | 'blocked'
+
+export interface FpcShapeOutlineCandidateSummary {
+  id: string
+  role: GerberOutlineRole
+  bounds: GerberGeometryBounds
+  closed: boolean
+  areaMm2: number
+  perimeterMm: number
+  confidence: number
+  reasons: string[]
+}
+
+export interface FpcShapeOutlineContext {
+  packagePath: string
+  entry: string
+  unit: 'mm' | 'inch'
+  bounds: GerberGeometryBounds | null
+  outlineCandidates: FpcShapeOutlineCandidateSummary[]
+  warnings: string[]
+  truncated: boolean
+}
+
+export interface FpcShapeContext {
+  workspacePath: string
+  createdAt: string
+  readiness: FpcShapeContextReadiness
+  gerberPackage?: HardwareArtifact
+  outline?: FpcShapeOutlineContext
+  structuralArtifacts: HardwareStructuralArtifact[]
+  risks: HardwareRisk[]
+  questions: string[]
+  nextActions: string[]
+}
+
 export interface HardwareProjectSummary {
   workspacePath: string
   projectName: string
   artifacts: HardwareArtifact[]
+  structuralArtifacts: HardwareStructuralArtifact[]
   counts: Record<HardwareArtifactType, number>
   hasHardwareSignals: boolean
   sourceEditable: boolean
@@ -151,6 +208,7 @@ export interface ProductionPackageReport {
   conclusion: HardwareReportConclusion
   risks: HardwareRisk[]
   artifacts: HardwareArtifact[]
+  structuralArtifacts: HardwareStructuralArtifact[]
   bom?: HardwareTablePreview
   centroid?: HardwareTablePreview
   gerber?: GerberPackageInspection
@@ -165,6 +223,7 @@ export interface HardwareReportMarkdownResult {
 export interface HardwareApiContract {
   scanWorkspace: (workspacePath: string) => Promise<HardwareProjectSummary>
   inspectProductionPackage: (workspacePath: string) => Promise<ProductionPackageReport>
+  prepareFpcShapeContext: (workspacePath: string) => Promise<FpcShapeContext>
   readGerberLayerPreview: (
     workspacePath: string,
     packagePath: string,

@@ -13,7 +13,7 @@ import type {
   ConversationRuntimeRef,
   ConversationSurface,
 } from '../types'
-import { persistWorkspaceSection } from '../utils/workspace-state'
+import { isWorkspaceStateRestoring, persistWorkspaceSection } from '../utils/workspace-state'
 
 export interface AgentConversationState {
   id: string
@@ -100,7 +100,6 @@ interface AgentState {
 }
 
 const DEFAULT_CONVERSATION_ID = 'agent-default'
-const STORAGE_KEY = 'deepink-agent-conversations'
 
 function createWelcomeMessage(): AgentMessage {
   return {
@@ -279,29 +278,12 @@ function appendDeltaToMessage(msg: AgentMessage, delta: string): AgentMessage {
 }
 
 const initialConversation = createConversation(DEFAULT_CONVERSATION_ID)
-const loadedConversationState = loadStoredConversations() ?? {
+const initialConversationState = {
   conversations: { [DEFAULT_CONVERSATION_ID]: initialConversation },
   conversationOrder: [DEFAULT_CONVERSATION_ID],
   activeConversationId: DEFAULT_CONVERSATION_ID,
 }
-const loadedActiveConversation =
-  loadedConversationState.conversations[loadedConversationState.activeConversationId] ??
-  Object.values(loadedConversationState.conversations)[0] ??
-  initialConversation
-
-function loadStoredConversations(): Pick<
-  AgentState,
-  'conversations' | 'conversationOrder' | 'activeConversationId'
-> | null {
-  try {
-    if (typeof localStorage === 'undefined') return null
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return null
-    return normalizeConversationSnapshot(JSON.parse(raw))
-  } catch {
-    return null
-  }
-}
+const initialActiveConversation = initialConversation
 
 function normalizeConversationSnapshot(
   value: unknown,
@@ -370,7 +352,7 @@ function normalizeConversationSnapshot(
 
 function saveStoredConversations(state: AgentState): void {
   try {
-    if (typeof localStorage === 'undefined') return
+    if (isWorkspaceStateRestoring()) return
     const conversations: Record<string, AgentConversationState> = {}
     for (const id of state.conversationOrder.slice(-20)) {
       const conversation = state.conversations[id]
@@ -394,25 +376,25 @@ function saveStoredConversations(state: AgentState): void {
           : (Object.keys(conversations).find((id) => !conversations[id].archivedAt) ??
             Object.keys(conversations)[0]),
     }
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
     persistWorkspaceSection('agentConversations', payload)
   } catch {
-    // localStorage 可能不可用，忽略持久化失败。
+    // WorkspaceState 镜像失败不应影响当前会话状态。
   }
 }
 
 export const useAgentStore = create<AgentState>((set) => ({
-  conversations: loadedConversationState.conversations,
-  conversationOrder: loadedConversationState.conversationOrder,
-  activeConversationId: loadedConversationState.activeConversationId,
-  messages: loadedActiveConversation.messages,
-  input: loadedActiveConversation.input,
-  loading: loadedActiveConversation.loading,
-  backendState: loadedActiveConversation.backendState,
-  sessionId: loadedActiveConversation.sessionId,
-  streamingMessageId: loadedActiveConversation.streamingMessageId,
-  lastCost: loadedActiveConversation.lastCost,
-  scope: loadedActiveConversation.scope,
+  // 会话恢复以 WorkspaceState 为权威，避免全局 localStorage 把其他项目会话作为启动种子。
+  conversations: initialConversationState.conversations,
+  conversationOrder: initialConversationState.conversationOrder,
+  activeConversationId: initialConversationState.activeConversationId,
+  messages: initialActiveConversation.messages,
+  input: initialActiveConversation.input,
+  loading: initialActiveConversation.loading,
+  backendState: initialActiveConversation.backendState,
+  sessionId: initialActiveConversation.sessionId,
+  streamingMessageId: initialActiveConversation.streamingMessageId,
+  lastCost: initialActiveConversation.lastCost,
+  scope: initialActiveConversation.scope,
   playwrightStatus: { connected: false, pageUrl: null },
   pendingConfirmations: [] as ToolConfirmationRequest[],
   permissionMode: 'auto' as PermissionMode,

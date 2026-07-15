@@ -7,7 +7,7 @@
 
 import { create } from 'zustand'
 import type { EditorContentUpdate } from '@shared/ipc/editor'
-import { persistWorkspaceSection } from '../utils/workspace-state'
+import { isWorkspaceStateRestoring, persistWorkspaceSection } from '../utils/workspace-state'
 
 /** 单个文件的编辑器状态 */
 export interface EditorFileState {
@@ -65,8 +65,6 @@ interface EditorState {
   hydrateFromWorkspaceState: (value: unknown) => void
 }
 
-const EDITOR_STORAGE_KEY = 'deepink-editor-drafts'
-
 function normalizeEditorDrafts(value: unknown): Record<string, EditorFileState> | null {
   if (!value || typeof value !== 'object') return null
   const parsed = value as { files?: Record<string, EditorFileState> }
@@ -84,17 +82,6 @@ function normalizeEditorDrafts(value: unknown): Record<string, EditorFileState> 
   return Object.keys(files).length > 0 ? files : null
 }
 
-function loadStoredEditorFiles(): Record<string, EditorFileState> {
-  try {
-    if (typeof localStorage === 'undefined') return {}
-    const raw = localStorage.getItem(EDITOR_STORAGE_KEY)
-    if (!raw) return {}
-    return normalizeEditorDrafts(JSON.parse(raw)) ?? {}
-  } catch {
-    return {}
-  }
-}
-
 function getPersistableEditorFiles(files: Record<string, EditorFileState>): Record<string, EditorFileState> {
   const result: Record<string, EditorFileState> = {}
   for (const [key, file] of Object.entries(files)) {
@@ -107,17 +94,17 @@ function getPersistableEditorFiles(files: Record<string, EditorFileState>): Reco
 
 function saveStoredEditorFiles(state: EditorState): void {
   try {
-    if (typeof localStorage === 'undefined') return
+    if (isWorkspaceStateRestoring()) return
     const files = getPersistableEditorFiles(state.files)
-    localStorage.setItem(EDITOR_STORAGE_KEY, JSON.stringify({ files }))
     persistWorkspaceSection('editorDrafts', { files })
   } catch {
-    // localStorage 可能不可用，忽略持久化失败。
+    // WorkspaceState 镜像失败不应影响当前编辑器状态。
   }
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  files: loadStoredEditorFiles(),
+  // 编辑器草稿按工作空间恢复，避免全局 localStorage 把其他项目草稿带入当前项目。
+  files: {},
   pendingUpdates: [],
 
   openFile: async (filePath) => {

@@ -4,6 +4,7 @@ import {
   IconFolder,
   IconGlobe,
   IconMobile,
+  IconDatabase,
   IconSearch,
   IconSparkle,
   IconTerminal,
@@ -88,12 +89,19 @@ function resourceMenuIcon(kind: AgentMountedResourceKind): React.ReactElement {
       return <IconMobile size={13} />
     case 'terminal':
       return <IconTerminal size={13} />
+    case 'data-source':
+    case 'saved-query':
+    case 'data-query':
+    case 'data-record':
+      return <IconDatabase size={13} />
     case 'file':
     case 'tab':
     case 'artifact':
       return <IconFile size={13} />
     case 'project':
       return <IconFolder size={13} />
+    default:
+      return <IconFile size={13} />
   }
 }
 
@@ -119,5 +127,9 @@ function resourceSourceLabel(candidate: AgentResourceCandidate): string {
       return candidate.kind === 'browser' ? '浏览器 Tab' : '打开 Tab'
     case 'draft':
       return '草稿'
+    case 'data-source':
+      return candidate.kind === 'saved-query' ? 'Saved Query' : '数据源'
+    default:
+      return '资源'
   }
 }

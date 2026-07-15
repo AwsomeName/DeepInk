@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
-import type { HardwareRiskLevel, HardwareReportConclusion } from '@shared/ipc/hardware'
+import type {
+  FpcShapeContext,
+  HardwareRiskLevel,
+  HardwareReportConclusion,
+} from '@shared/ipc/hardware'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
 import { useAgentStore, useFsStore, useHardwareStore, useTabStore } from '../../stores'
 import {
@@ -32,6 +36,68 @@ function riskLabel(level: HardwareRiskLevel): string {
   }
 }
 
+function summarizeFpcShapeContext(context: FpcShapeContext): string {
+  const outline = context.outline
+  const outlineText = outline?.outlineCandidates[0]
+    ? [
+        `外形层：${outline.entry}`,
+        `外形尺寸：${outline.outlineCandidates[0].bounds.width.toFixed(2)} × ${outline.outlineCandidates[0].bounds.height.toFixed(2)} ${outline.unit}`,
+        `外形置信度：${Math.round(outline.outlineCandidates[0].confidence * 100)}%`,
+      ].join('\n')
+    : '外形层：尚未可靠识别'
+
+  const structuralText =
+    context.structuralArtifacts.length > 0
+      ? context.structuralArtifacts
+          .slice(0, 8)
+          .map((artifact) => {
+            const size = artifact.metadata?.bounds?.size
+            const sizeText = size
+              ? `，尺寸 ${size.x.toFixed(2)} × ${size.y.toFixed(2)} × ${size.z.toFixed(2)} ${artifact.metadata?.unit ?? 'unknown'}`
+              : ''
+            return `- ${artifact.displayName}：${artifact.canPreview ? '可预览' : '不可预览'}，${artifact.message}${sizeText}`
+          })
+          .join('\n')
+      : '- 未识别到结构件'
+
+  return [
+    `准备状态：${context.readiness}`,
+    outlineText,
+    '',
+    '结构件：',
+    structuralText,
+    '',
+    '需要向用户确认的问题：',
+    ...(context.questions.length > 0
+      ? context.questions.map((question) => `- ${question}`)
+      : ['- 暂无']),
+    '',
+    '建议下一步：',
+    ...(context.nextActions.length > 0
+      ? context.nextActions.map((action) => `- ${action}`)
+      : ['- 暂无']),
+  ].join('\n')
+}
+
+function buildFpcShapeAgentPrompt(workspacePath: string, context: FpcShapeContext): string {
+  return [
+    '请开始“让 AI 带我完成 FPC 排线形状调整”的准备流程。',
+    '',
+    `工作空间：${workspacePath}`,
+    '',
+    '你已经拿到 DeepInk 生成的只读 FPC 改形状上下文摘要：',
+    '',
+    summarizeFpcShapeContext(context),
+    '',
+    '请按以下方式推进：',
+    '1. 先用人能听懂的话总结当前 FPC 外形、结构件约束和不确定性。',
+    '2. 如果缺少装配坐标、对齐点、固定区域或目标修改尺寸，先向我提问，不要假装知道。',
+    '3. 不要修改任何 Gerber、STEP、STL、源工程或生产文件。',
+    '4. 如果需要更细的外形点线数据，再调用 hardware_read_gerber_layer_geometry。',
+    '5. 在我确认固定区域和目标后，再进入下一步“生成改版意图”，不要直接生成修改文件。',
+  ].join('\n')
+}
+
 export function HardwareProductionSection({
   workspacePath,
   workspaceRef,
@@ -48,15 +114,19 @@ export function HardwareProductionSection({
   const createConversation = useAgentStore((s) => s.createConversation)
   const renameConversation = useAgentStore((s) => s.renameConversation)
   const setInput = useAgentStore((s) => s.setInput)
+  const addUserMessage = useAgentStore((s) => s.addUserMessage)
+  const addSystemMessage = useAgentStore((s) => s.addSystemMessage)
   const refreshDir = useFsStore((s) => s.refreshDir)
   const summary = useHardwareStore((s) => s.summary)
   const report = useHardwareStore((s) => s.report)
   const loading = useHardwareStore((s) => s.loading)
   const inspecting = useHardwareStore((s) => s.inspecting)
+  const preparingFpcShapeContext = useHardwareStore((s) => s.preparingFpcShapeContext)
   const savingReport = useHardwareStore((s) => s.savingReport)
   const error = useHardwareStore((s) => s.error)
   const scanWorkspace = useHardwareStore((s) => s.scanWorkspace)
   const inspectProductionPackage = useHardwareStore((s) => s.inspectProductionPackage)
+  const prepareFpcShapeContext = useHardwareStore((s) => s.prepareFpcShapeContext)
   const writeProductionReportMarkdown = useHardwareStore((s) => s.writeProductionReportMarkdown)
   const clear = useHardwareStore((s) => s.clear)
   const sameWorkspace = summary?.workspacePath === workspacePath
@@ -133,6 +203,45 @@ export function HardwareProductionSection({
         sessionId: conversationId,
       },
     })
+  }
+
+  const openFpcShapeSession = async (): Promise<void> => {
+    const context = await prepareFpcShapeContext(workspacePath)
+    if (!context) return
+    const prompt = buildFpcShapeAgentPrompt(workspacePath, context)
+    const conversationId = createConversation({
+      surface: 'workbench-tab',
+      runtime: {
+        location: 'local',
+        transport: 'local',
+        backend: 'deepink-agent',
+        workspaceRef,
+      },
+      activate: true,
+    })
+    renameConversation(conversationId, 'FPC 形状调整')
+    setInput('', conversationId)
+    addUserMessage(prompt, conversationId)
+    openTab({
+      type: 'conversation',
+      title: 'FPC 形状调整',
+      icon: '🤖',
+      conversation: {
+        surface: 'workbench-tab',
+        runtime: {
+          location: 'local',
+          transport: 'local',
+          backend: 'deepink-agent',
+          workspaceRef,
+        },
+        sessionId: conversationId,
+      },
+    })
+    try {
+      await window.deepink.agent.sendMessage(conversationId, { message: prompt })
+    } catch (error) {
+      addSystemMessage(`发送失败: ${String(error)}`, conversationId)
+    }
   }
 
   const openGerberLayers = (): void => {
@@ -247,6 +356,21 @@ export function HardwareProductionSection({
             >
               <IconFile size={14} />
               {savingReport ? '保存中' : '报告'}
+            </button>
+            <button
+              className="project-panel-quick-action"
+              onClick={() => void openFpcShapeSession()}
+              disabled={
+                loading ||
+                inspecting ||
+                savingReport ||
+                preparingFpcShapeContext ||
+                !hasHardwareSignals
+              }
+              title="准备 FPC 改形状上下文并交给 Agent"
+            >
+              <IconMonitor size={14} />
+              {preparingFpcShapeContext ? '准备中' : '改形状'}
             </button>
             <button
               className="project-panel-quick-action"

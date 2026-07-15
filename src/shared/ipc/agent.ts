@@ -13,6 +13,10 @@ export type AgentSendResourceKind =
   | 'terminal'
   | 'artifact'
   | 'project'
+  | 'data-source'
+  | 'saved-query'
+  | 'data-query'
+  | 'data-record'
 
 export interface AgentSendResource {
   id: string
@@ -24,6 +28,18 @@ export interface AgentSendResource {
     path?: string
     tabId?: string
     workspaceKey?: string | null
+    sourceId?: string
+    collection?: string
+    savedQueryId?: string
+    queryId?: string
+    recordId?: string
+    sourceUrl?: string
+    publishedAt?: string
+    collectedAt?: string
+    executedAt?: string
+    total?: number
+    returned?: number
+    truncated?: boolean
   }
 }
 

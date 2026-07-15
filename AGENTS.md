@@ -17,6 +17,7 @@
 - **写文档、做表格、做 PPT**（AI 驱动文档编辑）
 - **跟同事/好友沟通**（AI-Native IM，📋 未开始）
 - **浏览网页、自动化操作**（内嵌浏览器 + AI Agent，✅ 已实现）
+- **接入远程数据源**（ES/数据库只读查询 + Agent 挂载，📋 规划中）
 - **操控手机 App**（内嵌 Android 模拟器 + AI Agent，🔧 技术验证中）
 - **跟 AI 协作完成一切**（可插拔 AI 后端：Claude Code / 国内模型 / BYOK）
 
@@ -60,9 +61,9 @@ DeepInk 不是 VSCode。不做代码编辑、不做终端、不做 Git。
 └────────────────────────────────────────────────────────┘
 ```
 
-- **Activity Bar**（左侧 ~48px）：图标导航（文件、搜索、浏览器、消息、设置等）
-- **侧栏**（~250px）：对应 Activity Bar 选中项的面板内容（文件浏览器、联系人列表、消息列表等）
-- **主工作区**（flex:1）：编辑器 / 浏览器 Tab
+- **Activity Bar**（左侧 ~48px）：图标导航（工作空间、搜索、浏览器、数据源、设置等）
+- **侧栏**（~250px）：对应 Activity Bar 选中项的面板内容（文件浏览器、搜索、数据源、联系人列表等）
+- **主工作区**（flex:1）：编辑器 / 浏览器 / 数据源查询 Tab
 - **右侧面板**（~350px）：Agent 对话 + IM 消息统一面板
   - 🤖 Agent 对话（跟自己的 AI 聊）
   - 💬 好友消息（跟人聊，腾讯 TIM SDK）
@@ -114,6 +115,7 @@ Agent 面板根据工作状态在两种布局间切换：
 |------|------|------|
 | 即时通讯 | 腾讯 IM SDK（TIM） | 好友消息、群聊、Agent 消息转发（📋 未开始） |
 | 文档渲染 | PDF.js、SheetJS 等 | 多格式预览 docx/xlsx/pptx/pdf（📋 未开始） |
+| 数据源 | Elasticsearch 只读适配器 + 后续 DB adapter | 远程采集数据查询、结果 Tab、Agent 挂载（📋 规划中） |
 | 移动端 | 待定（React Native / Flutter） | 配套 APP（📋 未开始） |
 | 云存储 | 自建 + 用户自有云盘接入 | 文件存储扩展（📋 未开始，与 WebDAV 同步不同） |
 
@@ -129,6 +131,8 @@ deepink/
 │   └── features/              # 功能规格
 │       ├── agent-system.md    # Agent 系统
 │       ├── browser-automation.md  # 浏览器自动化
+│       ├── data-sources.md   # 数据源系统（ES/数据库只读接入规划）
+│       ├── data-sources-development-plan.md # 数据源开发者实施计划
 │       ├── subscription.md   # 订阅系统（免费 + Pro）
 │       ├── im-system.md       # 即时通讯（规划）
 │       └── document-editor.md # 文档编辑器（规划）
@@ -149,6 +153,7 @@ deepink/
 │   │   ├── sync/              # ✅ 云同步（WebDAV + 凭证加密存储）
 │   │   ├── subscription/      # ✅ 订阅系统（套餐管理 + 支付）
 │   │   ├── fs/                # ✅ 文件系统服务（Home 目录浏览 + 读写）
+│   │   ├── data-source/       # 📋 数据源系统（ES/数据库只读查询 + Agent 挂载）
 │   │   ├── android/           # 🔧 内嵌 Android 模拟器（ADB + scrcpy + 模拟器管理）
 │   │   ├── im/                # 📋 即时通讯（未开始：TIM SDK 集成）
 │   │   ├── memory/            # 📋 独立 AI 记忆系统（未开始）
@@ -167,6 +172,7 @@ deepink/
 │           │   ├── sidebar/        # 侧栏面板
 │           │   ├── workbench/      # 主工作区（浏览器工具栏 + 内容）
 │           │   ├── agent-panel/    # Agent 对话面板
+│           │   ├── data-sources/   # 数据源侧栏与查询 Tab（规划）
 │           │   ├── im-panel/       # IM 消息面板（规划）
 │           │   ├── editor/         # 文档编辑器（规划）
 │           │   ├── settings/       # 设置页（规划）
@@ -221,7 +227,18 @@ AI 驱动的 Markdown 文档编辑：
 - 📋 后续：AI 续写/改写/翻译、docx/xlsx/pptx/pdf 多格式预览
 - 详见 `docs/features/document-editor.md`
 
-### 4. 内嵌 Android 模拟器 🔧 技术验证中
+### 4. 数据源系统 📋 规划中
+
+远程采集项目和数据库作为 DeepInk 的资料入口：
+
+- 第一版支持 Elasticsearch 只读连接、index 浏览、DSL 查询和结果 Tab
+- 凭证存本机加密存储，项目文件只保存非敏感配置和 Saved Queries
+- 查询结果、Saved Query、单条记录可作为 Agent context chip 挂载
+- MCP 只读工具：list_sources / list_collections / search / get_record / run_saved_query
+- 不做数据库管理器，不做写入、删除、索引管理、mapping 编辑或 ETL
+- 详见 `docs/features/data-sources.md`、`docs/features/data-sources-development-plan.md`
+
+### 5. 内嵌 Android 模拟器 🔧 技术验证中
 
 与浏览器支柱对称的移动自动化能力，AI 操控手机 App：
 
@@ -231,7 +248,7 @@ AI 驱动的 Markdown 文档编辑：
 - **15 个 MCP 工具**：tap/swipe/screenshot/dump_ui/launch_package/install_apk/shell 等
 - 详见 `docs/features/android-mirror.md`、`docs/features/cloud-phone.md`
 
-### 5. 即时通讯 📋 未开始
+### 6. 即时通讯 📋 未开始
 
 AI-Native IM 即时通讯：
 
@@ -240,7 +257,7 @@ AI-Native IM 即时通讯：
 - 核心场景：用户聊天 / 给好友的 AI Agent 发任务 / Agent 间协作
 - 详见 `docs/features/im-system.md`
 
-### 6. 独立 AI 记忆系统 📋 未开始
+### 7. 独立 AI 记忆系统 📋 未开始
 
 DeepInk 有自己的记忆系统，不依赖任何 AI 服务的记忆：
 
@@ -249,14 +266,14 @@ DeepInk 有自己的记忆系统，不依赖任何 AI 服务的记忆：
 - **上下文管理**：跨会话的上下文衔接，让 AI "记得"之前做过什么
 - **记忆权限**：用户可以查看、编辑、删除 AI 对自己的记忆
 
-### 7. 云文件存储 📋 未开始
+### 8. 云文件存储 📋 未开始
 
 - **DeepInk 云盘**：付费功能，文件云端同步
 - **用户自有云盘接入**：支持接入用户的网盘（百度网盘、阿里云盘等）
 - 文件在设备间同步，移动端可查看/编辑
 - （当前已实现 WebDAV 云同步，见 `sync/`；本节指更深层的存储抽象）
 
-### 8. Agent 在环（Human-in-the-loop）
+### 9. Agent 在环（Human-in-the-loop）
 
 Agent 的所有操作都必须在用户的许可和监视下进行：
 - 操作前需用户确认（权限系统 3 模式）

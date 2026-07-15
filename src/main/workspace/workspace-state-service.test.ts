@@ -194,4 +194,52 @@ describe('WorkspaceStateService', () => {
 
     expect(service.getSnapshot(null).sections.layout).toEqual({ activePanel: 'files' })
   })
+
+  it('serializes concurrent section writes without losing sections', async () => {
+    const service = new WorkspaceStateService()
+    await service.loadState()
+
+    await Promise.all([
+      service.setSection('/tmp/a', 'tabs', { activeTabId: 'tab-a' }),
+      service.setSection('/tmp/a', 'browserTabs', { tabs: { browser: { url: 'https://example.com' } } }),
+      service.setSection('/tmp/a', 'editorDrafts', { files: { draft: { dirty: true } } }),
+      service.setSection('/tmp/a', 'agentConversations', { conversationOrder: ['agent-a'] }),
+    ])
+
+    const reloaded = new WorkspaceStateService()
+    await reloaded.loadState()
+    const sections = reloaded.getSnapshot('/tmp/a').sections
+
+    expect(sections.tabs).toEqual({ activeTabId: 'tab-a' })
+    expect(sections.browserTabs).toEqual({ tabs: { browser: { url: 'https://example.com' } } })
+    expect(sections.editorDrafts).toEqual({ files: { draft: { dirty: true } } })
+    expect(sections.agentConversations).toEqual({ conversationOrder: ['agent-a'] })
+  })
+
+  it('falls back to the backup file when the primary state file is corrupted', async () => {
+    const service = new WorkspaceStateService()
+    await service.loadState()
+    await service.setSection(null, 'layout', { activePanel: 'files' })
+    await service.setSection(null, 'tabs', { activeTabId: 'browser' })
+    await writeFile(join(tempDir, 'workspace-state.json'), '{broken-json', 'utf-8')
+
+    const reloaded = new WorkspaceStateService()
+    await reloaded.loadState()
+
+    expect(reloaded.getSnapshot(null).sections.layout).toEqual({ activePanel: 'files' })
+  })
+
+  it('reports workspace state diagnostics', async () => {
+    const service = new WorkspaceStateService()
+    await service.loadState()
+    await service.setSection('/tmp/a', 'tabs', { activeTabId: 'tab-a' })
+
+    const diagnostics = service.getDiagnostics()
+
+    expect(diagnostics.userDataPath).toBe(tempDir)
+    expect(diagnostics.stateFilePath).toBe(join(tempDir, 'workspace-state.json'))
+    expect(diagnostics.backupFilePath).toBe(join(tempDir, 'workspace-state.json.bak'))
+    expect(diagnostics.workspaceCount).toBe(1)
+    expect(diagnostics.fileVersion).toBe(1)
+  })
 })

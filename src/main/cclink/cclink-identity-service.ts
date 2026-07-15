@@ -125,6 +125,10 @@ export class CclinkIdentityService {
     return this.store.get()
   }
 
+  getIdentitySnapshot(identity = this.getCachedIdentity()): CclinkIdentitySnapshot | null {
+    return this.snapshotIdentity(identity)
+  }
+
   async preflightLegacyImport(): Promise<CclinkLegacyImportPreflight> {
     const tokenManager = this.getTokenManager()
     const cachedUser = this.snapshotUser(tokenManager?.getUserProfile() ?? null)
@@ -573,8 +577,14 @@ export class CclinkIdentityService {
     if (!identity) return null
     return {
       accountUserId: identity.accountUserId,
+      imUserId: identity.imUserId,
       clientImUserId: identity.clientImUserId,
       sdkAppId: identity.sdkAppId,
+      deviceId: identity.deviceId,
+      deviceName: identity.deviceName,
+      expiresAt: identity.expiresAt,
+      updatedAt: identity.updatedAt,
+      ready: Boolean(identity.clientImUserId && identity.imUserSig && identity.authToken && identity.sdkAppId),
     }
   }
 

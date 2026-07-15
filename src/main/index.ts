@@ -6,7 +6,9 @@ import { createRuntimeState } from './runtime/app-runtime'
 import { createWindowRuntime } from './runtime/window-runtime'
 import { bootstrapRuntime } from './runtime/bootstrap-runtime'
 import { shutdownRuntime } from './runtime/shutdown-runtime'
+import { configureFixedUserDataPath } from './runtime/user-data-path'
 
+configureFixedUserDataPath(app)
 ensureSingleInstance(app)
 configureAppCommandLine(app)
 registerProcessErrorHandlers()

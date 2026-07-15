@@ -1,4 +1,4 @@
-import type { ChatccFileContent, ChatccIdentity, ChatccMessage, ChatccServer, ChatccSession, ChatccTreeNode } from '../chatcc'
+import type { ChatccFileContent, ChatccMessage, ChatccServer, ChatccSession, ChatccTreeNode } from '../chatcc'
 import type { RemoteError as CclinkRemoteError, RemoteErrorLayer as CclinkRemoteErrorLayer } from '../remote-error'
 
 export type { CclinkRemoteError, CclinkRemoteErrorLayer }
@@ -62,8 +62,14 @@ export interface CclinkAccountSnapshot {
 
 export interface CclinkIdentitySnapshot {
   accountUserId: string
+  imUserId: string
   clientImUserId: string
   sdkAppId: number
+  deviceId: string
+  deviceName: string
+  expiresAt?: string | null
+  updatedAt: number
+  ready: boolean
 }
 
 export interface CclinkLegacyImportPreflight {
@@ -97,11 +103,11 @@ export interface CclinkLegacyImportPreflight {
 
 export interface CclinkApiContract {
   getState: () => Promise<CclinkApiState>
-  getIdentity: () => Promise<ChatccIdentity | null>
+  getIdentity: () => Promise<CclinkIdentitySnapshot | null>
   preflightLegacyImport: () => Promise<CclinkLegacyImportPreflight>
-  ensureIdentity: () => Promise<ChatccIdentity>
+  ensureIdentity: () => Promise<CclinkIdentitySnapshot>
   sendLegacySmsCode: () => Promise<void>
-  importLegacyIdentity: (smsCode: string) => Promise<ChatccIdentity>
+  importLegacyIdentity: (smsCode: string) => Promise<CclinkIdentitySnapshot>
   clearIdentity: () => Promise<void>
   listServers: () => Promise<ChatccServer[]>
   removeServer: (serverId: string) => Promise<void>

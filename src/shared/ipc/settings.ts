@@ -4,17 +4,14 @@ export type {
   ZoomMode,
   DeviceMode,
   AgentEngine,
+  CadBackend,
   Provider,
   ApiFormat,
   ProviderPreset,
   AppSettings,
 } from '../settings-constants'
 
-export {
-  PROVIDER_PRESETS,
-  DEFAULT_SETTINGS,
-  getPresetBaseUrl,
-} from '../settings-constants'
+export { PROVIDER_PRESETS, DEFAULT_SETTINGS, getPresetBaseUrl } from '../settings-constants'
 
 import type { AppSettings } from '../settings-constants'
 

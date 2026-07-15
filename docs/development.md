@@ -41,6 +41,7 @@ deepink/
 │   │   │   └── modules/         # 工具模块（browser 46 / editor 5 / android 15）
 │   │   ├── auth/                # 认证（手机验证码 + JWT）
 │   │   ├── fs/                  # 文件系统 IPC（Phase 3B 新增）
+│   │   ├── data-source/         # 数据源系统（规划：ES/数据库只读接入）
 │   │   ├── ipc/                 # IPC 处理器（browser / agent / auth / fs）
 │   │   ├── im/                  # 即时通讯（Phase 4：TIM SDK）
 │   │   ├── editor/              # 文档编辑器服务（Phase 5）
@@ -59,6 +60,7 @@ deepink/
 │           │   ├── sidebar/          # 侧栏面板（FileTree / Search / Contacts）
 │           │   ├── workbench/        # 主工作区（多 Tab + 浏览器 + 编辑器 + 设置）
 │           │   ├── agent-panel/      # Agent 对话面板
+│           │   ├── data-sources/     # 数据源侧栏与查询 Tab（规划）
 │           │   ├── im-panel/         # IM 消息面板（Phase 4）
 │           │   ├── editor/           # 文档编辑器（Phase 5）
 │           │   ├── settings/         # 设置页（Phase 3C）
@@ -122,6 +124,8 @@ docs: 更新架构设计文档
 'agent:approve'
 'fs:readDir'
 'fs:readFile'
+'data-source:query'
+'data-source:get-record'
 'im:sendMessage'
 'editor:openFile'
 'memory:save'
@@ -403,6 +407,59 @@ interface AgentLayoutState {
 - [ ] 修改 `src/renderer/src/App.tsx` — 初始化 theme-store，挂载时应用 `data-theme` 属性
 - [ ] 修改 `src/renderer/src/components/settings/AppearanceSettings.tsx` — 主题切换 UI（dark/light/system 单选按钮）
 
+#### 3G: 数据源与远程资料接入
+
+**目标**：让本地工作空间能以只读方式接入远程 Elasticsearch / 数据库资料，并把查询结果作为 Tab 资源挂载给 Agent。
+
+**前置依赖**：Phase 3B（多 Tab + IPC）、Phase 3C（侧栏/设置页）、Phase 3D（命令和快捷键）、MCP 工具系统。
+
+> 产品方案见 `docs/features/data-sources.md`；开发者实施计划见 `docs/features/data-sources-development-plan.md`。第一版只支持 Elasticsearch 只读查询，不做数据库管理器。
+
+**主进程核心：**
+
+- [ ] 新建 `src/main/data-source/types.ts` — `DataSourceConfig`、`DataSourceSecret`、`DataQuerySnapshot`、`NormalizedRecord`、`SavedQuery`。
+- [ ] 新建 `src/main/data-source/credential-store.ts` — 复用 safeStorage / Keychain 保存数据源凭证，配置文件只保存 `authRef`。
+- [ ] 新建 `src/main/data-source/adapters/adapter.ts` — `DataSourceAdapter` 接口。
+- [ ] 新建 `src/main/data-source/adapters/elasticsearch-adapter.ts` — ES 只读连接、index 列表、DSL 查询、单条记录读取。
+- [ ] 新建 `src/main/data-source/audit-log.ts` — 查询审计日志，只记录 metadata，不记录完整敏感结果。
+- [ ] 新建 `src/main/data-source/data-source-service.ts` — 配置管理、凭证读取、adapter 路由、超时、结果上限、错误归一化。
+- [ ] 新建 `src/main/data-source/data-source-ipc.ts` — 注册 `data-source:list` / `create` / `test` / `list-collections` / `query` / `get-record` / `save-query`。
+- [ ] 修改 `src/main/index.ts` — 初始化 DataSourceService 并注册 IPC。
+
+**Preload 与类型：**
+
+- [ ] 修改 `src/preload/index.ts` — 添加 `deepink.dataSource` 命名空间。
+- [ ] 修改 `src/preload/index.d.ts` — 添加 `DataSourceAPI` 类型。
+- [ ] 所有 IPC 输入用 Zod 校验，禁止 Renderer 传任意 HTTP 请求让主进程代发。
+
+**Renderer UI：**
+
+- [ ] 修改 Activity Bar — 增加数据源图标和 `data-sources` view。
+- [ ] 新建 `src/renderer/src/stores/data-source-store.ts` — 连接列表、collections、Saved Queries、最近查询、查询结果、loading/error。
+- [ ] 新建 `src/renderer/src/components/data-sources/DataSourcesPanel.tsx` — 连接树、index、Saved Queries、最近查询。
+- [ ] 新建 `src/renderer/src/components/data-sources/DataSourceQueryTab.tsx` — 连接选择、查询编辑器、运行按钮、结果区。
+- [ ] 新建 `src/renderer/src/components/data-sources/DataSourceResultTable.tsx` — 分页/虚拟滚动表格、列宽、复制。
+- [ ] 新建 `src/renderer/src/components/data-sources/DataSourceRecordDrawer.tsx` — 单条记录正文、来源、时间、raw JSON。
+- [ ] 修改 `src/renderer/src/components/sidebar/Sidebar.tsx` — `data-sources` view 渲染 `DataSourcesPanel`。
+- [ ] 修改 `src/renderer/src/components/workbench/Workbench.tsx` — 渲染 `data-source-query` / `data-source-result` Tab。
+
+**Agent 与 MCP：**
+
+- [ ] 新建 `src/main/mcp/modules/data-source/index.ts` — `DataSourceToolModule`。
+- [ ] 注册 `data_source.list_sources`、`data_source.list_collections`、`data_source.search`、`data_source.get_record`、`data_source.run_saved_query`。
+- [ ] 接入权限系统：首次读取某 source/query 需要确认，strict 模式每次确认。
+- [ ] 工具响应默认返回归一化字段，限制条数、字节数和 raw 字段。
+- [ ] Agent `@` 资源选择器支持数据源、Saved Query、查询结果、单条记录。
+
+**验收标准：**
+
+- [ ] 能创建 ES 只读连接、测试连接、列出 index。
+- [ ] 明文凭证不会出现在工作空间配置、settings、日志、查询快照和 MCP 响应中。
+- [ ] 能执行只读 DSL 查询，并在 Tab 中查看表格和 JSON 详情。
+- [ ] 查询结果能挂载给 Agent，Agent 能基于结果写摘要或文章并保留来源字段。
+- [ ] MCP 数据源工具只读、受权限控制、响应大小受限。
+- [ ] 真实 ES 全链路跑通：连接 → 查询 → 结果 Tab → Agent 挂载 → Agent 总结。
+
 ---
 
 ### Phase 4 — IM 即时通讯
@@ -642,6 +699,7 @@ Phase 1-2 (DONE)
     ↓
 Phase 3: 骨架加固
     3A → 3B → 3C → 3D → 3E → 3F
+                    ↘ 3G 数据源（可与 3E/3F 后段并行）
     ↓
 Phase 4: IM        ←┐ 可并行
     ↓               │
@@ -658,7 +716,7 @@ Phase 9: 进阶功能
 Phase 10: 生产打磨
 ```
 
-**并行化建议**：Phase 4（IM）和 Phase 5（编辑器）可同时推进。Phase 6（记忆）和 Phase 7（云存储）也可并行。
+**并行化建议**：Phase 3G（数据源）可在多 Tab、侧栏、设置页和 MCP 工具系统稳定后并行推进。Phase 4（IM）和 Phase 5（编辑器）可同时推进。Phase 6（记忆）和 Phase 7（云存储）也可并行。
 
 ## 调试
 
@@ -688,9 +746,13 @@ pnpm package      # 打包 Mac 应用 (.dmg)
 | `src/main/index.ts` | 主进程入口，注册所有子系统 | 每个 Phase |
 | `src/preload/index.ts` | Renderer↔Main 桥梁，每个新模块加 namespace | 每个 Phase |
 | `src/preload/index.d.ts` | Preload API 类型声明 | 每个 Phase |
-| `src/renderer/src/components/workbench/Workbench.tsx` | 主工作区，多 Tab 渲染 | Phase 3B/C/D/E, 5 |
-| `src/renderer/src/components/sidebar/Sidebar.tsx` | 侧栏，替换假数据 | Phase 3C, 4B |
-| `src/renderer/src/assets/main.css` | 全局样式 + 主题 | Phase 3C/F, 4B, 5A |
+| `src/renderer/src/components/workbench/Workbench.tsx` | 主工作区，多 Tab 渲染 | Phase 3B/C/D/E/G, 5 |
+| `src/renderer/src/components/sidebar/Sidebar.tsx` | 侧栏，替换假数据 | Phase 3C/G, 4B |
+| `src/renderer/src/assets/main.css` | 全局样式 + 主题 | Phase 3C/F/G, 4B, 5A |
 | `src/renderer/src/stores/agent-store.ts` | Agent 状态（流式消息、后端类型） | Phase 3E |
 | `src/main/agent/agent-bridge.ts` | Agent 桥接（重构为可插拔） | Phase 3E, 6 |
-| `src/main/mcp/tool-host.ts` | MCP 工具注册中心 | Phase 4D, 5D, 6 |
+| `src/main/data-source/*` | 数据源服务、凭证、审计、adapter | Phase 3G |
+| `src/renderer/src/stores/data-source-store.ts` | 数据源 UI 状态 | Phase 3G |
+| `src/renderer/src/components/data-sources/*` | 数据源侧栏、查询 Tab、结果表格 | Phase 3G |
+| `src/main/mcp/modules/data-source/*` | 数据源 MCP 工具 | Phase 3G |
+| `src/main/mcp/tool-host.ts` | MCP 工具注册中心 | Phase 3G, 4D, 5D, 6 |

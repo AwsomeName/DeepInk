@@ -163,4 +163,16 @@ describe('fs-store workspace switching', () => {
       JSON.stringify([lastWorkspacePath, oldWorkspacePath]),
     )
   })
+
+  it('keeps recent projects from local fallback when settings are empty', async () => {
+    const oldWorkspacePath = '/Users/apple/old-project'
+    localStorageData.set('deepink-recent-workspaces', JSON.stringify([oldWorkspacePath]))
+
+    await useFsStore.getState().initWorkspace()
+
+    expect(useFsStore.getState().recentWorkspacePaths).toEqual([oldWorkspacePath])
+    expect(window.deepink.settings.set).toHaveBeenCalledWith({
+      recentWorkspacePaths: [oldWorkspacePath],
+    })
+  })
 })

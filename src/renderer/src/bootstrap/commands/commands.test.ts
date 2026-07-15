@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Command } from '../../stores/command-store'
 import { createAgentCommands } from './agent-commands'
 import { createBrowserCommands } from './browser-commands'
+import { createDiagnosticsCommands } from './diagnostics-commands'
 import { createFileCommands } from './file-commands'
 import { createSettingsCommands } from './settings-commands'
 import { createSyncCommands } from './sync-commands'
@@ -23,6 +24,7 @@ function createAllCommands(): Command[] {
     ...createSyncCommands(),
     ...createAgentCommands(),
     ...createBrowserCommands(),
+    ...createDiagnosticsCommands(),
     ...createWindowCommands(),
   ]
 }
@@ -41,6 +43,7 @@ describe('bootstrap command modules', () => {
     expect(ids).toContain('workbench.focusAgentPanel')
     expect(ids).toContain('agent.newConversation')
     expect(ids).toContain('agent.resetSession')
+    expect(ids).toContain('diagnostics.copyWorkspaceState')
     expect(ids).toContain('window.reload')
   })
 })
