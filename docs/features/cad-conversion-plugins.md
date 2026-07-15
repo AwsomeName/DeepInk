@@ -2,7 +2,7 @@
 
 > 状态：规划稿
 > 最后更新：2026-07-15
-> 关联文档：`docs/features/hardware-workspace.md`、`docs/features/fpc-shape-change-assistant.md`、`docs/features/product-milestones.md`
+> 关联文档：`docs/features/hardware-workspace.md`、`docs/features/fpc-shape-change-assistant.md`
 
 ## 结论
 

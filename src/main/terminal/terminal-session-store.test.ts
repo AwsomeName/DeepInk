@@ -25,7 +25,7 @@ const runtime: TerminalRuntimeRef = {
 }
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-terminal-session-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-terminal-session-'))
   mockPaths.userDataDir = tempDir
 })
 

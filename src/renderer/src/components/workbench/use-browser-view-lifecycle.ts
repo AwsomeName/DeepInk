@@ -32,18 +32,18 @@ export function useBrowserViewLifecycle(activeTab: Tab | undefined, tabs: Tab[])
         }
 
         if (!state.ready) {
-          await window.deepink.browser.createView(activeTabId, state.url, {
+          await window.cclinkStudio.browser.createView(activeTabId, state.url, {
             ...(restore ? { restore } : {}),
             profileId: currentTab?.browserProfile ?? null,
           })
           if (cancelled) return
           setBrowserTabReady(activeTabId)
         }
-        await window.deepink.browser.setActive(activeTabId)
+        await window.cclinkStudio.browser.setActive(activeTabId)
         return
       }
 
-      await window.deepink.browser.setActive(null)
+      await window.cclinkStudio.browser.setActive(null)
     }
 
     void manage()
@@ -57,7 +57,7 @@ export function useBrowserViewLifecycle(activeTab: Tab | undefined, tabs: Tab[])
     const prev = prevBrowserIdsRef.current
     const removed = prev.filter((id) => !next.includes(id))
     for (const id of removed) {
-      window.deepink.browser.destroyView(id)
+      window.cclinkStudio.browser.destroyView(id)
       useBrowserStore.getState().removeTab(id)
     }
     prevBrowserIdsRef.current = next

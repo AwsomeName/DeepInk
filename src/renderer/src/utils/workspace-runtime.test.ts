@@ -7,7 +7,7 @@ import { hydrateRuntimeSections, persistRuntimeSections } from './workspace-runt
 
 beforeEach(() => {
   vi.stubGlobal('window', {
-    deepink: {
+    cclinkStudio: {
       workspaceState: {
         setSection: vi.fn().mockResolvedValue({ success: true }),
       },
@@ -36,7 +36,7 @@ describe('workspace-runtime', () => {
       runtime: {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
       },
       activate: false,
     })
@@ -49,7 +49,7 @@ describe('workspace-runtime', () => {
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
         },
         sessionId: conversationId,
       },
@@ -58,7 +58,7 @@ describe('workspace-runtime', () => {
 
     persistRuntimeSections('/workspace/a')
 
-    const setSection = window.deepink.workspaceState.setSection as ReturnType<typeof vi.fn>
+    const setSection = window.cclinkStudio.workspaceState.setSection as ReturnType<typeof vi.fn>
     const tabsPayload = setSection.mock.calls.find((call) => call[1] === 'tabs')?.[2]
     const agentPayload = setSection.mock.calls.find(
       (call) => call[1] === 'agentConversations',
@@ -97,7 +97,7 @@ describe('workspace-runtime', () => {
   })
 
   it('hydrate 期间不触发 store 订阅持久化，避免恢复中间态写回', () => {
-    const setSection = window.deepink.workspaceState.setSection as ReturnType<typeof vi.fn>
+    const setSection = window.cclinkStudio.workspaceState.setSection as ReturnType<typeof vi.fn>
     setSection.mockClear()
 
     hydrateRuntimeSections({
@@ -139,7 +139,7 @@ describe('workspace-runtime', () => {
   })
 
   it('runtime store 只写 WorkspaceState，不再写全局 localStorage 镜像', () => {
-    const setSection = window.deepink.workspaceState.setSection as ReturnType<typeof vi.fn>
+    const setSection = window.cclinkStudio.workspaceState.setSection as ReturnType<typeof vi.fn>
     const setLocalStorage = localStorage.setItem as ReturnType<typeof vi.fn>
     setSection.mockClear()
     setLocalStorage.mockClear()

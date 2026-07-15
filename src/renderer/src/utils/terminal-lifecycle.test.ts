@@ -23,7 +23,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   vi.stubGlobal('window', {
-    deepink: {
+    cclinkStudio: {
       terminal: {
         recordLifecycleEvent: vi.fn().mockResolvedValue({ success: true }),
       },
@@ -35,7 +35,7 @@ describe('recordTerminalLifecycleEvent', () => {
   it('records lifecycle event with session id and workspace key', async () => {
     await recordTerminalLifecycleEvent(terminal, 'created', 'created')
 
-    expect(window.deepink.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
+    expect(window.cclinkStudio.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-session-1',
       workspaceKey: '/workspace',
       kind: 'created',
@@ -49,11 +49,11 @@ describe('recordTerminalLifecycleEvent', () => {
   it('skips terminals without a session id', async () => {
     await recordTerminalLifecycleEvent({ ...terminal, sessionId: undefined }, 'closed')
 
-    expect(window.deepink.terminal.recordLifecycleEvent).not.toHaveBeenCalled()
+    expect(window.cclinkStudio.terminal.recordLifecycleEvent).not.toHaveBeenCalled()
   })
 
   it('does not throw when audit recording fails', async () => {
-    vi.mocked(window.deepink.terminal.recordLifecycleEvent).mockRejectedValueOnce(new Error('boom'))
+    vi.mocked(window.cclinkStudio.terminal.recordLifecycleEvent).mockRejectedValueOnce(new Error('boom'))
 
     await expect(recordTerminalLifecycleEvent(terminal, 'terminated')).resolves.toBeUndefined()
   })

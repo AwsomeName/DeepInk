@@ -66,7 +66,7 @@ function createBackendFixture(): {
     if (sessionToken) url.searchParams.set('session', sessionToken)
     return {
       mcpServers: {
-        deepink: { type: 'http', url: url.toString() },
+        cclinkStudio: { type: 'http', url: url.toString() },
       },
     }
   })

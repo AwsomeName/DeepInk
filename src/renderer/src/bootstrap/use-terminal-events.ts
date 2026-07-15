@@ -6,12 +6,12 @@ import type { TerminalExecutionEvent, TerminalTabRef } from '@shared/terminal'
 
 export function useTerminalEvents(): void {
   useEffect(() => {
-    const offConfirmation = window.deepink.terminal.onRequestCommandConfirmation(
+    const offConfirmation = window.cclinkStudio.terminal.onRequestCommandConfirmation(
       (request: TerminalCommandConfirmationRequest) => {
         useTerminalStore.getState().addPendingConfirmation(request)
       },
     )
-    const offExecutionEvent = window.deepink.terminal.onExecutionEvent(
+    const offExecutionEvent = window.cclinkStudio.terminal.onExecutionEvent(
       (event: TerminalExecutionEvent) => {
         useTerminalStore.getState().appendExecutionEvent(event)
         updateTerminalTabFromExecutionEvent(event)

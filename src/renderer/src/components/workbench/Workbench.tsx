@@ -45,7 +45,7 @@ export function Workbench(): React.ReactElement {
     if (!url.startsWith('http://') && !url.startsWith('https://')) {
       url = 'https://' + url
     }
-    window.deepink.browser.navigate(activeTabId, url)
+    window.cclinkStudio.browser.navigate(activeTabId, url)
   }, [activeTabId, activeBrowserState])
 
   const openNewDocument = useCallback((): void => {
@@ -62,7 +62,7 @@ export function Workbench(): React.ReactElement {
       runtime: {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
         workspaceRef: activeWorkspaceRef,
       },
       activate: false,
@@ -76,7 +76,7 @@ export function Workbench(): React.ReactElement {
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
           workspaceRef: activeWorkspaceRef,
         },
         sessionId: conversationId,
@@ -97,7 +97,7 @@ export function Workbench(): React.ReactElement {
   const openBrowserUrl = useCallback(
     (url: string): void => {
       if (activeTabId && isBrowserTab) {
-        window.deepink.browser.navigate(activeTabId, url)
+        window.cclinkStudio.browser.navigate(activeTabId, url)
         return
       }
       openTab({ type: 'browser', title: '浏览器', icon: '🌐', initialUrl: url, forceNew: true })
@@ -121,7 +121,7 @@ export function Workbench(): React.ReactElement {
         },
         forceNew: true,
       })
-      await window.deepink.browser.removeSnapshot(snap.id)
+      await window.cclinkStudio.browser.removeSnapshot(snap.id)
     },
     [openTab],
   )

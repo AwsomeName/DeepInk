@@ -95,7 +95,7 @@ describe('agent diagnostic report', () => {
         id: 'conv-1',
         title: '知乎操作会话',
         surface: 'assistant-panel',
-        runtime: { location: 'local', transport: 'local', backend: 'deepink-agent' },
+        runtime: { location: 'local', transport: 'local', backend: 'cclink-studio-agent' },
         messages,
         input: '',
         loading: false,

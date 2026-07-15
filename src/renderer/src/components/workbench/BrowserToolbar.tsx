@@ -31,13 +31,13 @@ export function BrowserToolbar({
 }: BrowserToolbarProps): React.ReactElement {
   return (
     <div className="browser-toolbar">
-      <button onClick={() => window.deepink.browser.goBack(tabId)} title="后退">
+      <button onClick={() => window.cclinkStudio.browser.goBack(tabId)} title="后退">
         <IconArrowLeft size={16} />
       </button>
-      <button onClick={() => window.deepink.browser.goForward(tabId)} title="前进">
+      <button onClick={() => window.cclinkStudio.browser.goForward(tabId)} title="前进">
         <IconArrowRight size={16} />
       </button>
-      <button onClick={() => window.deepink.browser.reload(tabId)} title="刷新">
+      <button onClick={() => window.cclinkStudio.browser.reload(tabId)} title="刷新">
         <IconRefresh size={16} />
       </button>
       <BrowserHistoryMenu onOpenUrl={onOpenUrl} onRestoreSnapshot={onRestoreSnapshot} />
@@ -52,22 +52,22 @@ export function BrowserToolbar({
       />
 
       <div className="browser-zoom-group">
-        <button onClick={() => window.deepink.browser.zoomOut(tabId)} title="缩小">
+        <button onClick={() => window.cclinkStudio.browser.zoomOut(tabId)} title="缩小">
           <IconZoomOut size={16} />
         </button>
         <button
           className="zoom-label"
-          onClick={() => window.deepink.browser.resetZoom(tabId)}
+          onClick={() => window.cclinkStudio.browser.resetZoom(tabId)}
           title="点击重置为 100%"
         >
           {Math.round((browserState?.zoomFactor ?? 1) * 100)}%
         </button>
-        <button onClick={() => window.deepink.browser.zoomIn(tabId)} title="放大">
+        <button onClick={() => window.cclinkStudio.browser.zoomIn(tabId)} title="放大">
           <IconZoomIn size={16} />
         </button>
         <button
           className={browserState?.zoomMode === 'fit' && browserState?.viewMode === 'desktop' ? 'active' : ''}
-          onClick={() => window.deepink.browser.fitWidth(tabId)}
+          onClick={() => window.cclinkStudio.browser.fitWidth(tabId)}
           title="适应宽度（自动缩放以显示整页）"
         >
           <IconFitWidth size={16} />
@@ -77,14 +77,14 @@ export function BrowserToolbar({
       <div className="browser-device-group">
         <button
           className={browserState?.viewMode === 'desktop' ? 'active' : ''}
-          onClick={() => window.deepink.browser.setDeviceMode(tabId, 'desktop')}
+          onClick={() => window.cclinkStudio.browser.setDeviceMode(tabId, 'desktop')}
           title="桌面版"
         >
           <IconMonitor size={16} />
         </button>
         <button
           className={browserState?.viewMode === 'mobile' ? 'active' : ''}
-          onClick={() => window.deepink.browser.setDeviceMode(tabId, 'mobile')}
+          onClick={() => window.cclinkStudio.browser.setDeviceMode(tabId, 'mobile')}
           title="移动版"
         >
           <IconMobile size={16} />

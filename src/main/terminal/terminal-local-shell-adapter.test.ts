@@ -2,10 +2,7 @@ import { EventEmitter } from 'node:events'
 import { PassThrough } from 'node:stream'
 import { describe, expect, it, vi } from 'vitest'
 import type { TerminalRuntimeRef } from '../../shared/terminal'
-import {
-  LocalShellExecutionAdapter,
-  TerminalLocalShellError,
-} from './terminal-local-shell-adapter'
+import { LocalShellExecutionAdapter } from './terminal-local-shell-adapter'
 
 class FakeChildProcess extends EventEmitter {
   stdout = new PassThrough()
@@ -27,20 +24,6 @@ const localRuntime: TerminalRuntimeRef = {
     path: '/tmp',
   },
   cwd: '/tmp',
-}
-
-const remoteRuntime: TerminalRuntimeRef = {
-  location: 'remote',
-  transport: 'cclink',
-  backend: 'remote-shell',
-  workspaceRef: {
-    kind: 'remote',
-    transport: 'cclink',
-    endpointId: 'agent-1',
-    workspaceId: 'workspace-1',
-    path: '/srv/app',
-  },
-  cwd: '/srv/app',
 }
 
 describe('LocalShellExecutionAdapter', () => {
@@ -110,30 +93,4 @@ describe('LocalShellExecutionAdapter', () => {
     })
   })
 
-  it('rejects remote runtime with a structured unavailable error', async () => {
-    const listener = vi.fn()
-    const adapter = new LocalShellExecutionAdapter({ now: () => 3000 })
-    adapter.onEvent(listener)
-
-    await expect(
-      adapter.start({ sessionId: 'terminal-3', runtime: remoteRuntime }),
-    ).rejects.toThrow(TerminalLocalShellError)
-    await expect(
-      adapter.start({ sessionId: 'terminal-3', runtime: remoteRuntime }),
-    ).rejects.toMatchObject({
-      executionError: {
-        layer: 'execution-backend',
-        code: 'EXECUTION_BACKEND_UNAVAILABLE',
-        message: '远程 Terminal 执行后端尚未接入',
-        retryable: true,
-      },
-    })
-    expect(listener).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: 'error',
-        sessionId: 'terminal-3',
-        message: '远程 Terminal 执行后端尚未接入',
-      }),
-    )
-  })
 })

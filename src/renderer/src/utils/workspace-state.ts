@@ -29,12 +29,12 @@ export function setWorkspaceStateRef(workspaceRef: WorkspaceRef): void {
   activeWorkspaceKey = workspaceRefKey(workspaceRef)
 }
 
-/** 兼容旧本地路径 API：本地 workspacePath 也是 workspaceKey。 */
+/** 设置本地 workspacePath；当前本地路径也是 workspaceKey。 */
 export function setWorkspaceStatePath(workspacePath: string | null | undefined): void {
   setWorkspaceStateKey(workspacePath)
 }
 
-/** 兼容旧本地路径 API。远程激活后这里返回的是远程 workspaceKey。 */
+/** 获取当前本地 workspacePath。 */
 export function getWorkspaceStatePath(): string | null {
   return getWorkspaceStateKey()
 }
@@ -62,8 +62,8 @@ export function persistWorkspaceSection(
 ): void {
   try {
     if (isWorkspaceStateRestoring()) return
-    if (typeof window === 'undefined' || !window.deepink?.workspaceState) return
-    void window.deepink.workspaceState
+    if (typeof window === 'undefined' || !window.cclinkStudio?.workspaceState) return
+    void window.cclinkStudio.workspaceState
       .setSection(workspaceKey ?? activeWorkspaceKey, section, value, ownerKey ?? activeOwnerKey)
       .catch(() => {})
   } catch {

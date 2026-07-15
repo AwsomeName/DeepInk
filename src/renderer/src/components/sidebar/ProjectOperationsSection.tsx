@@ -46,7 +46,7 @@ export function ProjectOperationsSection({
     setLoading(true)
     setMessage(null)
     try {
-      const result = await window.deepink.projectOps.getAccounts(workspacePath)
+      const result = await window.cclinkStudio.projectOps.getAccounts(workspacePath)
       setAccounts(result)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '读取项目运营配置失败')
@@ -62,16 +62,16 @@ export function ProjectOperationsSection({
   const createTemplate = async (): Promise<void> => {
     setLoading(true)
     try {
-      const result = await window.deepink.projectOps.createAccountsTemplate(workspacePath)
+      const result = await window.cclinkStudio.projectOps.createAccountsTemplate(workspacePath)
       setAccounts(result)
       await refreshDir(workspacePath).catch(() => undefined)
       openTab({
         type: 'editor',
-        title: 'deepink-accounts.json',
+        title: 'cclink-accounts.json',
         icon: '⚙️',
         filePath: result.filePath,
       })
-      setMessage('已创建 deepink-accounts.json')
+      setMessage('已创建 cclink-accounts.json')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '创建配置模板失败')
     } finally {
@@ -82,7 +82,7 @@ export function ProjectOperationsSection({
   const createCopyConversation = async (platform: ProjectOpsPlatform): Promise<void> => {
     setLoading(true)
     try {
-      const draft = await window.deepink.projectOps.createCopyDraft(workspacePath, {
+      const draft = await window.cclinkStudio.projectOps.createCopyDraft(workspacePath, {
         platformId: platform.id,
         title: draftTitle(platform),
         fileName: defaultDraftFile(platform),
@@ -99,7 +99,7 @@ export function ProjectOperationsSection({
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
           workspaceRef,
         },
         activate: true,
@@ -122,7 +122,7 @@ export function ProjectOperationsSection({
           runtime: {
             location: 'local',
             transport: 'local',
-            backend: 'deepink-agent',
+            backend: 'cclink-studio-agent',
             workspaceRef,
           },
           sessionId: conversationId,
@@ -153,7 +153,7 @@ export function ProjectOperationsSection({
       runtime: {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
         workspaceRef,
       },
       activate: true,
@@ -181,7 +181,7 @@ export function ProjectOperationsSection({
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
           workspaceRef,
         },
         sessionId: conversationId,
@@ -209,7 +209,7 @@ export function ProjectOperationsSection({
     const notes = window.prompt('备注', '') || ''
     setLoading(true)
     try {
-      const result = await window.deepink.projectOps.appendPublicationRecord(workspacePath, {
+      const result = await window.cclinkStudio.projectOps.appendPublicationRecord(workspacePath, {
         platformId: platform.id,
         platformName: platform.name,
         account: platform.account,

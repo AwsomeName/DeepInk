@@ -80,13 +80,13 @@ describe('agent conversation view model', () => {
     const conversations = {
       current: conversation({
         id: 'current',
-        title: 'DeepInk 文档整理',
+        title: 'CCLink Studio 文档整理',
         messages: ['整理浏览器资料'],
       }),
       other: conversation({
         id: 'other',
         title: '别的项目',
-        messages: ['DeepInk 资料'],
+        messages: ['CCLink Studio 资料'],
         workspaceRef: otherWorkspace,
       }),
       unbound: conversation({
@@ -226,14 +226,14 @@ describe('agent conversation view model', () => {
       activeTab: {
         id: 'tab-1',
         type: 'browser',
-        title: 'DeepInk 官网',
+        title: 'CCLink Studio 官网',
         icon: 'G',
       },
       tabs: [
         {
           id: 'tab-1',
           type: 'browser',
-          title: 'DeepInk 官网',
+          title: 'CCLink Studio 官网',
           icon: 'G',
         },
         {
@@ -254,7 +254,7 @@ describe('agent conversation view model', () => {
 
     expect(chips.map((chip) => chip.kind)).toEqual(['workspace', 'scope', 'tab', 'file', 'file'])
     expect(chips[0].label).toBe('project')
-    expect(chips[1].label).toBe('DeepInk 官网')
+    expect(chips[1].label).toBe('CCLink Studio 官网')
   })
 
   it('builds @ resource candidates from workspace, selected files, open tabs, and drafts', () => {
@@ -265,7 +265,7 @@ describe('agent conversation view model', () => {
         {
           id: 'browser-1',
           type: 'browser',
-          title: 'DeepInk 官网',
+          title: 'CCLink Studio 官网',
           icon: 'G',
         },
         {
@@ -398,7 +398,7 @@ describe('agent conversation view model', () => {
         {
           id: 'browser-1',
           type: 'browser',
-          title: 'DeepInk 官网',
+          title: 'CCLink Studio 官网',
           icon: 'G',
         },
         {
@@ -449,7 +449,7 @@ describe('agent conversation view model', () => {
     expect(createConversationRuntimeForWorkspace(workspace)).toEqual({
       location: 'local',
       transport: 'local',
-      backend: 'deepink-agent',
+      backend: 'cclink-studio-agent',
       workspaceRef: workspace,
     })
   })
@@ -481,7 +481,7 @@ function conversation({
     runtime: {
       location: 'local',
       transport: 'local',
-      backend: 'deepink-agent',
+      backend: 'cclink-studio-agent',
       ...(workspaceRef ? { workspaceRef } : {}),
     },
     messages: [

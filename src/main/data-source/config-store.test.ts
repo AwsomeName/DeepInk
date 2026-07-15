@@ -22,7 +22,7 @@ import { DataSourceCredentialStore } from './credential-store'
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-data-source-store-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-data-source-store-'))
   mockPaths.userDataDir = tempDir
 })
 

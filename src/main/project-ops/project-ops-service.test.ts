@@ -17,7 +17,7 @@ let tempDir = ''
 let workspacePath = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-project-ops-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-project-ops-'))
   electronMock.home = tempDir
   workspacePath = join(tempDir, 'project')
 })
@@ -33,7 +33,7 @@ describe('ProjectOpsService', () => {
     const result = await service.getAccounts(workspacePath)
 
     expect(result.exists).toBe(false)
-    expect(result.filePath).toBe(join(workspacePath, 'deepink-accounts.json'))
+    expect(result.filePath).toBe(join(workspacePath, 'cclink-accounts.json'))
     expect(result.issues).toEqual([])
   })
 
@@ -50,39 +50,13 @@ describe('ProjectOpsService', () => {
   it('reports invalid JSON with a validation issue', async () => {
     const service = new ProjectOpsService()
     await service.createAccountsTemplate(workspacePath)
-    await writeFile(join(workspacePath, 'deepink-accounts.json'), '{bad json', 'utf-8')
+    await writeFile(join(workspacePath, 'cclink-accounts.json'), '{bad json', 'utf-8')
 
     const result = await service.getAccounts(workspacePath)
 
     expect(result.exists).toBe(true)
     expect(result.error).toBe('项目账号配置不是合法 JSON')
     expect(result.issues[0]?.path).toBe('$')
-  })
-
-  it('reads the legacy hidden accounts config when the visible config is missing', async () => {
-    const service = new ProjectOpsService()
-    const legacyPath = join(workspacePath, '.deepink', 'accounts.json')
-    await mkdir(join(workspacePath, '.deepink'), { recursive: true })
-    await writeFile(
-      legacyPath,
-      JSON.stringify({
-        version: 1,
-        platforms: [
-          {
-            id: 'legacy-platform',
-            name: '旧平台',
-            url: 'https://example.test',
-          },
-        ],
-      }),
-      'utf-8',
-    )
-
-    const result = await service.getAccounts(workspacePath)
-
-    expect(result.exists).toBe(true)
-    expect(result.filePath).toBe(legacyPath)
-    expect(result.config?.platforms[0]?.id).toBe('legacy-platform')
   })
 
   it('creates a platform copy draft in docs', async () => {
@@ -103,7 +77,7 @@ describe('ProjectOpsService', () => {
     const result = await service.appendPublicationRecord(workspacePath, {
       platformId: 'zhihu',
       platformName: '知乎',
-      account: 'DeepInk',
+      account: 'CCLink Studio',
       contentFile: 'docs/知乎版本.md',
       url: 'https://example.test/post',
       status: 'published',

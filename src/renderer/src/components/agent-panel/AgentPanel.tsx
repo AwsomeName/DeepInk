@@ -112,13 +112,13 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
 
   useEffect(() => {
     void refreshBrowserTasks()
-    const offTask = window.deepink.browser.onTaskChanged(({ task }) => {
+    const offTask = window.cclinkStudio.browser.onTaskChanged(({ task }) => {
       upsertBrowserTask(task)
     })
-    const offLog = window.deepink.browser.onActionLogChanged(({ log }) => {
+    const offLog = window.cclinkStudio.browser.onActionLogChanged(({ log }) => {
       upsertBrowserActionLog(log)
     })
-    const offDownload = window.deepink.browser.onDownloadChanged(({ download }) => {
+    const offDownload = window.cclinkStudio.browser.onDownloadChanged(({ download }) => {
       upsertBrowserDownload(download)
     })
     return () => {
@@ -159,7 +159,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
       const conversation = useAgentStore.getState().conversations[conversationId]
       const resources = conversation?.mountedResources ?? []
       const skills = conversation?.mountedSkills ?? []
-      await window.deepink.agent.sendMessage(conversationId, {
+      await window.cclinkStudio.agent.sendMessage(conversationId, {
         message: text,
         resources: toSendResources(resources),
         skills: toSendSkills(skills),
@@ -223,7 +223,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     abortingRef.current = true
     try {
       const conversationId = activeConversationId
-      await window.deepink.agent.abort(conversationId)
+      await window.cclinkStudio.agent.abort(conversationId)
       cancelStreaming(conversationId)
       addSystemMessage('已手动中止当前任务', conversationId)
     } finally {
@@ -234,7 +234,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   // 权限确认：允许
   const handleConfirmApprove = useCallback(
     async (id: string, alwaysAllow = false) => {
-      await window.deepink.agent.resolveToolConfirmation(id, true, alwaysAllow)
+      await window.cclinkStudio.agent.resolveToolConfirmation(id, true, alwaysAllow)
       removePendingConfirmation(id)
     },
     [removePendingConfirmation],
@@ -243,7 +243,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   // 权限确认：拒绝
   const handleConfirmReject = useCallback(
     async (id: string) => {
-      await window.deepink.agent.resolveToolConfirmation(id, false)
+      await window.cclinkStudio.agent.resolveToolConfirmation(id, false)
       removePendingConfirmation(id)
     },
     [removePendingConfirmation],
@@ -253,7 +253,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const handlePermissionModeChange = useCallback(
     async (nextMode: PermissionMode) => {
       if (nextMode === permissionMode) return
-      await window.deepink.agent.setPermissionMode(nextMode)
+      await window.cclinkStudio.agent.setPermissionMode(nextMode)
       setPermissionMode(nextMode)
     },
     [permissionMode, setPermissionMode],
@@ -270,7 +270,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     })
     setResourceQuery(null)
     setSkillQuery(null)
-    void window.deepink.agent.resetSession(conversationId)
+    void window.cclinkStudio.agent.resetSession(conversationId)
   }, [activeWorkspaceRef, createConversation])
 
   const handleCopyDiagnostics = useCallback(async () => {
@@ -287,17 +287,17 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
 
     if (browserTabId) {
       try {
-        currentUrl = await window.deepink.browser.getCurrentURL(browserTabId)
+        currentUrl = await window.cclinkStudio.browser.getCurrentURL(browserTabId)
       } catch {
         currentUrl = browserTab?.initialUrl ?? null
       }
       try {
-        viewState = await window.deepink.browser.getViewState()
+        viewState = await window.cclinkStudio.browser.getViewState()
       } catch {
         viewState = null
       }
       try {
-        pageDiagnostics = await window.deepink.browser.getDiagnostics(browserTabId)
+        pageDiagnostics = await window.cclinkStudio.browser.getDiagnostics(browserTabId)
       } catch {
         pageDiagnostics = null
       }
@@ -386,7 +386,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
       if (!conversation.sessionId || restoredConversationIdsRef.current.has(conversation.id))
         continue
       restoredConversationIdsRef.current.add(conversation.id)
-      void window.deepink.agent.restoreConversation(conversation.id, conversation.sessionId)
+      void window.cclinkStudio.agent.restoreConversation(conversation.id, conversation.sessionId)
     }
   }, [orderedConversations])
 
@@ -615,13 +615,13 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
             logs={activeBrowserTaskLogs}
             downloads={activeBrowserTaskDownloads}
             onPause={() => {
-              void window.deepink.browser.pauseTask(activeBrowserTask.id)
+              void window.cclinkStudio.browser.pauseTask(activeBrowserTask.id)
             }}
             onResume={() => {
-              void window.deepink.browser.resumeTask(activeBrowserTask.id)
+              void window.cclinkStudio.browser.resumeTask(activeBrowserTask.id)
             }}
             onCancel={() => {
-              void window.deepink.browser.cancelTask(activeBrowserTask.id)
+              void window.cclinkStudio.browser.cancelTask(activeBrowserTask.id)
             }}
           />
         )}
@@ -819,7 +819,7 @@ function BrowserTaskCard({
                   <button
                     disabled={download.fileMissing}
                     onClick={() => {
-                      void window.deepink.browser.openDownload(download.id)
+                      void window.cclinkStudio.browser.openDownload(download.id)
                     }}
                   >
                     打开
@@ -827,7 +827,7 @@ function BrowserTaskCard({
                   <button
                     disabled={download.fileMissing}
                     onClick={() => {
-                      void window.deepink.browser.revealDownload(download.id)
+                      void window.cclinkStudio.browser.revealDownload(download.id)
                     }}
                   >
                     定位
@@ -836,7 +836,7 @@ function BrowserTaskCard({
                     <button
                       disabled={download.fileMissing}
                       onClick={() => {
-                        void window.deepink.browser.keepDownloadToWorkspace(download.id)
+                        void window.cclinkStudio.browser.keepDownloadToWorkspace(download.id)
                       }}
                     >
                       保留
@@ -845,7 +845,7 @@ function BrowserTaskCard({
                   <button
                     disabled={download.fileMissing}
                     onClick={() => {
-                      void window.deepink.browser.saveDownloadAs(download.id)
+                      void window.cclinkStudio.browser.saveDownloadAs(download.id)
                     }}
                   >
                     另存为
@@ -854,7 +854,7 @@ function BrowserTaskCard({
                     <button
                       className="danger"
                       onClick={() => {
-                        void window.deepink.browser.discardDownload(download.id)
+                        void window.cclinkStudio.browser.discardDownload(download.id)
                       }}
                     >
                       丢弃

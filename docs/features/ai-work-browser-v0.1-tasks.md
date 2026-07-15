@@ -339,7 +339,7 @@ interface BrowserDownloadRecord {
 - `waitForDownload` 创建或复用同一下载记录。
 - Agent 任务下载默认保存到 `userData/agent-downloads/{taskRunId}/`。
 - 用户手动下载默认走系统下载目录，例如 macOS `~/Downloads`。
-- Agent 明确生成的成果文件保存到当前工作空间 `.deepink/downloads/{taskRunId}/` 或用户指定路径。
+- Agent 明确生成的成果文件保存到当前工作空间 `.cclink-studio/downloads/{taskRunId}/` 或用户指定路径。
 - `saveDownload` 成功后写入 `savedPath`、`retention` 和 `completed`。
 - 下载失败写入 `failed` 和错误信息。
 - 任务详情能列出 `downloadIds`。
@@ -365,7 +365,7 @@ interface BrowserDownloadRecord {
 - 已新增 `src/main/browser/browser-download-store.ts`。
 - Agent 下载默认保存到 `userData/agent-downloads/{taskRunId}/`。
 - 用户手动下载默认保存到系统下载目录。
-- “保留”会复制到工作空间 `.deepink/downloads/{taskRunId}/`。
+- “保留”会复制到工作空间 `.cclink-studio/downloads/{taskRunId}/`。
 - 已支持另存为、丢弃、打开、定位。
 - 下载记录已持久化到 `userData/browser-downloads.json`。
 - 文件被外部删除时，UI 会显示“已丢失”，并禁用打开/定位/保留/另存为。

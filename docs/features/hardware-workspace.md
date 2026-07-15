@@ -2,7 +2,7 @@
 
 > 状态：规划稿
 > 最后更新：2026-07-15
-> 关联文档：`docs/features/product-milestones.md`、`docs/features/fpc-shape-change-assistant.md`、`docs/features/cad-conversion-plugins.md`、`docs/features/browser-automation.md`、`docs/features/platform-automation.md`、`docs/features/project-system.md`
+> 关联文档：`docs/features/fpc-shape-change-assistant.md`、`docs/features/cad-conversion-plugins.md`、`docs/features/browser-automation.md`、`docs/features/platform-automation.md`、`docs/features/project-system.md`
 
 ## 结论
 
@@ -263,11 +263,11 @@ src/preload/index.ts
 暴露给渲染进程的 API：
 
 ```typescript
-window.deepink.hardware.scanWorkspace(workspaceRef)
-window.deepink.hardware.inspectProductionPackage(input)
-window.deepink.hardware.parseBom(path)
-window.deepink.hardware.parseCentroid(path)
-window.deepink.hardware.createOrderRecord(input)
+window.cclinkStudio.hardware.scanWorkspace(workspaceRef)
+window.cclinkStudio.hardware.inspectProductionPackage(input)
+window.cclinkStudio.hardware.parseBom(path)
+window.cclinkStudio.hardware.parseCentroid(path)
+window.cclinkStudio.hardware.createOrderRecord(input)
 ```
 
 所有文件读写仍然经主进程完成，保持 Electron 安全边界。
@@ -517,7 +517,7 @@ interface HardwareRisk {
 
 实现：
 
-- 为硬件项目支持 `deepink-hardware.json` 配置：
+- 为硬件项目支持 `cclink-hardware.json` 配置：
 
 ```json
 {

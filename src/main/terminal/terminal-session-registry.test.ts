@@ -3,19 +3,14 @@ import type { TerminalRuntimeRef } from '../../shared/terminal'
 import { TerminalSessionRegistry } from './terminal-session-registry'
 
 const runtime: TerminalRuntimeRef = {
-  location: 'remote',
-  transport: 'cclink',
-  backend: 'remote-shell',
+  location: 'local',
+  transport: 'local',
+  backend: 'local-shell',
   workspaceRef: {
-    kind: 'remote',
-    transport: 'cclink',
-    endpointId: 'agent-1',
-    workspaceId: 'workspace-1',
+    kind: 'local',
     path: '/data/research',
-    endpointName: 'supermicro',
   },
   cwd: '/data/research',
-  endpointId: 'agent-1',
 }
 
 describe('TerminalSessionRegistry', () => {
@@ -23,13 +18,13 @@ describe('TerminalSessionRegistry', () => {
     const registry = new TerminalSessionRegistry()
 
     const session = registry.register({
-      sessionId: 'terminal-remote-1',
+      sessionId: 'terminal-local-1',
       runtime,
       now: 100,
     })
 
     expect(session.status).toBe('idle')
-    expect(registry.get('terminal-remote-1')).toBe(session)
+    expect(registry.get('terminal-local-1')).toBe(session)
     expect(registry.list()).toEqual([session])
   })
 
@@ -50,12 +45,12 @@ describe('TerminalSessionRegistry', () => {
     registry.transition('terminal-1', 'starting', { now: 110 })
     const runningSession = registry.transition('terminal-1', 'running', {
       now: 120,
-      processId: 'remote-process-1',
+      processId: 'local-process-1',
     })
 
     expect(runningSession).toMatchObject({
       status: 'running',
-      processId: 'remote-process-1',
+      processId: 'local-process-1',
       updatedAt: 120,
     })
     expect(registry.get('terminal-1')).toBe(runningSession)

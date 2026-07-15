@@ -18,7 +18,7 @@ export const useBrowserDownloadStore = create<BrowserDownloadState>((set) => ({
   })),
 
   refresh: async () => {
-    const downloads = await window.deepink.browser.listDownloads()
+    const downloads = await window.cclinkStudio.browser.listDownloads()
     set({
       downloads: Object.fromEntries(downloads.map((download) => [download.id, download])),
     })

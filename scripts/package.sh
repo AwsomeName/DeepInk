@@ -15,7 +15,7 @@
 #   bash scripts/package.sh --help
 #
 # 说明: out/ 与 dist/ 均在 .gitignore 中，清理是安全的（可重新生成）。
-#       开源壳只生成本地产物；官方发布、签名、公证和上传由 cclink-dev overlay 承接。
+#       开源壳只生成本地产物；官方发布、签名、公证和上传由 cclink-dev 发布集成层承接。
 
 set -e
 

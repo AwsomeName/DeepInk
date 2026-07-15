@@ -29,7 +29,7 @@ export class AdbBridge {
   private adbPath: string | null = null
   /** 绑定的设备 serial（由 PhysicalDeviceManager 下发，不再自己发现） */
   private serial: string | null = null
-  /** 历史字段：模拟器封存前用于 AVD self-heal 重绑 */
+  /** 绑定的 AVD 名称；开源壳默认不主动启动 AVD。 */
   private avdName: string | null = null
   /** ADB 是否已连接到设备 */
   private connected = false

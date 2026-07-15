@@ -45,7 +45,7 @@ export const useHardwareStore = create<HardwareState>((set) => ({
   scanWorkspace: async (workspacePath) => {
     set({ workspacePath, loading: true, error: null })
     try {
-      const summary = await window.deepink.hardware.scanWorkspace(workspacePath)
+      const summary = await window.cclinkStudio.hardware.scanWorkspace(workspacePath)
       set({
         summary,
         loading: false,
@@ -61,7 +61,7 @@ export const useHardwareStore = create<HardwareState>((set) => ({
   inspectProductionPackage: async (workspacePath) => {
     set({ workspacePath, inspecting: true, error: null })
     try {
-      const report = await window.deepink.hardware.inspectProductionPackage(workspacePath)
+      const report = await window.cclinkStudio.hardware.inspectProductionPackage(workspacePath)
       set({
         report,
         summary: { ...reportToSummaryFallback(workspacePath, report) },
@@ -75,7 +75,7 @@ export const useHardwareStore = create<HardwareState>((set) => ({
   prepareFpcShapeContext: async (workspacePath) => {
     set({ workspacePath, preparingFpcShapeContext: true, error: null })
     try {
-      const fpcShapeContext = await window.deepink.hardware.prepareFpcShapeContext(workspacePath)
+      const fpcShapeContext = await window.cclinkStudio.hardware.prepareFpcShapeContext(workspacePath)
       set({ fpcShapeContext, preparingFpcShapeContext: false })
       return fpcShapeContext
     } catch (error) {
@@ -87,7 +87,7 @@ export const useHardwareStore = create<HardwareState>((set) => ({
   writeProductionReportMarkdown: async (workspacePath) => {
     set({ workspacePath, savingReport: true, error: null })
     try {
-      const result = await window.deepink.hardware.writeProductionReportMarkdown(workspacePath)
+      const result = await window.cclinkStudio.hardware.writeProductionReportMarkdown(workspacePath)
       set({
         report: result.report,
         summary: { ...reportToSummaryFallback(workspacePath, result.report) },

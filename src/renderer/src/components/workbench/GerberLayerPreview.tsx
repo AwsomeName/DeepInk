@@ -11,7 +11,7 @@ import type { Tab } from '../../types'
 
 type GerberTabRef = NonNullable<Tab['hardwareGerber']>
 
-const GERBER_PREVIEW_LAYOUT_STORAGE_KEY = 'deepink:gerber-preview-layout'
+const GERBER_PREVIEW_LAYOUT_STORAGE_KEY = 'cclinkStudio:gerber-preview-layout'
 const DEFAULT_LAYER_PANEL_WIDTH = 320
 const MIN_LAYER_PANEL_WIDTH = 220
 const MAX_LAYER_PANEL_WIDTH = 560
@@ -301,7 +301,7 @@ export function GerberLayerPreview({
     setReport(null)
     setPreview(null)
 
-    void window.deepink.hardware
+    void window.cclinkStudio.hardware
       .inspectProductionPackage(hardwareGerber.workspacePath)
       .then((nextReport) => {
         if (cancelled) return
@@ -335,7 +335,7 @@ export function GerberLayerPreview({
     setError(null)
     setPreview(null)
 
-    void window.deepink.hardware
+    void window.cclinkStudio.hardware
       .readGerberLayerPreview(
         hardwareGerber.workspacePath,
         hardwareGerber.packagePath,
@@ -366,7 +366,7 @@ export function GerberLayerPreview({
     setGeometry(null)
     setGeometryError(null)
 
-    void window.deepink.hardware
+    void window.cclinkStudio.hardware
       .readGerberLayerGeometry(
         hardwareGerber.workspacePath,
         hardwareGerber.packagePath,

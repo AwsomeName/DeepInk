@@ -20,7 +20,7 @@ let tempDir = ''
 let workspacePath = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-hardware-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-hardware-'))
   electronMock.home = tempDir
   workspacePath = join(tempDir, 'ai-glasses')
   await mkdir(workspacePath, { recursive: true })
@@ -546,7 +546,7 @@ describe('parseHardwareTable', () => {
     expect(result.referenceDesignators).toEqual(['R1', 'R2', 'U1'])
   })
 
-  it('marks legacy xls files as unsupported preview input', async () => {
+  it('marks binary xls files as unsupported preview input', async () => {
     const filePath = join(workspacePath, 'bom.xls')
     await writeFile(filePath, 'excel', 'utf-8')
 

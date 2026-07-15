@@ -138,83 +138,13 @@ describe('useTabStore', () => {
       })
     })
 
-    it('conversation Tab 按远程会话去重，并兼容旧 cclink Tab', () => {
-      useTabStore.getState().openTab({
-        type: 'conversation',
-        title: '远程会话',
-        icon: '🤖',
-        conversation: {
-          surface: 'workbench-tab',
-          runtime: {
-            location: 'remote',
-            transport: 'cclink',
-            backend: 'deepink-agent',
-          },
-          sessionId: 'session-1',
-        },
-      })
-      const firstId = useTabStore.getState().activeTabId
-
-      useTabStore.getState().openTab({
-        type: 'cclink',
-        title: '旧远程会话',
-        icon: '🔗',
-        cclinkSessionId: 'session-1',
-      })
-
-      const state = useTabStore.getState()
-      expect(state.tabs).toHaveLength(2)
-      expect(state.activeTabId).toBe(firstId)
-    })
-
-    it('conversation Tab 按 transport 区分远程会话', () => {
-      useTabStore.getState().openTab({
-        type: 'conversation',
-        title: 'CCLink 会话',
-        icon: '🤖',
-        conversation: {
-          surface: 'workbench-tab',
-          runtime: {
-            location: 'remote',
-            transport: 'cclink',
-            backend: 'deepink-agent',
-          },
-          sessionId: 'session-1',
-        },
-      })
-      useTabStore.getState().openTab({
-        type: 'conversation',
-        title: '直连会话',
-        icon: '🤖',
-        conversation: {
-          surface: 'workbench-tab',
-          runtime: {
-            location: 'remote',
-            transport: 'direct',
-            backend: 'deepink-agent',
-          },
-          sessionId: 'session-1',
-        },
-      })
-
-      const conversations = useTabStore.getState().tabs.filter((tab) => tab.type === 'conversation')
-      expect(conversations).toHaveLength(2)
-      expect(
-        conversations.map((tab) =>
-          tab.conversation && 'runtime' in tab.conversation
-            ? tab.conversation.runtime.transport
-            : tab.conversation?.transport,
-        ),
-      ).toEqual(['cclink', 'direct'])
-    })
-
     it('本地工作会话 Tab 按 local runtime 和会话 ID 去重', () => {
       const conversation = {
         surface: 'workbench-tab' as const,
         runtime: {
           location: 'local' as const,
           transport: 'local' as const,
-          backend: 'deepink-agent' as const,
+          backend: 'cclink-studio-agent' as const,
         },
         sessionId: 'agent-work-1',
       }
@@ -426,16 +356,16 @@ describe('useTabStore', () => {
           { id: 'browser', type: 'browser', title: '浏览器', icon: '🌐' },
           { id: 'doc-1', type: 'editor', title: '计划.md', icon: '📄', filePath: '/docs/plan.md' },
           {
-            id: 'cc-1',
+            id: 'conversation-1',
             type: 'conversation',
-            title: '远程会话',
+            title: '工作会话',
             icon: '🤖',
             conversation: {
               surface: 'workbench-tab',
               runtime: {
-                location: 'remote',
-                transport: 'cclink',
-                backend: 'deepink-agent',
+                location: 'local',
+                transport: 'local',
+                backend: 'cclink-studio-agent',
               },
               sessionId: 'session-1',
             },
@@ -445,38 +375,18 @@ describe('useTabStore', () => {
       })
 
       const state = useTabStore.getState()
-      expect(state.tabs.map((tab) => tab.id)).toEqual(['browser', 'doc-1', 'cc-1'])
+      expect(state.tabs.map((tab) => tab.id)).toEqual(['browser', 'doc-1', 'conversation-1'])
       expect(state.activeTabId).toBe('doc-1')
       expect(state.tabs[1].filePath).toBe('/docs/plan.md')
       expect(state.tabs[2].conversation).toEqual({
         surface: 'workbench-tab',
         runtime: {
-          location: 'remote',
-          transport: 'cclink',
-          backend: 'deepink-agent',
+          location: 'local',
+          transport: 'local',
+          backend: 'cclink-studio-agent',
         },
         sessionId: 'session-1',
       })
-    })
-
-    it('旧 cclink Tab 快照仍可恢复', () => {
-      useTabStore.getState().hydrateFromWorkspaceState({
-        tabs: [
-          {
-            id: 'cc-legacy',
-            type: 'cclink',
-            title: '旧远程会话',
-            icon: '🔗',
-            cclinkSessionId: 'session-1',
-          },
-        ],
-        activeTabId: 'cc-legacy',
-      })
-
-      const state = useTabStore.getState()
-      expect(state.tabs).toHaveLength(1)
-      expect(state.tabs[0].type).toBe('cclink')
-      expect(state.tabs[0].cclinkSessionId).toBe('session-1')
     })
 
     it('Terminal Tab 快照保留权限、审计和关闭语义', () => {
@@ -489,18 +399,14 @@ describe('useTabStore', () => {
             icon: '⌨️',
             terminal: {
               runtime: {
-                location: 'remote',
-                transport: 'cclink',
-                backend: 'remote-shell',
+                location: 'local',
+                transport: 'local',
+                backend: 'local-shell',
                 workspaceRef: {
-                  kind: 'remote',
-                  transport: 'cclink',
-                  endpointId: 'agent-1',
-                  workspaceId: 'agent-1:/workspace',
                   path: '/workspace',
+                  kind: 'local',
                 },
                 cwd: '/workspace',
-                endpointId: 'agent-1',
               },
               permissionPolicy: {
                 mode: 'ask-risky-command',
@@ -517,7 +423,7 @@ describe('useTabStore', () => {
 
       const terminal = useTabStore.getState().tabs[0].terminal
       expect(useTabStore.getState().activeTabId).toBe('terminal-1')
-      expect(terminal?.runtime.location).toBe('remote')
+      expect(terminal?.runtime.location).toBe('local')
       expect(terminal?.permissionPolicy.mode).toBe('ask-risky-command')
       expect(terminal?.closePolicy).toBe('terminate-process')
     })

@@ -251,11 +251,11 @@ idle
 |----------|----------|------|
 | 用户手动下载 | 系统下载目录，例如 macOS `~/Downloads` | 符合日常浏览器习惯 |
 | Agent 任务下载 | CCLink Studio 临时下载区：`userData/agent-downloads/{taskRunId}/` | 不污染用户工作空间，保留任务归属 |
-| Agent 明确生成的成果文件 | 当前工作空间 `.deepink/downloads/{taskRunId}/` 或用户指定路径 | 需要用户确认或任务权限授权 |
+| Agent 明确生成的成果文件 | 当前工作空间 `.cclink-studio/downloads/{taskRunId}/` 或用户指定路径 | 需要用户确认或任务权限授权 |
 
 用户操作：
 
-- `保留到工作空间`：从临时下载区移动到当前工作空间 `.deepink/downloads/{taskRunId}/`。
+- `保留到工作空间`：从临时下载区移动到当前工作空间 `.cclink-studio/downloads/{taskRunId}/`。
 - `另存为`：弹系统保存对话框，让用户选择路径。
 - `打开`：打开已下载文件。
 - `在文件夹中显示`：定位到文件所在目录。

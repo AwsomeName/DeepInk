@@ -15,8 +15,8 @@ export function BrowserHistoryMenu({ onOpenUrl, onRestoreSnapshot }: BrowserHist
 
   const load = useCallback(async (): Promise<void> => {
     const [historyList, snapshotList] = await Promise.all([
-      window.deepink.browser.listHistory(20),
-      window.deepink.browser.listSnapshots(),
+      window.cclinkStudio.browser.listHistory(20),
+      window.cclinkStudio.browser.listSnapshots(),
     ])
     setHistory(historyList)
     setSnapshots(snapshotList)
@@ -39,7 +39,7 @@ export function BrowserHistoryMenu({ onOpenUrl, onRestoreSnapshot }: BrowserHist
   }, [open])
 
   const clearHistory = async (): Promise<void> => {
-    await window.deepink.browser.clearHistory()
+    await window.cclinkStudio.browser.clearHistory()
     setHistory([])
   }
 

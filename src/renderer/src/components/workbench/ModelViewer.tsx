@@ -288,7 +288,7 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
         let sourceFilePath = filePath
         let extension = getExtension(filePath)
         if (isStepExtension(extension)) {
-          const cadApi = window.deepink.cad
+          const cadApi = window.cclinkStudio.cad
           if (!cadApi?.convertModel || !cadApi.getModelSupport) {
             throw new Error(
               'CAD 转换能力尚未加载。请重启 CCLink Studio 让主进程和 preload 生效，然后在设置中启用本机 FreeCAD。',
@@ -317,7 +317,7 @@ export function ModelViewer({ filePath }: ModelViewerProps): React.ReactElement 
           setConversionNotice(converted.cached ? '已使用缓存的 STEP 预览。' : 'STEP 预览转换完成。')
         }
 
-        const result = await window.deepink.fs.readFile(sourceFilePath)
+        const result = await window.cclinkStudio.fs.readFile(sourceFilePath)
         const content = typeof result === 'string' ? result : result.content
         const arrayBuffer = base64ToArrayBuffer(content)
 

@@ -4,7 +4,7 @@
 
 ## 结论
 
-开源 `cclink-studio` 仓库不内置官方 Developer ID、notarization 密钥、生产更新源或上传脚本。普通本地构建可以用于开发测试；正式签名、公证、更新源生成和分发应由 `cclink-dev` 的商业 release overlay 执行。
+开源 `cclink-studio` 仓库不内置官方 Developer ID、notarization 密钥、生产更新源或上传脚本。普通本地构建可以用于开发测试；正式签名、公证、更新源生成和分发应由 `cclink-dev` 的官方发布层执行。
 
 ## 背景
 
@@ -32,7 +32,7 @@ xattr -cr /path/to/CCLink\\ Studio.app
 
 官方发布侧应在 `cclink-dev` 维护：
 
-- electron-builder 商业基线。
+- electron-builder 官方发布基线。
 - Developer ID Application 签名配置。
 - notarization 环境变量模板。
 - entitlements。

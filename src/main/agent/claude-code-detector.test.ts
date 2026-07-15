@@ -7,7 +7,7 @@ import { detectClaudeCode } from './claude-code-detector'
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-claude-detector-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-claude-detector-'))
 })
 
 afterEach(async () => {

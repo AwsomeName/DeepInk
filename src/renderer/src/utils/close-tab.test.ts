@@ -11,7 +11,7 @@ beforeEach(() => {
     activeTabId: 'browser',
   })
   vi.stubGlobal('window', {
-    deepink: {
+    cclinkStudio: {
       dialog: {
         showMessageBox: vi.fn().mockResolvedValue({ response: 0 }),
       },
@@ -29,7 +29,7 @@ describe('closeTabWithDraftPolicy conversation lifecycle', () => {
       runtime: {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
       },
     })
     useAgentStore.getState().addUserMessage('保留这条消息', conversationId)
@@ -43,7 +43,7 @@ describe('closeTabWithDraftPolicy conversation lifecycle', () => {
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
         },
         sessionId: conversationId,
       },
@@ -59,20 +59,6 @@ describe('closeTabWithDraftPolicy conversation lifecycle', () => {
     )
   })
 
-  it('关闭旧 CCLink 会话 Tab 只关闭视图', async () => {
-    useTabStore.getState().openTab({
-      type: 'cclink',
-      title: '旧远程会话',
-      icon: '🔗',
-      cclinkSessionId: 'remote-session-1',
-    })
-    const tabId = useTabStore.getState().activeTabId!
-
-    await closeTabWithDraftPolicy(tabId)
-
-    expect(useTabStore.getState().tabs.some((tab) => tab.id === tabId)).toBe(false)
-    expect(useTabStore.getState().activeTabId).toBe('browser')
-  })
 })
 
 describe('closeTabWithDraftPolicy terminal lifecycle', () => {
@@ -104,8 +90,8 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
 
     await closeTabWithDraftPolicy(tabId)
 
-    expect(window.deepink.dialog.showMessageBox).not.toHaveBeenCalled()
-    expect(window.deepink.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
+    expect(window.cclinkStudio.dialog.showMessageBox).not.toHaveBeenCalled()
+    expect(window.cclinkStudio.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-idle',
       workspaceKey: '/workspace',
       kind: 'closed',
@@ -122,14 +108,11 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
 
   it('关闭 running Terminal Tab 需要确认终止语义', async () => {
     const runtime = {
-      location: 'remote' as const,
-      transport: 'cclink' as const,
-      backend: 'remote-shell' as const,
+      location: 'local' as const,
+      transport: 'local' as const,
+      backend: 'local-shell' as const,
       workspaceRef: {
-        kind: 'remote' as const,
-        transport: 'cclink' as const,
-        endpointId: 'agent-1',
-        workspaceId: 'agent-1:/workspace',
+        kind: 'local' as const,
         path: '/workspace',
       },
       cwd: '/workspace',
@@ -154,16 +137,16 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
 
     await closeTabWithDraftPolicy(tabId)
 
-    expect(window.deepink.dialog.showMessageBox).toHaveBeenCalledWith(
+    expect(window.cclinkStudio.dialog.showMessageBox).toHaveBeenCalledWith(
       expect.objectContaining({
         type: 'warning',
         title: '结束 Terminal',
         buttons: ['关闭视图', '结束并关闭', '取消'],
       }),
     )
-    expect(window.deepink.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
+    expect(window.cclinkStudio.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-running',
-      workspaceKey: 'cclink://agent-1/agent-1%3A%2Fworkspace',
+      workspaceKey: '/workspace',
       kind: 'closed',
       message: 'Terminal 视图已关闭，进程保留',
       runtime,
@@ -177,7 +160,7 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
   })
 
   it('取消关闭 running Terminal Tab 会保留 Tab', async () => {
-    vi.mocked(window.deepink.dialog.showMessageBox).mockResolvedValueOnce({ response: 2 })
+    vi.mocked(window.cclinkStudio.dialog.showMessageBox).mockResolvedValueOnce({ response: 2 })
     useTabStore.getState().openTab({
       type: 'terminal',
       title: 'Terminal',
@@ -204,6 +187,6 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
     await closeTabWithDraftPolicy(tabId)
 
     expect(useTabStore.getState().tabs.some((tab) => tab.id === tabId)).toBe(true)
-    expect(window.deepink.terminal.recordLifecycleEvent).not.toHaveBeenCalled()
+    expect(window.cclinkStudio.terminal.recordLifecycleEvent).not.toHaveBeenCalled()
   })
 })

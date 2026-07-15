@@ -59,13 +59,13 @@ describe('PtyExecutionAdapter', () => {
         shell: expect.any(String),
         cwd: '/tmp',
         env: expect.objectContaining({
-          DEEPINK_TERMINAL_SESSION_ID: 'terminal-1',
-          DEEPINK_TERMINAL_RUNTIME: 'local',
+          CCLINK_STUDIO_TERMINAL_SESSION_ID: 'terminal-1',
+          CCLINK_STUDIO_TERMINAL_RUNTIME: 'local',
         }),
       }),
     )
     if (process.platform !== 'win32') {
-      expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain('DEEPINK_TERMINAL_SESSION_ID')
+      expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain('CCLINK_STUDIO_TERMINAL_SESSION_ID')
       expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain('terminal-1')
     }
     expect(events).toContainEqual({
@@ -103,28 +103,5 @@ describe('PtyExecutionAdapter', () => {
     expect(mockPty.resize).toHaveBeenCalledWith(99, 22)
     expect(mockPty.kill).toHaveBeenCalledWith(process.platform === 'win32' ? undefined : 'SIGHUP')
     expect(mockPty.kill).toHaveBeenCalledWith(process.platform === 'win32' ? undefined : 'SIGKILL')
-  })
-
-  it('rejects remote runtimes in the local PTY adapter', async () => {
-    const adapter = new PtyExecutionAdapter({ spawnPty: () => createMockPty() })
-
-    await expect(
-      adapter.start({
-        sessionId: 'terminal-remote',
-        runtime: {
-          location: 'remote',
-          transport: 'cclink',
-          backend: 'remote-shell',
-          workspaceRef: {
-            kind: 'remote',
-            endpointId: 'server-1',
-            transport: 'cclink',
-            workspaceId: 'workspace-1',
-            path: '/app',
-          },
-          cwd: '/app',
-        },
-      }),
-    ).rejects.toThrow('本地 PTY 只支持本机 Terminal')
   })
 })

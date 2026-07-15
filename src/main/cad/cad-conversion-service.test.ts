@@ -19,7 +19,7 @@ let tempDir = ''
 let settings: AppSettings
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-cad-service-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-cad-service-'))
   electronMock.userData = tempDir
   settings = {
     ...DEFAULT_SETTINGS,

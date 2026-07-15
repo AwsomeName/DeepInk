@@ -18,7 +18,7 @@ export type { UpdateCheckResult } from '../../shared/ipc/update'
  * 开源版不内置 CCLink Studio 官方更新源；闭源产品构建由环境注入。
  */
 const UPDATE_BASE_URL = normalizeUpdateBaseUrl(
-  process.env['CCLINK_STUDIO_UPDATE_BASE_URL'] ?? process.env['DEEPINK_UPDATE_BASE_URL'],
+  process.env['CCLINK_STUDIO_UPDATE_BASE_URL'],
 )
 
 /** 检查间隔：6 小时 */

@@ -10,7 +10,7 @@ export async function recordTerminalLifecycleEvent(
   if (!terminal?.sessionId) return
 
   try {
-    const result = await window.deepink.terminal.recordLifecycleEvent({
+    const result = await window.cclinkStudio.terminal.recordLifecycleEvent({
       terminalSessionId: terminal.sessionId,
       workspaceKey: workspaceRefKey(terminal.runtime.workspaceRef),
       kind,

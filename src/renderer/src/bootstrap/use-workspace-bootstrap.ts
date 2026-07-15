@@ -13,9 +13,9 @@ export { restoreWorkspaceState } from './workspace-bootstrap-core'
 
 export function createWorkspaceBootstrapDeps(): WorkspaceBootstrapDeps {
   return {
-    getSettings: () => window.deepink.settings.getAll().catch(() => null),
+    getSettings: () => window.cclinkStudio.settings.getAll().catch(() => null),
     getWorkspaceState: (workspacePath) =>
-      window.deepink.workspaceState.get(workspacePath, getWorkspaceStateOwnerKey()),
+      window.cclinkStudio.workspaceState.get(workspacePath, getWorkspaceStateOwnerKey()),
     setWorkspacePath: setWorkspaceStatePath,
     beginRestore: beginWorkspaceStateRestore,
     endRestore: endWorkspaceStateRestore,

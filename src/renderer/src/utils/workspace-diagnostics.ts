@@ -17,26 +17,12 @@ export function formatWorkspaceDiagnosticsMarkdown(
     `- workspaceCount：${diagnostics.workspaceCount}`,
     `- fileVersion：${diagnostics.fileVersion}`,
     '',
-    '## userData 迁移',
+    '## userData',
   ]
-  if (!diagnostics.migration) {
-    lines.push('- 无迁移诊断记录')
+  if (!diagnostics.userData) {
+    lines.push('- 无 userData 诊断记录')
     return lines.join('\n')
   }
-  lines.push(
-    `- fixedUserDataPath：${diagnostics.migration.fixedUserDataPath}`,
-    `- legacyUserDataPath：${diagnostics.migration.legacyUserDataPath}`,
-    '',
-  )
-  for (const candidate of diagnostics.migration.candidates) {
-    lines.push(
-      `### ${candidate.path}`,
-      `- migrated：${summarizeDiagnosticList(candidate.migrated)}`,
-      `- merged：${summarizeDiagnosticList(candidate.merged)}`,
-      `- skippedExisting：${summarizeDiagnosticList(candidate.skippedExisting)}`,
-      `- errors：${summarizeDiagnosticList(candidate.errors)}`,
-      '',
-    )
-  }
+  lines.push(`- fixedUserDataPath：${diagnostics.userData.fixedUserDataPath}`)
   return lines.join('\n').trimEnd()
 }

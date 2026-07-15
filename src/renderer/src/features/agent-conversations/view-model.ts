@@ -582,9 +582,9 @@ export function buildSkillCandidates(query = ''): AgentSkillCandidate[] {
 
 export function createConversationRuntimeForWorkspace(activeWorkspaceRef: WorkspaceRef) {
   return {
-    location: activeWorkspaceRef.kind === 'remote' ? 'remote' : 'local',
-    transport: activeWorkspaceRef.kind === 'remote' ? activeWorkspaceRef.transport : 'local',
-    backend: 'deepink-agent',
+    location: 'local',
+    transport: 'local',
+    backend: 'cclink-studio-agent',
     workspaceRef: activeWorkspaceRef,
   } as const
 }
@@ -661,14 +661,9 @@ function scopeLabel(scope: AgentScope, activeTab?: Tab): string {
 }
 
 function runtimeLabel(conversation: AgentConversationState): string {
-  const location = conversation.runtime.location === 'remote' ? '远程' : '本地'
-  const transport =
-    conversation.runtime.transport === 'local'
-      ? 'Local'
-      : conversation.runtime.transport === 'direct'
-        ? '直连'
-        : 'CCLink'
-  const backend = conversation.runtime.backend ?? 'deepink-agent'
+  const location = '本地'
+  const transport = 'Local'
+  const backend = conversation.runtime.backend ?? 'cclink-studio-agent'
   return `${location} · ${transport} · ${backend}`
 }
 
@@ -754,15 +749,6 @@ function tabResourceCandidate(tab: Tab): AgentResourceCandidate | null {
           savedQueryId: tab.dataSourceQuery?.savedQueryId,
         },
       })
-    case 'remote-file':
-      return createResourceCandidate({
-        id: `file:${tab.remoteFile?.path ?? tab.id}`,
-        kind: 'file',
-        label: tab.title,
-        detail: tab.remoteFile?.path ?? '远程文件',
-        source: 'open-tab',
-        ref: { type: 'file', path: tab.remoteFile?.path, tabId: tab.id },
-      })
     default:
       return null
   }
@@ -814,16 +800,12 @@ function tabTypeLabel(tab: Tab): string {
       return '工作会话'
     case 'model':
       return '模型文件'
-    case 'remote-file':
-      return '远程文件'
     case 'terminal':
       return '命令会话'
     case 'settings':
       return '设置'
     case 'preview':
       return '预览'
-    case 'cclink':
-      return '远程会话'
     default:
       return '工作区 Tab'
   }

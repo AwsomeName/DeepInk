@@ -47,7 +47,7 @@ D9 和 D10 可以在 D7 稳定后并行，但 D10 不能早于 D4。UI 可以先
 | D2 凭证存储与配置存储 | ✅ 完成 | 配置与凭证已分离；数据源凭证无明文 fallback |
 | D3 Elasticsearch 只读 Adapter | ✅ 完成 | 已支持 test、list indices、search、get record，并拒绝危险 collection/path |
 | D4 DataSourceService 编排层 | ✅ 完成 | 已统一 config、secret、adapter、audit 和错误归一化 |
-| D5 IPC 与 Preload 白名单 | ✅ 完成 | 已注册 `data-source:*` IPC，并暴露 `window.deepink.dataSource` |
+| D5 IPC 与 Preload 白名单 | ✅ 完成 | 已注册 `data-source:*` IPC，并暴露 `window.cclinkStudio.dataSource` |
 | D6 Renderer Store 与 Activity 入口 | ✅ 完成 | 已新增数据源 Activity、store、连接表单、连接测试和 index 列表 |
 | D7 查询 Tab 与结果视图 | 🔧 部分完成 | 已能从 index 打开查询 Tab、运行 JSON DSL、展示结果和单条 JSON；已补齐错误复制、单条 JSON 复制、结果 JSON/CSV 导出；分页/虚拟滚动仍待补齐 |
 | D8 Saved Queries 与工作空间恢复 | ✅ 完成 | 已实现 Saved Query 类型、主进程持久化、IPC、preload、store、侧栏列表和查询 Tab 保存/打开；工作空间恢复依赖现有 Tab 持久化链路 |
@@ -374,7 +374,7 @@ class DataSourceService {
 
 - 新建 `data-source-ipc.ts` 注册 IPC。
 - 在 `main/index.ts` 装配。
-- 在 `preload/index.ts` 暴露 `window.deepink.dataSource`。
+- 在 `preload/index.ts` 暴露 `window.cclinkStudio.dataSource`。
 - 在 `preload/index.d.ts` 补充类型。
 - IPC 输入必须用 Zod schema 校验。
 - IPC 层不接收任意 URL、method、headers。

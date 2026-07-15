@@ -16,7 +16,7 @@ import { WorkspaceStateService } from './workspace-state-service'
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-workspace-state-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-workspace-state-'))
   mockPaths.userDataDir = tempDir
 })
 
@@ -76,34 +76,34 @@ describe('WorkspaceStateService', () => {
     })
   })
 
-  it('reads legacy snapshots when first entering an owner scoped workspace', async () => {
+  it('does not mix unowned state into owner scoped state', async () => {
     const service = new WorkspaceStateService()
     await service.loadState()
 
     await service.setSection('/tmp/a', 'layout', { activePanel: 'files' })
 
-    const migrated = service.getSnapshot('/tmp/a', 'local:new')
+    const owned = service.getSnapshot('/tmp/a', 'local:new')
 
-    expect(migrated.ownerKey).toBe('local:new')
-    expect(migrated.workspaceKey).toBe('/tmp/a')
-    expect(migrated.sections.layout).toEqual({ activePanel: 'files' })
+    expect(owned.ownerKey).toBe('local:new')
+    expect(owned.workspaceKey).toBe('/tmp/a')
+    expect(owned.sections).toEqual({})
   })
 
-  it('keeps remote workspace keys isolated from local paths', async () => {
+  it('keeps namespaced workspace keys isolated from local paths', async () => {
     const service = new WorkspaceStateService()
     await service.loadState()
 
-    const remoteKey = 'cclink://mac-mini/%2Ftmp%2Fa'
+    const namespacedKey = 'official://mac-mini/%2Ftmp%2Fa'
     await service.setSection('/tmp/a', 'tabs', { activeTabId: 'local' })
-    await service.setSection(remoteKey, 'tabs', { activeTabId: 'remote' })
+    await service.setSection(namespacedKey, 'tabs', { activeTabId: 'namespaced' })
 
     const localSnapshot = service.getSnapshot('/tmp/a')
-    const remoteSnapshot = service.getSnapshot(remoteKey)
+    const namespacedSnapshot = service.getSnapshot(namespacedKey)
 
     expect(localSnapshot.workspaceKey).toBe('/tmp/a')
-    expect(remoteSnapshot.workspaceKey).toBe(remoteKey)
+    expect(namespacedSnapshot.workspaceKey).toBe(namespacedKey)
     expect(localSnapshot.sections.tabs).toEqual({ activeTabId: 'local' })
-    expect(remoteSnapshot.sections.tabs).toEqual({ activeTabId: 'remote' })
+    expect(namespacedSnapshot.sections.tabs).toEqual({ activeTabId: 'namespaced' })
   })
 
   it('clears only the requested workspace', async () => {

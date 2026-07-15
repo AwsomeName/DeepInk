@@ -11,7 +11,6 @@ import {
   setWorkspaceStatePath,
   setWorkspaceStateRef,
 } from './workspace-state'
-import { remoteWorkspaceRef } from '../../../shared/workspace-ref'
 
 afterEach(() => {
   vi.unstubAllGlobals()
@@ -23,7 +22,7 @@ afterEach(() => {
 describe('workspace-state utils', () => {
   it('默认使用当前工作区路径持久化 section', () => {
     const setSection = vi.fn().mockResolvedValue({ success: true })
-    vi.stubGlobal('window', { deepink: { workspaceState: { setSection } } })
+    vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
 
     setWorkspaceStatePath('/workspace/a')
     persistWorkspaceSection('layout', { sidebarVisible: false })
@@ -35,7 +34,7 @@ describe('workspace-state utils', () => {
 
   it('显式传入 workspacePath 时覆盖默认路径', () => {
     const setSection = vi.fn().mockResolvedValue({ success: true })
-    vi.stubGlobal('window', { deepink: { workspaceState: { setSection } } })
+    vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
 
     setWorkspaceStatePath('/workspace/a')
     persistWorkspaceSection('fileTree', { selectedPath: '/workspace/b/file.md' }, '/workspace/b')
@@ -47,7 +46,7 @@ describe('workspace-state utils', () => {
 
   it('默认携带当前本机身份 ownerKey', () => {
     const setSection = vi.fn().mockResolvedValue({ success: true })
-    vi.stubGlobal('window', { deepink: { workspaceState: { setSection } } })
+    vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
 
     setWorkspaceStateOwnerKey('local:abc')
     persistWorkspaceSection('layout', { agentPanelMode: 'right' })
@@ -61,44 +60,22 @@ describe('workspace-state utils', () => {
     )
   })
 
-  it('支持通过 WorkspaceRef 设置远程工作空间状态 key', () => {
+  it('支持通过 WorkspaceRef 设置本地工作空间状态 key', () => {
     const setSection = vi.fn().mockResolvedValue({ success: true })
-    vi.stubGlobal('window', { deepink: { workspaceState: { setSection } } })
+    vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
 
-    setWorkspaceStateRef(
-      remoteWorkspaceRef({
-        endpointId: 'mac-mini',
-        workspaceId: '/Users/app/project',
-        path: '/Users/app/project',
-        label: 'project',
-        endpointName: 'Mac mini',
-      }),
-    )
+    setWorkspaceStateRef({ kind: 'local', path: '/Users/app/project' })
     persistWorkspaceSection('tabs', { tabs: [] })
 
-    expect(getWorkspaceStateKey()).toBe('cclink://mac-mini/%2FUsers%2Fapp%2Fproject')
-    expect(setSection).toHaveBeenCalledWith('cclink://mac-mini/%2FUsers%2Fapp%2Fproject', 'tabs', {
+    expect(getWorkspaceStateKey()).toBe('/Users/app/project')
+    expect(setSection).toHaveBeenCalledWith('/Users/app/project', 'tabs', {
       tabs: [],
     }, null)
   })
 
-  it('支持直连 Remote 工作空间状态 key', () => {
-    setWorkspaceStateRef({
-      kind: 'remote',
-      transport: 'direct',
-      endpointId: 'server-1',
-      workspaceId: 'project-a',
-      path: '/data/project-a',
-      label: 'project-a',
-      endpointName: 'server-1',
-    })
-
-    expect(getWorkspaceStateKey()).toBe('direct://server-1/project-a')
-  })
-
   it('恢复事务期间跳过 section 持久化', () => {
     const setSection = vi.fn().mockResolvedValue({ success: true })
-    vi.stubGlobal('window', { deepink: { workspaceState: { setSection } } })
+    vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
 
     beginWorkspaceStateRestore()
     persistWorkspaceSection('tabs', { tabs: [] })

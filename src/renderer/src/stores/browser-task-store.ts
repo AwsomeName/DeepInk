@@ -37,10 +37,10 @@ export const useBrowserTaskStore = create<BrowserTaskState>((set, get) => ({
   }),
 
   refresh: async () => {
-    const tasks = await window.deepink.browser.listTasks()
+    const tasks = await window.cclinkStudio.browser.listTasks()
     const actionLogs: Record<string, BrowserActionLog[]> = {}
     await Promise.all(tasks.map(async (task) => {
-      actionLogs[task.id] = await window.deepink.browser.listActionLogs(task.id)
+      actionLogs[task.id] = await window.cclinkStudio.browser.listActionLogs(task.id)
     }))
     set({
       tasks: Object.fromEntries(tasks.map((task) => [task.id, task])),

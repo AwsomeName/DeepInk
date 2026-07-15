@@ -14,7 +14,6 @@ import {
   localWorkspaceRef,
   workspaceRefKey,
   workspaceRefLabel,
-  workspaceRefSourceLabel,
 } from '../../../../shared/workspace-ref'
 import {
   getWorkspaceConversationGroups,
@@ -343,7 +342,7 @@ function BrowserManagementView(): React.ReactElement {
                 className="project-panel-quick-action"
                 onClick={() => {
                   const tabId = ensureBrowserFocus()
-                  if (tabId) window.deepink.browser.reload(tabId)
+                  if (tabId) window.cclinkStudio.browser.reload(tabId)
                 }}
                 title="刷新当前浏览器"
               >
@@ -354,7 +353,7 @@ function BrowserManagementView(): React.ReactElement {
                 className="project-panel-quick-action"
                 onClick={() => {
                   const tabId = ensureBrowserFocus()
-                  if (tabId) window.deepink.browser.setDeviceMode(tabId, 'desktop')
+                  if (tabId) window.cclinkStudio.browser.setDeviceMode(tabId, 'desktop')
                 }}
                 title="切换桌面视图"
               >
@@ -365,7 +364,7 @@ function BrowserManagementView(): React.ReactElement {
                 className="project-panel-quick-action"
                 onClick={() => {
                   const tabId = ensureBrowserFocus()
-                  if (tabId) window.deepink.browser.setDeviceMode(tabId, 'mobile')
+                  if (tabId) window.cclinkStudio.browser.setDeviceMode(tabId, 'mobile')
                 }}
                 title="切换手机视图"
               >
@@ -378,7 +377,7 @@ function BrowserManagementView(): React.ReactElement {
                 className="project-panel-quick-action"
                 onClick={() => {
                   const tabId = ensureBrowserFocus()
-                  if (tabId) window.deepink.browser.fitWidth(tabId)
+                  if (tabId) window.cclinkStudio.browser.fitWidth(tabId)
                 }}
                 title="适应当前侧栏/工作区宽度"
               >
@@ -402,14 +401,6 @@ function FilesSidebarView({
   workspaceRef: WorkspaceRef
   workspacePath: string | null
 }): React.ReactElement {
-  if (workspaceRef.kind === 'remote') {
-    return (
-      <div className="project-panel-empty project-files-empty">
-        远程文件树属于商业工作区能力，开源壳不加载该模块。
-      </div>
-    )
-  }
-
   if (workspaceRef.kind === 'global') {
     return (
       <div className="project-panel-empty project-files-empty">
@@ -447,14 +438,6 @@ function ProductionSidebarView({
     )
   }
 
-  if (workspaceRef.kind === 'remote') {
-    return (
-      <div className="project-panel-empty project-files-empty">
-        远程项目暂不支持本机硬件生产包扫描。请在本地项目中使用生产检测。
-      </div>
-    )
-  }
-
   return (
     <div className="project-panel-empty project-files-empty">
       未归档不启用生产检测。请选择或打开一个本地项目。
@@ -483,7 +466,6 @@ function formatTerminalTime(timestamp: number): string {
 
 function getTerminalRuntimeLabel(workspaceRef: WorkspaceRef): string {
   if (workspaceRef.kind === 'local') return '本地 shell'
-  if (workspaceRef.kind === 'remote') return `远程 · ${workspaceRefSourceLabel(workspaceRef)}`
   return '本地临时 shell'
 }
 
@@ -560,7 +542,7 @@ function TerminalSidebarView({
     setLoading(true)
     setError(null)
     try {
-      const nextSessions = await window.deepink.terminal.listSessions()
+      const nextSessions = await window.cclinkStudio.terminal.listSessions()
       setSessions(nextSessions)
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载 Terminal 信息失败')
@@ -739,14 +721,6 @@ function OperationsSidebarView({
     return <ProjectOperationsSection workspacePath={workspacePath} workspaceRef={workspaceRef} />
   }
 
-  if (workspaceRef.kind === 'remote') {
-    return (
-      <div className="project-panel-empty project-files-empty">
-        远程项目运营属于商业工作区能力，开源壳不加载该模块。
-      </div>
-    )
-  }
-
   return (
     <div className="project-panel-empty project-files-empty">
       未归档不启用项目运营。请选择或打开一个本地项目。
@@ -783,14 +757,6 @@ function SessionsSidebarView({
   openTab: ReturnType<typeof useTabStore.getState>['openTab']
   closeTab: ReturnType<typeof useTabStore.getState>['closeTab']
 }): React.ReactElement {
-  if (workspaceRef.kind === 'remote') {
-    return (
-      <div className="project-panel-empty project-files-empty">
-        远程会话属于商业工作区能力，开源壳不加载该模块。
-      </div>
-    )
-  }
-
   return (
     <LocalSessionsList
       workspaceRef={workspaceRef}

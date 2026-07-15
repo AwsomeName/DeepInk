@@ -183,7 +183,7 @@ describe('restoreWorkspaceState', () => {
                   runtime: {
                     location: 'local',
                     transport: 'local',
-                    backend: 'deepink-agent',
+                    backend: 'cclink-studio-agent',
                     workspaceRef: {
                       kind: 'local',
                       path: workspacePath,
@@ -204,7 +204,7 @@ describe('restoreWorkspaceState', () => {
                 runtime: {
                   location: 'local',
                   transport: 'local',
-                  backend: 'deepink-agent',
+                  backend: 'cclink-studio-agent',
                   workspaceRef: {
                     kind: 'local',
                     path: workspacePath,

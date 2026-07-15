@@ -48,13 +48,6 @@ export class LocalShellExecutionAdapter implements TerminalExecutionAdapter {
   }
 
   async start(input: TerminalStartInput): Promise<TerminalStartResult> {
-    if (input.runtime.location !== 'local') {
-      throw this.createUnavailableError(
-        input.sessionId,
-        'terminal.start',
-        '远程 Terminal 执行后端尚未接入',
-      )
-    }
     if (this.sessions.has(input.sessionId)) {
       return {
         sessionId: input.sessionId,

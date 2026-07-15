@@ -38,7 +38,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   loadSettings: async () => {
     try {
-      const settings = await window.deepink.settings.getAll()
+      const settings = await window.cclinkStudio.settings.getAll()
       set({ settings, loading: false, error: null })
     } catch (err) {
       console.error('[SettingsStore] 加载设置失败:', err)
@@ -48,7 +48,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   updateSettings: async (partial) => {
     try {
-      const result = await window.deepink.settings.set(partial)
+      const result = await window.cclinkStudio.settings.set(partial)
       if (result.success && result.settings) {
         set({ settings: result.settings, error: null })
         return true
@@ -64,7 +64,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   resetSettings: async () => {
     try {
-      const result = await window.deepink.settings.reset()
+      const result = await window.cclinkStudio.settings.reset()
       if (result.success && result.settings) {
         set({ settings: result.settings, error: null })
         return
@@ -78,7 +78,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
   resetSetting: async (key) => {
     try {
-      const result = await window.deepink.settings.resetKey(key)
+      const result = await window.cclinkStudio.settings.resetKey(key)
       if (result.success && result.settings) {
         set({ settings: result.settings, error: null })
         return true

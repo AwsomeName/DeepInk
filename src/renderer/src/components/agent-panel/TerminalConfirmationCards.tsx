@@ -19,7 +19,7 @@ export function TerminalConfirmationCards(): React.ReactElement | null {
   const resolveConfirmation = async (id: string, approved: boolean): Promise<void> => {
     setResolvingIds((current) => new Set(current).add(id))
     try {
-      await window.deepink.terminal.resolveCommandConfirmation(id, approved)
+      await window.cclinkStudio.terminal.resolveCommandConfirmation(id, approved)
     } finally {
       removePendingConfirmation(id)
       setResolvingIds((current) => {

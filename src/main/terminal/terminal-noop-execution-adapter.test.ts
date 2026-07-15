@@ -11,9 +11,9 @@ const localRuntime: TerminalRuntimeRef = {
   backend: 'local-shell',
   workspaceRef: {
     kind: 'local',
-    path: '/Users/apple/Desktop/DeepInk',
+    path: '/Users/apple/Desktop/CCLink Studio',
   },
-  cwd: '/Users/apple/Desktop/DeepInk',
+  cwd: '/Users/apple/Desktop/CCLink Studio',
 }
 
 describe('NoopTerminalExecutionAdapter', () => {
@@ -49,7 +49,7 @@ describe('NoopTerminalExecutionAdapter', () => {
   })
 
   it('preserves the execution error on rejected operations', async () => {
-    const adapter = new NoopTerminalExecutionAdapter({ backend: 'remote-shell' })
+    const adapter = new NoopTerminalExecutionAdapter({ backend: 'custom' })
 
     await expect(adapter.write({ sessionId: 'terminal-2', data: 'pwd', actor: 'user' })).rejects.toMatchObject({
       executionError: {
@@ -57,7 +57,7 @@ describe('NoopTerminalExecutionAdapter', () => {
         code: 'EXECUTION_BACKEND_UNAVAILABLE',
         retryable: false,
         context: {
-          backend: 'remote-shell',
+          backend: 'custom',
           operation: 'terminal.write',
           sessionId: 'terminal-2',
         },

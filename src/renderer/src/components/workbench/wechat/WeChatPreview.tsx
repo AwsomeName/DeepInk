@@ -26,9 +26,9 @@ export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElem
       try {
         setLoading(true)
         setError('')
-        const file = await window.deepink.fs.readFile(filePath)
+        const file = await window.cclinkStudio.fs.readFile(filePath)
         const content = typeof file === 'string' ? file : file.content
-        const result = await window.deepink.wechat.convert(content)
+        const result = await window.cclinkStudio.wechat.convert(content)
         if (result.error) {
           if (!cancelled) setError(result.error)
         } else if (!result.html) {
@@ -65,7 +65,7 @@ export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElem
     if (!html) return
     try {
       const fileName = filePath.split('/').pop()?.replace(/\.md$/i, '') ?? 'wechat'
-      const result = await window.deepink.dialog.showSaveDialog({
+      const result = await window.cclinkStudio.dialog.showSaveDialog({
         title: '保存为 HTML 文件',
         defaultPath: `${fileName}.html`,
         filters: [{ name: 'HTML', extensions: ['html'] }],
@@ -76,7 +76,7 @@ export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElem
 <head><meta charset="utf-8"><title>${fileName}</title></head>
 <body style="background:#fff;padding:20px;">${html}</body>
 </html>`
-        await window.deepink.fs.writeFile(result.filePath, fullHtml)
+        await window.cclinkStudio.fs.writeFile(result.filePath, fullHtml)
         showToast('已保存: ' + result.filePath, 'success')
       }
     } catch (err) {

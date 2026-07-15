@@ -5,7 +5,7 @@ import { IconSearch } from '../common/Icons'
 import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
 import { isGerberFileExtension } from '../../utils/hardware-files'
 
-const SEARCH_PANEL_STORAGE_KEY = 'deepink-search-panel-state'
+const SEARCH_PANEL_STORAGE_KEY = 'cclink-studio-search-panel-state'
 
 function loadSearchState(): { query: string; results: FileTreeNode[] } {
   try {

@@ -38,7 +38,7 @@ export function useGlobalShortcuts(): void {
       }
       if (cmd && !shift && e.key.toLowerCase() === 'r') {
         e.preventDefault()
-        window.deepink.window.reload()
+        window.cclinkStudio.window.reload()
         return
       }
       if (cmd && !shift && e.key === 'w') {

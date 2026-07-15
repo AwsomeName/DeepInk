@@ -8,7 +8,7 @@ export function useWorkbenchBounds(contentRef: RefObject<HTMLDivElement | null>)
 
     const reportBounds = (): void => {
       const rect = el.getBoundingClientRect()
-      window.deepink.reportWorkbenchBounds({
+      window.cclinkStudio.reportWorkbenchBounds({
         x: Math.round(rect.left),
         y: Math.round(rect.top),
         width: Math.round(rect.width),

@@ -187,9 +187,9 @@ function defaultIsProcessAlive(pid: number): boolean {
 async function defaultIsStudioTerminalProcess(pid: number, sessionId: string): Promise<boolean> {
   const command = await readProcessCommandWithEnv(pid)
   return (
-    command.includes(`DEEPINK_TERMINAL_SESSION_ID=${sessionId}`) ||
-    command.includes(`DEEPINK_TERMINAL_SESSION_ID='${sessionId}'`) ||
-    command.includes(`DEEPINK_TERMINAL_SESSION_ID="${sessionId}"`)
+    command.includes(`CCLINK_STUDIO_TERMINAL_SESSION_ID=${sessionId}`) ||
+    command.includes(`CCLINK_STUDIO_TERMINAL_SESSION_ID='${sessionId}'`) ||
+    command.includes(`CCLINK_STUDIO_TERMINAL_SESSION_ID="${sessionId}"`)
   )
 }
 

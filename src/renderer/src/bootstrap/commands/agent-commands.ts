@@ -18,7 +18,7 @@ export function createAgentCommands(): Command[] {
       action: () => {
         const { activeConversationId, clearMessages } = useAgentStore.getState()
         clearMessages(activeConversationId)
-        window.deepink.agent.resetSession(activeConversationId)
+        window.cclinkStudio.agent.resetSession(activeConversationId)
       },
     },
   ]

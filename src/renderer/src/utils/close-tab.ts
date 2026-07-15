@@ -14,7 +14,7 @@ function getDefaultDraftName(tab: Tab): string {
 }
 
 async function showSaveError(error: unknown): Promise<void> {
-  await window.deepink.dialog.showMessageBox({
+  await window.cclinkStudio.dialog.showMessageBox({
     type: 'error',
     title: '保存失败',
     message: '草稿没有保存成功',
@@ -28,7 +28,7 @@ async function showSaveError(error: unknown): Promise<void> {
 async function saveVirtualDraftAsFile(tab: Tab, fileKey: string): Promise<boolean> {
   const editorStore = useEditorStore.getState()
   const current = editorStore.files[fileKey]?.currentContent ?? ''
-  const result = await window.deepink.dialog.showSaveDialog({
+  const result = await window.cclinkStudio.dialog.showSaveDialog({
     title: '保存草稿',
     defaultPath: getDefaultDraftName(tab),
     filters: [{ name: 'Markdown', extensions: ['md'] }],
@@ -36,7 +36,7 @@ async function saveVirtualDraftAsFile(tab: Tab, fileKey: string): Promise<boolea
   if (result.canceled || !result.filePath) return false
 
   try {
-    await window.deepink.fs.writeFile(result.filePath, current)
+    await window.cclinkStudio.fs.writeFile(result.filePath, current)
     editorStore.closeFile(fileKey)
     return true
   } catch (error) {
@@ -56,7 +56,7 @@ async function closeVirtualDraft(tab: Tab, fileKey: string): Promise<void> {
     return
   }
 
-  const { response } = await window.deepink.dialog.showMessageBox({
+  const { response } = await window.cclinkStudio.dialog.showMessageBox({
     type: 'question',
     title: '关闭草稿',
     message: '要如何处理这个未命名草稿？',
@@ -94,7 +94,7 @@ async function closeNamedEditorFile(tab: Tab, fileKey: string): Promise<void> {
     return
   }
 
-  const { response } = await window.deepink.dialog.showMessageBox({
+  const { response } = await window.cclinkStudio.dialog.showMessageBox({
     type: 'question',
     title: '关闭文件',
     message: `要保存对“${tab.title}”的修改吗？`,
@@ -139,7 +139,7 @@ async function closeTerminalView(tab: Tab): Promise<void> {
     return
   }
 
-  const { response } = await window.deepink.dialog.showMessageBox({
+  const { response } = await window.cclinkStudio.dialog.showMessageBox({
     type: 'warning',
     title: '结束 Terminal',
     message: '这个 Terminal 仍在运行。要关闭视图还是结束进程？',

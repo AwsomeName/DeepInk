@@ -14,11 +14,11 @@ export type WorkspaceStateSection =
 export interface WorkspaceStateSnapshot {
   version: 1
   workspaceId: string
-  /** 状态所有者：本地身份或未来云账号。为空表示旧全局状态。 */
+  /** 状态所有者：本地身份或官方账号。为空表示全局状态。 */
   ownerKey: string | null
-  /** 统一状态键：本地为路径，远程为 `${transport}://...`，未归档为 null。 */
+  /** 统一状态键：本地为路径，未归档为 null。 */
   workspaceKey: string | null
-  /** 兼容旧字段：短期仍等同 workspaceKey，本地场景仍是路径。 */
+  /** 本地工作空间路径；当前等同 workspaceKey。 */
   workspacePath: string | null
   updatedAt: number
   sections: Record<string, unknown>
@@ -36,17 +36,8 @@ export interface WorkspaceStateDiagnostics {
   backupFilePath: string
   workspaceCount: number
   fileVersion: number
-  migration: {
+  userData: {
     fixedUserDataPath: string
-    legacyUserDataPath: string
-    candidates: Array<{
-      path: string
-      migrated: string[]
-      skippedExisting: string[]
-      missing: string[]
-      merged: string[]
-      errors: string[]
-    }>
   } | null
 }
 

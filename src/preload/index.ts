@@ -8,7 +8,7 @@ import type {
   UpdateDataSourceInput,
 } from '../shared/ipc/data-source'
 
-contextBridge.exposeInMainWorld('deepink', {
+contextBridge.exposeInMainWorld('cclinkStudio', {
   // 工作区坐标上报（供 WebContentsView 定位）
   reportWorkbenchBounds: (bounds: { x: number; y: number; width: number; height: number }) =>
     ipcRenderer.send('workbench:bounds', bounds),
@@ -391,33 +391,33 @@ contextBridge.exposeInMainWorld('deepink', {
       ipcRenderer.invoke('editor:saveResult', id, success, error),
   },
 
-  // Android 设备控制（SDK/AVD/模拟器路径已封存，保留 IPC 兼容旧快照）
+  // Android 设备控制（当前只支持用户自有真机）
   android: {
-    // ─── 已封存：SDK 设置（一键安装） ───
-    /** 获取安装状态（返回 archived=true） */
+    // ─── SDK / AVD 状态查询（开源壳不提供一键安装） ───
+    /** 获取安装状态 */
     getSetupStatus: () => ipcRenderer.invoke('android:getSetupStatus'),
-    /** 获取封存说明 */
+    /** 获取当前 Android 支持说明 */
     getLicense: () => ipcRenderer.invoke('android:getLicense'),
-    /** 兼容旧调用：不再接受 SDK License */
+    /** 开源壳不接受 SDK License */
     acceptLicense: () => ipcRenderer.invoke('android:acceptLicense'),
-    /** 兼容旧调用：不再下载 adb/emulator/系统镜像或创建 AVD */
+    /** 开源壳不下载 adb/emulator/系统镜像或创建 AVD */
     setup: () => ipcRenderer.invoke('android:setup'),
-    /** 兼容旧调用：不会再收到安装进度 */
+    /** 开源壳不提供 SDK 安装进度 */
     onSetupProgress: (callback: (data: { step: string; progress: any }) => void) => {
       ipcRenderer.removeAllListeners('android:setupProgress')
       ipcRenderer.on('android:setupProgress', (_event, data) => callback(data))
     },
 
-    // ─── 已封存：模拟器生命周期 ───
-    /** 兼容旧调用：始终返回空 AVD 列表 */
+    // ─── AVD / 模拟器生命周期（开源壳不可用） ───
+    /** 开源壳不提供 AVD 列表 */
     listAvds: () => ipcRenderer.invoke('android:listAvds'),
-    /** 兼容旧调用：始终拒绝启动 AVD 模拟器 */
+    /** 开源壳不启动 AVD 模拟器 */
     launch: (avdName: string) => ipcRenderer.invoke('android:launch', avdName),
-    /** 兼容旧调用：不再控制模拟器进程 */
+    /** 开源壳不控制模拟器进程 */
     terminate: () => ipcRenderer.invoke('android:terminate'),
-    /** 兼容旧调用：始终返回 stopped */
+    /** 当前模拟器状态 */
     getState: () => ipcRenderer.invoke('android:getState'),
-    /** 兼容旧调用：不会再有模拟器状态变化 */
+    /** 当前不会推送模拟器状态变化 */
     onStateChanged: (callback: (state: string) => void) => {
       const handler = (_event: unknown, state: string) => callback(state)
       ipcRenderer.on('android:stateChanged', handler)

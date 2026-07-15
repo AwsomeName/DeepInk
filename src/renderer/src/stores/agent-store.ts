@@ -41,7 +41,7 @@ interface AgentState {
   conversationOrder: string[]
   activeConversationId: string
 
-  /** 当前活跃会话快照（兼容旧组件/测试的 selector） */
+  /** 当前活跃会话快照 */
   messages: AgentMessage[]
   input: string
   loading: boolean
@@ -133,7 +133,7 @@ function createConversation(
     runtime: options.runtime ?? {
       location: 'local',
       transport: 'local',
-      backend: 'deepink-agent',
+      backend: 'cclink-studio-agent',
     },
     messages: [createWelcomeMessage()],
     input: '',
@@ -314,7 +314,7 @@ function normalizeConversationSnapshot(
       runtime: conversation.runtime ?? {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
       },
       archivedAt: conversation.archivedAt ?? null,
       mountedResources: Array.isArray(conversation.mountedResources)

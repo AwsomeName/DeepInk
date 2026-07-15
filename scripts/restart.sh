@@ -11,12 +11,12 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-RUN_DIR="${CCLINK_STUDIO_RUN_DIR:-${DEEPINK_RUN_DIR:-/tmp/cclink-studio-dev}}"
+RUN_DIR="${CCLINK_STUDIO_RUN_DIR:-/tmp/cclink-studio-dev}"
 PID_FILE="$RUN_DIR/cclink-studio-dev.pid"
 LOG_FILE="$RUN_DIR/cclink-studio-dev.log"
-SCREEN_NAME="${CCLINK_STUDIO_SCREEN_NAME:-${DEEPINK_SCREEN_NAME:-cclink-studio-dev}}"
-PORTS="${CCLINK_STUDIO_DEV_PORTS:-${DEEPINK_DEV_PORTS:-5173 5174}}"
-START_TIMEOUT="${CCLINK_STUDIO_START_TIMEOUT:-${DEEPINK_START_TIMEOUT:-12}}"
+SCREEN_NAME="${CCLINK_STUDIO_SCREEN_NAME:-cclink-studio-dev}"
+PORTS="${CCLINK_STUDIO_DEV_PORTS:-5173 5174}"
+START_TIMEOUT="${CCLINK_STUDIO_START_TIMEOUT:-12}"
 
 CYAN='\033[36m'
 GREEN='\033[32m'
@@ -284,8 +284,6 @@ Environment:
   CCLINK_STUDIO_SCREEN_NAME    screen session name. Default: cclink-studio-dev
   CCLINK_STUDIO_DEV_PORTS      Ports to clean on stop. Default: 5173 5174
   CCLINK_STUDIO_START_TIMEOUT  Startup wait seconds. Default: 12
-
-Legacy DEEPINK_RUN_DIR / DEEPINK_SCREEN_NAME / DEEPINK_DEV_PORTS / DEEPINK_START_TIMEOUT are still accepted.
 EOF
 }
 

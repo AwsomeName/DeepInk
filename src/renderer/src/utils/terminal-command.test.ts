@@ -4,19 +4,14 @@ import { submitTerminalCommand } from './terminal-command'
 
 const terminal: TerminalTabRef = {
   runtime: {
-    location: 'remote',
-    transport: 'cclink',
-    backend: 'remote-shell',
+    location: 'local',
+    transport: 'local',
+    backend: 'local-shell',
     workspaceRef: {
-      kind: 'remote',
-      transport: 'cclink',
-      endpointId: 'agent-1',
-      workspaceId: 'workspace-1',
+      kind: 'local',
       path: '/srv/app',
-      label: 'app',
     },
     cwd: '/srv/app',
-    endpointId: 'agent-1',
   },
   permissionPolicy: {
     mode: 'ask-every-command',
@@ -31,7 +26,7 @@ beforeEach(() => {
   vi.restoreAllMocks()
   vi.spyOn(console, 'warn').mockImplementation(() => undefined)
   vi.stubGlobal('window', {
-    deepink: {
+    cclinkStudio: {
       terminal: {
         submitCommand: vi.fn().mockResolvedValue({
           success: true,
@@ -52,12 +47,12 @@ describe('submitTerminalCommand', () => {
 
     expect(result.retriedAfterRegister).toBe(false)
     expect(result.result.success).toBe(true)
-    expect(window.deepink.terminal.submitCommand).toHaveBeenCalledWith({
+    expect(window.cclinkStudio.terminal.submitCommand).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-session-1',
       command: 'pwd',
       actor: 'user',
       permissionPolicy: terminal.permissionPolicy,
-      workspaceKey: 'cclink://agent-1/workspace-1',
+      workspaceKey: '/srv/app',
     })
   })
 
@@ -69,11 +64,11 @@ describe('submitTerminalCommand', () => {
       status: 'rejected',
       error: 'Terminal 命令不能为空',
     })
-    expect(window.deepink.terminal.submitCommand).not.toHaveBeenCalled()
+    expect(window.cclinkStudio.terminal.submitCommand).not.toHaveBeenCalled()
   })
 
   it('re-registers and retries when restored session is missing', async () => {
-    vi.mocked(window.deepink.terminal.submitCommand)
+    vi.mocked(window.cclinkStudio.terminal.submitCommand)
       .mockResolvedValueOnce({
         success: false,
         status: 'rejected',
@@ -91,15 +86,15 @@ describe('submitTerminalCommand', () => {
 
     expect(result.retriedAfterRegister).toBe(true)
     expect(result.result.success).toBe(true)
-    expect(window.deepink.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
+    expect(window.cclinkStudio.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-session-1',
-      workspaceKey: 'cclink://agent-1/workspace-1',
+      workspaceKey: '/srv/app',
       kind: 'created',
       message: 'Terminal Tab 已重新登记',
       runtime: terminal.runtime,
       permissionPolicy: terminal.permissionPolicy,
       closePolicy: terminal.closePolicy,
     })
-    expect(window.deepink.terminal.submitCommand).toHaveBeenCalledTimes(2)
+    expect(window.cclinkStudio.terminal.submitCommand).toHaveBeenCalledTimes(2)
   })
 })

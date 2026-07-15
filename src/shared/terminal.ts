@@ -1,4 +1,4 @@
-import type { RemoteWorkspaceTransport, WorkspaceRef } from './workspace-ref'
+import type { WorkspaceRef } from './workspace-ref'
 
 export interface TerminalExecutionErrorInfo {
   layer: 'execution-backend' | 'permission' | 'workspace' | 'unknown'
@@ -8,11 +8,11 @@ export interface TerminalExecutionErrorInfo {
   context?: Record<string, unknown>
 }
 
-export type TerminalRuntimeLocation = 'local' | 'remote'
+export type TerminalRuntimeLocation = 'local'
 
-export type TerminalTransport = 'local' | RemoteWorkspaceTransport
+export type TerminalTransport = 'local'
 
-export type TerminalBackend = 'local-shell' | 'remote-shell' | 'codex' | 'custom'
+export type TerminalBackend = 'local-shell' | 'codex' | 'custom'
 
 export type TerminalStatus = 'idle' | 'starting' | 'running' | 'blocked' | 'exited' | 'error'
 

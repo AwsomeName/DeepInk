@@ -5,7 +5,7 @@ import { useTabStore } from '../../stores/tab-store'
 /** 接收 Agent 推送的编辑器内容更新，必要时自动创建编辑器 Tab。 */
 export function useEditorContentUpdates(): void {
   useEffect(() => {
-    const unsub = window.deepink.editor.onContentUpdate((update) => {
+    const unsub = window.cclinkStudio.editor.onContentUpdate((update) => {
       const targetPath = update.filePath
       const hasMatchingTab = useTabStore
         .getState()

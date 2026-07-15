@@ -6,7 +6,7 @@ import type {
   WorkspaceStateDiagnostics,
   WorkspaceStateSnapshot,
 } from '../../shared/ipc/workspace-state'
-import { getUserDataMigrationDiagnostics } from '../runtime/user-data-path'
+import { getUserDataPathDiagnostics } from '../runtime/user-data-path'
 
 interface WorkspaceStateFile {
   version: number
@@ -15,7 +15,6 @@ interface WorkspaceStateFile {
 
 const CURRENT_FILE_VERSION = 1
 const GLOBAL_WORKSPACE_ID = 'global'
-const LEGACY_OWNER_KEY: string | null = null
 
 /**
  * 文件级 migration 注册表：key 为源版本号，value 为「该版本 → 下一版本」的升级函数。
@@ -49,13 +48,8 @@ function migrateWorkspaceStateFile(raw: unknown): WorkspaceStateFile {
   }
 }
 
-function getLegacyWorkspaceId(workspaceKey?: string | null): string {
-  if (!workspaceKey) return GLOBAL_WORKSPACE_ID
-  return createHash('sha256').update(workspaceKey).digest('hex').slice(0, 16)
-}
-
 function getWorkspaceId(workspaceKey?: string | null, ownerKey?: string | null): string {
-  if (!ownerKey) return getLegacyWorkspaceId(workspaceKey)
+  if (!workspaceKey && !ownerKey) return GLOBAL_WORKSPACE_ID
   return createHash('sha256')
     .update(`${ownerKey}\0${workspaceKey || GLOBAL_WORKSPACE_ID}`)
     .digest('hex')
@@ -69,7 +63,7 @@ function createEmptySnapshot(
   return {
     version: 1,
     workspaceId: getWorkspaceId(workspaceKey, ownerKey),
-    ownerKey: ownerKey || LEGACY_OWNER_KEY,
+    ownerKey: ownerKey || null,
     workspaceKey: workspaceKey || null,
     workspacePath: workspaceKey || null,
     updatedAt: Date.now(),
@@ -86,7 +80,7 @@ function normalizeSnapshot(
   return {
     ...snapshot,
     workspaceId: getWorkspaceId(workspaceKeyOverride ?? workspaceKey, ownerKey ?? snapshot.ownerKey),
-    ownerKey: ownerKey ?? snapshot.ownerKey ?? LEGACY_OWNER_KEY,
+    ownerKey: ownerKey ?? snapshot.ownerKey ?? null,
     workspaceKey: workspaceKeyOverride ?? workspaceKey,
     workspacePath: workspaceKeyOverride ?? snapshot.workspacePath ?? workspaceKey,
     sections: { ...snapshot.sections },
@@ -140,14 +134,6 @@ export class WorkspaceStateService {
     const id = getWorkspaceId(workspaceKey, ownerKey)
     const snapshot = this.state.workspaces[id]
     if (snapshot) return normalizeSnapshot(snapshot, ownerKey, workspaceKey)
-
-    if (ownerKey) {
-      const legacySnapshot = this.state.workspaces[getLegacyWorkspaceId(workspaceKey)]
-      if (legacySnapshot) {
-        return normalizeSnapshot(legacySnapshot, ownerKey, workspaceKey)
-      }
-    }
-
     return createEmptySnapshot(workspaceKey, ownerKey)
   }
 
@@ -161,7 +147,7 @@ export class WorkspaceStateService {
     const next: WorkspaceStateSnapshot = {
       ...current,
       workspaceId: getWorkspaceId(workspaceKey, ownerKey),
-      ownerKey: ownerKey || LEGACY_OWNER_KEY,
+      ownerKey: ownerKey || null,
       workspaceKey: workspaceKey || null,
       workspacePath: workspaceKey || null,
       updatedAt: Date.now(),
@@ -187,7 +173,7 @@ export class WorkspaceStateService {
       backupFilePath: this.backupFilePath,
       workspaceCount: Object.keys(this.state.workspaces).length,
       fileVersion: this.state.version,
-      migration: getUserDataMigrationDiagnostics(),
+      userData: getUserDataPathDiagnostics(),
     }
   }
 

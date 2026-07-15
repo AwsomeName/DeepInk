@@ -124,25 +124,25 @@ export function applyAgentErrorToStore(
 /** 全局订阅 Agent 后端事件，并写入会话 store。 */
 export function useAgentStreamEvents(): void {
   useEffect(() => {
-    const offStream = window.deepink.agent.onStreamEvent((event) => {
+    const offStream = window.cclinkStudio.agent.onStreamEvent((event) => {
       applyAgentStreamEventToStore(event)
     })
 
-    const offComplete = window.deepink.agent.onComplete((result) => {
+    const offComplete = window.cclinkStudio.agent.onComplete((result) => {
       applyAgentCompleteToStore(result)
     })
 
-    const offError = window.deepink.agent.onError((error) => {
+    const offError = window.cclinkStudio.agent.onError((error) => {
       applyAgentErrorToStore(error)
     })
 
-    const offConfirmation = window.deepink.agent.onRequestConfirmation(
+    const offConfirmation = window.cclinkStudio.agent.onRequestConfirmation(
       (request: ToolConfirmationRequest) => {
         useAgentStore.getState().addPendingConfirmation(request)
       },
     )
 
-    window.deepink.agent.getPermissionMode().then((mode: string) => {
+    window.cclinkStudio.agent.getPermissionMode().then((mode: string) => {
       useAgentStore.getState().setPermissionMode(mode as PermissionMode)
     })
 

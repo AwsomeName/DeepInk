@@ -1,6 +1,4 @@
 import type { AgentConversationState } from '../stores/agent-store'
-import type { ResolvedConversationTab } from './conversation-tab'
-
 export type ConversationRuntimeAdapterKind = 'local-agent'
 
 export type ConversationRuntimeAdapterStatus =
@@ -20,15 +18,7 @@ export interface ConversationRuntimeAdapterMeta {
   status: ConversationRuntimeAdapterStatus
 }
 
-export interface ConversationRuntimeAdapterUnsupported {
-  kind: 'unsupported'
-  title: string
-  reason: string
-}
-
-export type ConversationRuntimeAdapterMetaResult =
-  | ConversationRuntimeAdapterMeta
-  | ConversationRuntimeAdapterUnsupported
+export type ConversationRuntimeAdapterMetaResult = ConversationRuntimeAdapterMeta
 
 function localStatus(conversation: AgentConversationState): ConversationRuntimeAdapterStatus {
   if (conversation.archivedAt) return 'archived'
@@ -62,7 +52,7 @@ function backendLabel(backend: AgentConversationState['runtime']['backend']): st
       return 'Claude Code'
     case 'custom':
       return '自定义后端'
-    case 'deepink-agent':
+    case 'cclink-studio-agent':
     default:
       return 'CCLink Studio Agent'
   }
@@ -85,15 +75,5 @@ export function getLocalAgentConversationMeta(
     ],
     badge: localBadge(status),
     status,
-  }
-}
-
-export function getUnsupportedConversationMeta(
-  target: Extract<ResolvedConversationTab, { kind: 'unsupported' }>,
-): ConversationRuntimeAdapterUnsupported {
-  return {
-    kind: 'unsupported',
-    title: '这个会话暂时打不开',
-    reason: target.reason,
   }
 }

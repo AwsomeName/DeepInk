@@ -174,7 +174,7 @@ export class BrowserManager {
 
     const profileId = this.normalizeProfileId(opts?.profileId)
     const viewSession = profileId
-      ? session.fromPartition(`persist:deepink-profile-${profileId}`)
+      ? session.fromPartition(`persist:cclink-studio-profile-${profileId}`)
       : undefined
     const view = new WebContentsView({
       webPreferences: {

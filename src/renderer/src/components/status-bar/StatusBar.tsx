@@ -41,7 +41,7 @@ export function StatusBar(): React.ReactElement {
   const handleDownloadUpdate = async (): Promise<void> => {
     setDownloading(true)
     try {
-      await window.deepink.update.download()
+      await window.cclinkStudio.update.download()
       clear()
     } finally {
       setDownloading(false)

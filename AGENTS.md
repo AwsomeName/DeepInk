@@ -17,10 +17,9 @@
 当前真实项目边界：
 
 - `cclink-studio`：开源桌面壳。
-- `cclink-dev`：闭源官方构建/总控工作区，承接 release overlay、签名、公证、生产 API 注入、多仓库集成脚本。
+- `cclink-dev`：闭源官方构建/总控工作区，承接发布集成、签名、公证、生产 API 注入、多仓库集成脚本。
 - `/Users/apple/Desktop/chat-cc/deploy`：CCLink 云函数和账号体系。
 - `/Users/apple/Desktop/chat-cc/Agent`：CCLink Agent runtime。
-- 历史服务仓库方向：不再作为未来方向。
 
 不存在额外拆分出的云端或 Agent 独立项目。
 
@@ -46,32 +45,14 @@
 - 云同步、网络工作区、网络执行、网络文件树。
 - 官方发布上传、生产更新源、签名、公证。
 
-## 兼容命名禁区
-
-不要机械替换以下名称；它们需要后续显式迁移方案：
-
-- `window.deepink`
-- `appId: com.deepink.app`
-- legacy userData 固定目录
-- `deepink-*` localStorage key
-- `deepink-agent` backend 枚举
-- 历史 tab/workspace snapshot 中的 `cclink`、`network-file`、`network` 类型
-
-可以优先清理：
-
-- README、AGENTS、docs 入口文档中的产品名和项目边界。
-- 用户可见 UI 文案。
-- 日志、诊断报告标题、窗口标题、加载页标题。
-- package/repository/productName 等外壳字段。
-
 ## 开发规范
 
 - TypeScript 严格模式。
 - 文件名 kebab-case，React 组件 PascalCase，函数/变量 camelCase。
 - 禁用 `nodeIntegration`，启用 `contextIsolation`。
 - Renderer 只能通过 preload 暴露的白名单 IPC 访问主进程能力。
-- 开源壳不得默认 import 或初始化 `auth/subscription/sync/cclink/network/legacy-protocol` 商业模块。
-- 开源发布脚本只做本地构建和本地打包；官方 release 由 `cclink-dev` overlay 承接。
+- 开源壳不得默认 import 或初始化账号、订阅、同步、官方消息网络或网络工作区模块。
+- 开源发布脚本只做本地构建和本地打包；官方 release 由 `cclink-dev` 发布集成层承接。
 
 ## 常用命令
 
@@ -87,7 +68,7 @@ pnpm package:dev
 
 ## 当前验收基线
 
-商业模块第一轮迁移后，`cclink-studio` 必须至少通过：
+`cclink-studio` 必须至少通过：
 
 - `pnpm typecheck`
 - `pnpm test`

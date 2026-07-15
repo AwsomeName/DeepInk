@@ -25,7 +25,7 @@ export async function prepareWorkspaceRuntimeTransition(
     persistRuntimeSections(currentKey)
   }
 
-  const snapshot = await window.deepink.workspaceState
+  const snapshot = await window.cclinkStudio.workspaceState
     .get(key, getWorkspaceStateOwnerKey())
     .catch(() => null)
 

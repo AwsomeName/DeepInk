@@ -17,7 +17,7 @@ import type { WechatApiContract } from '../shared/ipc/wechat'
 import type { WindowApiContract } from '../shared/ipc/window'
 import type { WorkspaceStateApiContract } from '../shared/ipc/workspace-state'
 
-export interface DeepinkAPI {
+export interface CCLinkStudioAPI {
   reportWorkbenchBounds: (bounds: { x: number; y: number; width: number; height: number }) => void
 
   window: WindowApiContract
@@ -59,6 +59,6 @@ export interface DeepinkAPI {
 
 declare global {
   interface Window {
-    deepink: DeepinkAPI
+    cclinkStudio: CCLinkStudioAPI
   }
 }

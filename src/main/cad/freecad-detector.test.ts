@@ -7,7 +7,7 @@ import { detectFreeCad } from './freecad-detector'
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-freecad-detector-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-freecad-detector-'))
 })
 
 afterEach(async () => {

@@ -16,7 +16,7 @@ interface ThemeState {
 function loadSavedTheme(): Theme {
   try {
     if (typeof localStorage === 'undefined') return 'dark'
-    const saved = localStorage.getItem('deepink-theme')
+    const saved = localStorage.getItem('cclink-studio-theme')
     if (saved === 'dark' || saved === 'light' || saved === 'system') return saved
   } catch {
     // localStorage 不可用
@@ -66,7 +66,7 @@ export const useThemeStore = create<ThemeState>((set) => {
       applyTheme(resolved)
       try {
         if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('deepink-theme', theme)
+          localStorage.setItem('cclink-studio-theme', theme)
         }
       } catch {
         // localStorage 不可用

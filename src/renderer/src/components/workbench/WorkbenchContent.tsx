@@ -9,7 +9,6 @@ import { workspaceRefLabel, workspaceRefSourceLabel } from '../../../../shared/w
 import { useTabStore } from '../../stores/tab-store'
 import { useTerminalStore } from '../../stores/terminal-store'
 import { resolveConversationTab } from '../../utils/conversation-tab'
-import { getUnsupportedConversationMeta } from '../../utils/conversation-runtime-adapter'
 import { submitTerminalCommand } from '../../utils/terminal-command'
 import { buildTerminalTabDraft } from '../../utils/terminal-tab'
 import { ErrorBoundary } from '../common/ErrorBoundary'
@@ -72,12 +71,6 @@ export function WorkbenchContent({
                 conversationId={conversationTarget.conversationId}
               />
             )}
-            {conversationTarget?.kind === 'unsupported' && (
-              <UnsupportedConversationTab reason={conversationTarget.reason} />
-            )}
-            {activeTab.type === 'remote-file' && (
-              <UnsupportedCommercialTab title="远程文件不可用" />
-            )}
             {activeTab.type === 'hardware-gerber' && activeTab.hardwareGerber && (
               <GerberLayerPreview
                 key={`${activeTab.hardwareGerber.packagePath}:${activeTab.hardwareGerber.entry ?? ''}`}
@@ -92,19 +85,6 @@ export function WorkbenchContent({
           </>
         )}
       </ErrorBoundary>
-    </div>
-  )
-}
-
-function UnsupportedCommercialTab({ title }: { title: string }): React.ReactElement {
-  return (
-    <div className="conversation-shell local">
-      <div className="terminal-placeholder">
-        <div className="terminal-placeholder-title">{title}</div>
-        <div className="terminal-placeholder-desc">
-          该能力属于商业远程工作区模块，开源壳不加载对应实现。
-        </div>
-      </div>
     </div>
   )
 }
@@ -260,7 +240,7 @@ function LocalPtyTerminal({ tab }: { tab: Tab }): React.ReactElement {
     const resizeToContainer = (): void => {
       try {
         fitAddon.fit()
-        void window.deepink.terminal.resizePty({
+        void window.cclinkStudio.terminal.resizePty({
           terminalSessionId: terminal.sessionId!,
           size: { columns: xterm.cols, rows: xterm.rows },
         })
@@ -270,20 +250,20 @@ function LocalPtyTerminal({ tab }: { tab: Tab }): React.ReactElement {
     }
 
     const dataDisposable = xterm.onData((data) => {
-      void window.deepink.terminal.writePty({
+      void window.cclinkStudio.terminal.writePty({
         terminalSessionId: terminal.sessionId!,
         data,
       })
     })
 
     const resizeDisposable = xterm.onResize((size) => {
-      void window.deepink.terminal.resizePty({
+      void window.cclinkStudio.terminal.resizePty({
         terminalSessionId: terminal.sessionId!,
         size: { columns: size.cols, rows: size.rows },
       })
     })
 
-    const offExecutionEvent = window.deepink.terminal.onExecutionEvent(
+    const offExecutionEvent = window.cclinkStudio.terminal.onExecutionEvent(
       (event: TerminalExecutionEvent) => {
         if (event.sessionId !== terminal.sessionId) return
         if (event.kind === 'output') {
@@ -302,7 +282,7 @@ function LocalPtyTerminal({ tab }: { tab: Tab }): React.ReactElement {
     resizeObserver.observe(containerRef.current)
     requestAnimationFrame(() => {
       resizeToContainer()
-      void window.deepink.terminal.startPty({
+      void window.cclinkStudio.terminal.startPty({
         terminalSessionId: terminal.sessionId!,
         runtime: terminal.runtime,
         size: { columns: xterm.cols, rows: xterm.rows },
@@ -385,7 +365,7 @@ function TerminalCommandPanel({ tab }: { tab: Tab }): React.ReactElement {
       <div className="terminal-placeholder">
         <div className="terminal-placeholder-title">Terminal 受控命令入口</div>
         <div className="terminal-placeholder-desc">
-          当前命令会进入权限、确认和审计链路；本地项目会启动本机 shell，远程项目会走对应远程执行通道。
+          当前命令会进入权限、确认和审计链路；本地项目会启动本机 shell。
         </div>
         <div className="terminal-placeholder-grid">
           <TerminalMeta label="工作空间" value={workspace ? workspaceRefLabel(workspace) : '未知'} />
@@ -393,7 +373,7 @@ function TerminalCommandPanel({ tab }: { tab: Tab }): React.ReactElement {
             label="来源"
             value={workspace ? workspaceRefSourceLabel(workspace) : '未知'}
           />
-          <TerminalMeta label="运行位置" value={runtime?.location === 'remote' ? '远程' : '本地'} />
+          <TerminalMeta label="运行位置" value="本地" />
           <TerminalMeta label="传输" value={runtime?.transport ?? '未知'} />
           <TerminalMeta label="后端" value={runtime?.backend ?? '未知'} />
           <TerminalMeta label="cwd" value={runtime?.cwd ?? '未设置'} />
@@ -410,7 +390,7 @@ function TerminalCommandPanel({ tab }: { tab: Tab }): React.ReactElement {
               className="terminal-command-input"
               value={command}
               onChange={(event) => setCommand(event.target.value)}
-              placeholder={runtime?.location === 'remote' ? '例如：pwd' : '例如：ls'}
+              placeholder="例如：ls"
               spellCheck={false}
             />
             <button type="submit" disabled={submitting || !command.trim() || !terminal?.sessionId}>
@@ -482,25 +462,6 @@ function TerminalMeta({ label, value }: { label: string; value: string }): React
     <div className="terminal-placeholder-meta">
       <span>{label}</span>
       <strong>{value}</strong>
-    </div>
-  )
-}
-
-function UnsupportedConversationTab({ reason }: { reason: string }): React.ReactElement {
-  const meta = getUnsupportedConversationMeta({
-    kind: 'unsupported',
-    tabId: 'unsupported',
-    reason,
-  })
-  return (
-    <div className="conversation-shell local">
-      <div className="workbench-agent-empty">
-        <strong>{meta.title}</strong>
-        <br />
-        {meta.reason}
-        <br />
-        这不是会话丢失，而是对应运行通道还没有接入 Workbench Tab。
-      </div>
     </div>
   )
 }

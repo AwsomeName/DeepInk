@@ -103,7 +103,7 @@ Markdown 只描述内容本身：
 ```md
 ---
 title: CCLink Studio
-theme: deepink-dark
+theme: cclink-studio-dark
 size: 16:9
 ---
 
@@ -393,7 +393,7 @@ Render Model
 ```md
 ---
 title: CCLink Studio 产品介绍
-theme: deepink-dark
+theme: cclink-studio-dark
 size: 16:9
 ---
 

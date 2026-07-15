@@ -13,9 +13,9 @@ const runtime: TerminalRuntimeRef = {
   backend: 'local-shell',
   workspaceRef: {
     kind: 'local',
-    path: '/Users/apple/Desktop/DeepInk',
+    path: '/Users/apple/Desktop/CCLink Studio',
   },
-  cwd: '/Users/apple/Desktop/DeepInk',
+  cwd: '/Users/apple/Desktop/CCLink Studio',
 }
 
 describe('terminal session state', () => {

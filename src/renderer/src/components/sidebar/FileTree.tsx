@@ -6,7 +6,7 @@ import { IconFolder, IconFile, IconPlus, IconChevronRight, IconChevronDown } fro
 import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
 import { isGerberFileExtension } from '../../utils/hardware-files'
 
-const FILE_TREE_SCROLL_KEY = 'deepink-file-tree-scroll'
+const FILE_TREE_SCROLL_KEY = 'cclink-studio-file-tree-scroll'
 
 function loadFileTreeScrollTop(): number {
   try {

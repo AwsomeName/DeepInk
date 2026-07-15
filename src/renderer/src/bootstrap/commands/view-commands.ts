@@ -31,7 +31,7 @@ export function createViewCommands(deps: ViewCommandDeps): Command[] {
       },
     },
     { id: 'view.zoomReset', label: '重置界面缩放', category: '视图', action: () => { document.body.style.zoom = '1' } },
-    { id: 'view.toggleFullscreen', label: '切换全屏', category: '视图', action: () => window.deepink.window.toggleFullscreen() },
+    { id: 'view.toggleFullscreen', label: '切换全屏', category: '视图', action: () => window.cclinkStudio.window.toggleFullscreen() },
     {
       id: 'theme.switchTheme',
       label: '切换主题（深色/浅色）',

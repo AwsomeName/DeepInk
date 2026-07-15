@@ -37,7 +37,7 @@ function createStore(): { store: BrowserDownloadStore; send: ReturnType<typeof v
 }
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-download-store-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-download-store-'))
   workspaceDir = join(tempDir, 'workspace')
   electronMocks.paths.userData = join(tempDir, 'user-data')
   electronMocks.paths.downloads = join(tempDir, 'downloads')
@@ -88,7 +88,7 @@ describe('BrowserDownloadStore', () => {
     expect(targetPath).toBe(join(electronMocks.paths.downloads, 'file.pdf'))
   })
 
-  it('keeps temporary agent downloads inside the workspace .deepink folder', async () => {
+  it('keeps temporary agent downloads inside the workspace .cclink-studio folder', async () => {
     const { store } = createStore()
     await store.load()
     const { targetPath } = await store.startDownload({
@@ -106,7 +106,7 @@ describe('BrowserDownloadStore', () => {
     const kept = await store.keepDownloadToWorkspace('download-1')
 
     expect(kept.retention).toBe('kept')
-    expect(kept.savedPath).toBe(join(workspaceDir, '.deepink', 'downloads', 'task-1', 'file.pdf'))
+    expect(kept.savedPath).toBe(join(workspaceDir, '.cclink-studio', 'downloads', 'task-1', 'file.pdf'))
     await expect(stat(kept.savedPath!)).resolves.toBeTruthy()
   })
 

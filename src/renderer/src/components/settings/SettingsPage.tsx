@@ -561,7 +561,7 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
                 <div className="settings-label">
                   <span>CCLink Studio</span>
                   <span className="settings-description">
-                    开源桌面工作台壳，不内置官方生产 API、账号、订阅、云同步或远程工作区服务。
+                    开源桌面工作台壳，不内置官方生产 API、账号、订阅、云同步或网络工作区服务。
                   </span>
                 </div>
               </div>
@@ -569,7 +569,7 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
                 <div className="settings-label">
                   <span>当前阶段</span>
                   <span className="settings-description">
-                    商业能力已迁入 cclink-dev/commercial，本仓库保留本地 Agent、浏览器、编辑器、文件和终端能力。
+                    官方账号、同步、发布和网络运行时由 cclink-dev 与 chat-cc 承接，本仓库保留本地 Agent、浏览器、编辑器、文件和终端能力。
                   </span>
                 </div>
               </div>

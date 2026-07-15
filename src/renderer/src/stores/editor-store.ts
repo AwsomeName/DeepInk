@@ -125,7 +125,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }))
 
     try {
-      const result = await window.deepink.fs.readFile(filePath)
+      const result = await window.cclinkStudio.fs.readFile(filePath)
       const content = typeof result === 'string' ? result : result.content
       set((state) => ({
         files: {
@@ -184,7 +184,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!file) return
 
     try {
-      await window.deepink.fs.writeFile(filePath, file.currentContent)
+      await window.cclinkStudio.fs.writeFile(filePath, file.currentContent)
       set((state) => ({
         files: {
           ...state.files,

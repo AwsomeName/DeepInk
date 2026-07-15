@@ -126,7 +126,7 @@ export class BrowserDownloadStore {
     if (!sourcePath) throw new Error('下载文件尚未保存，无法保留到工作空间')
 
     const folderName = record.taskRunId ?? 'manual'
-    const targetDir = join(workspacePath, '.deepink', 'downloads', folderName)
+    const targetDir = join(workspacePath, '.cclink-studio', 'downloads', folderName)
     const targetPath = await this.uniquePath(targetDir, record.suggestedFilename)
     await copyFile(sourcePath, targetPath)
     record.savedPath = targetPath

@@ -77,7 +77,7 @@ export function AgentComposerToolbar({
     setDetectingClaude(true)
     setClaudeError(null)
     try {
-      const result = await window.deepink.settings.detectClaudeCode()
+      const result = await window.cclinkStudio.settings.detectClaudeCode()
       if (result.success && result.status) {
         setClaudeStatus(result.status)
         return

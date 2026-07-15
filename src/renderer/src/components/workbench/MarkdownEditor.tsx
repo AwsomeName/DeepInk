@@ -131,20 +131,20 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
     if (!editor) return
 
     // 监听 Agent 读取请求 → 回传当前编辑器内容
-    const unsubReadRequest = window.deepink.editor.onReadRequest((request) => {
+    const unsubReadRequest = window.cclinkStudio.editor.onReadRequest((request) => {
       // @tiptap/markdown v3: getMarkdown() 直接在 Editor 实例上
       const md = editor.getMarkdown()
-      window.deepink.editor.readResponse(request.id, md)
+      window.cclinkStudio.editor.readResponse(request.id, md)
     })
 
     // 监听 Agent 保存请求 → 写文件并回传结果
-    const unsubSaveRequest = window.deepink.editor.onSaveRequest(async (request) => {
+    const unsubSaveRequest = window.cclinkStudio.editor.onSaveRequest(async (request) => {
       try {
         // @tiptap/markdown v3: getMarkdown() 直接在 Editor 实例上
         const md = editor.getMarkdown()
         const targetPath = request.filePath ?? filePath
         if (targetPath) {
-          await window.deepink.fs.writeFile(targetPath, md)
+          await window.cclinkStudio.fs.writeFile(targetPath, md)
           // 更新 savedContent 清除 dirty
           useEditorStore.setState((s) => ({
             files: {
@@ -157,12 +157,12 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
               },
             },
           }))
-          window.deepink.editor.saveResult(request.id, true)
+          window.cclinkStudio.editor.saveResult(request.id, true)
         } else {
-          window.deepink.editor.saveResult(request.id, false, '无文件路径')
+          window.cclinkStudio.editor.saveResult(request.id, false, '无文件路径')
         }
       } catch (err: unknown) {
-        window.deepink.editor.saveResult(
+        window.cclinkStudio.editor.saveResult(
           request.id,
           false,
           err instanceof Error ? err.message : '保存失败',
@@ -222,7 +222,7 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
       }
 
       // 通知主进程更新已应用
-      window.deepink.editor.contentUpdateAck(update.id)
+      window.cclinkStudio.editor.contentUpdateAck(update.id)
     }
   }, [editor, filePath, fileKey, pendingCount])
 
@@ -234,14 +234,14 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
     if (!filePath) {
       const current = editorStore.files[fileKey]?.currentContent ?? ''
       if (!current) return
-      const result = await window.deepink.dialog.showSaveDialog({
+      const result = await window.cclinkStudio.dialog.showSaveDialog({
         title: '另存为',
         defaultPath: '未命名.md',
         filters: [{ name: 'Markdown', extensions: ['md'] }],
       })
       if (result.canceled || !result.filePath) return
       try {
-        await window.deepink.fs.writeFile(result.filePath, current)
+        await window.cclinkStudio.fs.writeFile(result.filePath, current)
         // 回填 Tab filePath，编辑器将按 key 重挂载并从磁盘读取（dirty 清零）
         useTabStore.getState().updateTabFilePath(tabId, result.filePath)
       } catch (err) {

@@ -304,7 +304,7 @@ export class CadConversionService {
     }
 
     await mkdir(cacheDir, { recursive: true })
-    const scriptPath = join(cacheDir, 'deepink-freecad-convert.py')
+    const scriptPath = join(cacheDir, 'cclink-studio-freecad-convert.py')
     await writeFile(scriptPath, buildFreeCadScript(), 'utf-8')
 
     diagnostics.push({

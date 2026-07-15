@@ -17,8 +17,6 @@ const TAB_ICONS: Record<string, string> = {
   android: '📱',
   model: '🧊',
   conversation: '🤖',
-  cclink: '🔗',
-  'remote-file': '📄',
   terminal: '⌨️',
 }
 

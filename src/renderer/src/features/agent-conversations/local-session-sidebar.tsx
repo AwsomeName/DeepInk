@@ -88,7 +88,7 @@ export function LocalSessionsList({
   openTab,
   closeTab,
 }: {
-  workspaceRef: Exclude<WorkspaceRef, { kind: 'remote' }>
+  workspaceRef: WorkspaceRef
   sessionGroups: WorkspaceConversationGroups
   activeConversationId: string
   createConversation: ReturnType<typeof useAgentStore.getState>['createConversation']
@@ -140,7 +140,7 @@ export function LocalSessionsList({
       runtime: {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
         workspaceRef,
       },
       activate: true,
@@ -154,7 +154,7 @@ export function LocalSessionsList({
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
           workspaceRef,
         },
         sessionId: conversationId,

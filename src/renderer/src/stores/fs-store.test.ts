@@ -29,7 +29,7 @@ describe('fs-store workspace switching', () => {
   beforeEach(() => {
     localStorageData.clear()
     vi.stubGlobal('window', {
-      deepink: {
+      cclinkStudio: {
         fs: {
           readDir: vi.fn().mockResolvedValue([]),
         },
@@ -82,7 +82,7 @@ describe('fs-store workspace switching', () => {
             runtime: {
               location: 'local',
               transport: 'local',
-              backend: 'deepink-agent',
+              backend: 'cclink-studio-agent',
               workspaceRef: { kind: 'local', path: workspacePath },
             },
             messages: [
@@ -117,7 +117,7 @@ describe('fs-store workspace switching', () => {
       fileTree: { expandedPaths: [], selectedPath: null },
     })
 
-    const getWorkspaceState = window.deepink.workspaceState.get as ReturnType<typeof vi.fn>
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
     getWorkspaceState.mockImplementation((key: string | null, ownerKey?: string | null) => {
       if (key === workspacePath && ownerKey === 'local:owner-1') {
         return Promise.resolve(ownerSnapshot)
@@ -139,14 +139,14 @@ describe('fs-store workspace switching', () => {
   it('restores recent projects from last workspace and local fallback after restart', async () => {
     const lastWorkspacePath = '/Users/apple/current-project'
     const oldWorkspacePath = '/Users/apple/old-project'
-    localStorageData.set('deepink-recent-workspaces', JSON.stringify([oldWorkspacePath]))
+    localStorageData.set('cclink-studio-recent-workspaces', JSON.stringify([oldWorkspacePath]))
 
-    const getAll = window.deepink.settings.getAll as ReturnType<typeof vi.fn>
+    const getAll = window.cclinkStudio.settings.getAll as ReturnType<typeof vi.fn>
     getAll.mockResolvedValue({
       lastWorkspacePath,
       recentWorkspacePaths: [],
     })
-    const getWorkspaceState = window.deepink.workspaceState.get as ReturnType<typeof vi.fn>
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
     getWorkspaceState.mockResolvedValue(snapshot(lastWorkspacePath, {}))
 
     await useFsStore.getState().initWorkspace()
@@ -155,23 +155,23 @@ describe('fs-store workspace switching', () => {
       lastWorkspacePath,
       oldWorkspacePath,
     ])
-    expect(window.deepink.settings.set).toHaveBeenCalledWith({
+    expect(window.cclinkStudio.settings.set).toHaveBeenCalledWith({
       recentWorkspacePaths: [lastWorkspacePath, oldWorkspacePath],
     })
     expect(localStorage.setItem).toHaveBeenCalledWith(
-      'deepink-recent-workspaces',
+      'cclink-studio-recent-workspaces',
       JSON.stringify([lastWorkspacePath, oldWorkspacePath]),
     )
   })
 
   it('keeps recent projects from local fallback when settings are empty', async () => {
     const oldWorkspacePath = '/Users/apple/old-project'
-    localStorageData.set('deepink-recent-workspaces', JSON.stringify([oldWorkspacePath]))
+    localStorageData.set('cclink-studio-recent-workspaces', JSON.stringify([oldWorkspacePath]))
 
     await useFsStore.getState().initWorkspace()
 
     expect(useFsStore.getState().recentWorkspacePaths).toEqual([oldWorkspacePath])
-    expect(window.deepink.settings.set).toHaveBeenCalledWith({
+    expect(window.cclinkStudio.settings.set).toHaveBeenCalledWith({
       recentWorkspacePaths: [oldWorkspacePath],
     })
   })
@@ -184,14 +184,14 @@ describe('fs-store workspace switching', () => {
     useEditorStore.getState().initVirtualFile('virtual:stale', 'stale draft')
     setWorkspaceStatePath(missingWorkspacePath)
 
-    const getAll = window.deepink.settings.getAll as ReturnType<typeof vi.fn>
+    const getAll = window.cclinkStudio.settings.getAll as ReturnType<typeof vi.fn>
     getAll.mockResolvedValue({
       lastWorkspacePath: missingWorkspacePath,
       recentWorkspacePaths: [missingWorkspacePath],
     })
-    const readDir = window.deepink.fs.readDir as ReturnType<typeof vi.fn>
+    const readDir = window.cclinkStudio.fs.readDir as ReturnType<typeof vi.fn>
     readDir.mockRejectedValue(new Error('ENOENT'))
-    const getWorkspaceState = window.deepink.workspaceState.get as ReturnType<typeof vi.fn>
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
     getWorkspaceState.mockImplementation((key: string | null) => {
       if (key === null) {
         return Promise.resolve(snapshot(null, {
@@ -219,6 +219,6 @@ describe('fs-store workspace switching', () => {
     expect(useBrowserStore.getState().tabs).toEqual({})
     expect(useEditorStore.getState().files).toEqual({})
     expect(useAgentStore.getState().activeConversationId).not.toBe(staleConversationId)
-    expect(window.deepink.settings.set).toHaveBeenCalledWith({ lastWorkspacePath: '' })
+    expect(window.cclinkStudio.settings.set).toHaveBeenCalledWith({ lastWorkspacePath: '' })
   })
 })

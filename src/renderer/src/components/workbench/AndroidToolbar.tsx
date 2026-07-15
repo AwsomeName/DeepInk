@@ -13,7 +13,7 @@ export function AndroidToolbar(): React.JSX.Element {
   const handleKey = async (key: string) => {
     if (!isRunning) return
     try {
-      await window.deepink.android.pressKey(key)
+      await window.cclinkStudio.android.pressKey(key)
     } catch (err) {
       console.error(`按键 ${key} 失败:`, err)
     }

@@ -28,15 +28,12 @@ import { useMainProcessEvents } from './bootstrap/use-main-process-events'
 import { useRegisterCommands } from './bootstrap/use-register-commands'
 import { useTerminalEvents } from './bootstrap/use-terminal-events'
 import { useWorkspaceBootstrap } from './bootstrap/use-workspace-bootstrap'
-import { workspaceRefLabel, workspaceRefSourceLabel } from '../../shared/workspace-ref'
+import { workspaceRefLabel } from '../../shared/workspace-ref'
 
 function getWorkspaceTitleDetail(
   workspaceRef: ReturnType<typeof useWorkspaceStore.getState>['activeWorkspaceRef'],
 ): string {
   if (workspaceRef.kind === 'local') return workspaceRef.path
-  if (workspaceRef.kind === 'remote') {
-    return `${workspaceRefSourceLabel(workspaceRef)} · ${workspaceRef.path}`
-  }
   return '临时草稿与全局会话'
 }
 
@@ -202,12 +199,12 @@ function MainLayout(): React.ReactElement {
 
 /** 根组件：开源壳只要求桌面 preload 可用，不要求 CCLink 登录态。 */
 function App(): React.ReactElement {
-  const deepinkApiAvailable =
-    typeof window !== 'undefined' && Boolean(window.deepink?.identity && window.deepink?.settings)
+  const cclinkStudioApiAvailable =
+    typeof window !== 'undefined' && Boolean(window.cclinkStudio?.identity && window.cclinkStudio?.settings)
 
-  useAppSession(deepinkApiAvailable)
+  useAppSession(cclinkStudioApiAvailable)
 
-  if (!deepinkApiAvailable) {
+  if (!cclinkStudioApiAvailable) {
     return (
       <div className="runtime-unavailable">
         <div className="runtime-unavailable-card">

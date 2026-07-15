@@ -28,7 +28,7 @@ export function AndroidDisplay(): React.JSX.Element {
     setMirrorError(null)
 
     try {
-      await window.deepink.android.reconnect()
+      await window.cclinkStudio.android.reconnect()
 
       const canvas = canvasRef.current
       if (!canvas) throw new Error('Canvas 不可用')
@@ -56,7 +56,7 @@ export function AndroidDisplay(): React.JSX.Element {
         // 断开连接时 pipe 中断属于正常路径
       })
 
-      window.deepink.android.onVideoFrame(
+      window.cclinkStudio.android.onVideoFrame(
         (frame: {
           type: 'configuration' | 'data'
           data: ArrayBuffer
@@ -88,7 +88,7 @@ export function AndroidDisplay(): React.JSX.Element {
         }
       })
 
-      window.deepink.android.onMirrorError((error: string) => {
+      window.cclinkStudio.android.onMirrorError((error: string) => {
         setMirrorStatus('error')
         setMirrorError(error)
         setMirrorConnected(false)
@@ -121,7 +121,7 @@ export function AndroidDisplay(): React.JSX.Element {
     decoderRef.current = null
 
     try {
-      await window.deepink.android.disconnectMirror()
+      await window.cclinkStudio.android.disconnectMirror()
     } catch {
       /* ignore */
     }
@@ -138,7 +138,7 @@ export function AndroidDisplay(): React.JSX.Element {
       const rect = canvas.getBoundingClientRect()
       const x = ((e.clientX - rect.left) / rect.width) * canvas.width
       const y = ((e.clientY - rect.top) / rect.height) * canvas.height
-      window.deepink.android.sendTouch({ action: 0, x, y, pressure: 1.0 })
+      window.cclinkStudio.android.sendTouch({ action: 0, x, y, pressure: 1.0 })
     },
     [mirrorStatus],
   )
@@ -151,7 +151,7 @@ export function AndroidDisplay(): React.JSX.Element {
       const rect = canvas.getBoundingClientRect()
       const x = ((e.clientX - rect.left) / rect.width) * canvas.width
       const y = ((e.clientY - rect.top) / rect.height) * canvas.height
-      window.deepink.android.sendTouch({ action: 1, x, y, pressure: 0.0 })
+      window.cclinkStudio.android.sendTouch({ action: 1, x, y, pressure: 0.0 })
     },
     [mirrorStatus],
   )
@@ -164,18 +164,18 @@ export function AndroidDisplay(): React.JSX.Element {
       const rect = canvas.getBoundingClientRect()
       const x = ((e.clientX - rect.left) / rect.width) * canvas.width
       const y = ((e.clientY - rect.top) / rect.height) * canvas.height
-      window.deepink.android.sendTouch({ action: 2, x, y, pressure: 1.0 })
+      window.cclinkStudio.android.sendTouch({ action: 2, x, y, pressure: 1.0 })
     },
     [mirrorStatus],
   )
 
   useEffect(() => {
-    const offLost = window.deepink.android.onDeviceLost(() => {
+    const offLost = window.cclinkStudio.android.onDeviceLost(() => {
       setMirrorStatus('error')
       setMirrorError('设备已断开')
       setMirrorConnected(false)
     })
-    const offDisconnected = window.deepink.android.onMirrorDisconnected(() => {
+    const offDisconnected = window.cclinkStudio.android.onMirrorDisconnected(() => {
       setMirrorStatus('disconnected')
       setMirrorConnected(false)
     })
@@ -203,7 +203,7 @@ export function AndroidDisplay(): React.JSX.Element {
       } catch {
         /* ignore */
       }
-      window.deepink.android.disconnectMirror().catch(() => {})
+      window.cclinkStudio.android.disconnectMirror().catch(() => {})
       setMirrorConnected(false)
     }
   }, [setMirrorConnected])
@@ -211,7 +211,7 @@ export function AndroidDisplay(): React.JSX.Element {
   const handleRetryStoreInstall = useCallback(async () => {
     setStoreInstall({ phase: 'installing', message: '正在重试...' })
     try {
-      const result = await window.deepink.android.retryStoreInstall()
+      const result = await window.cclinkStudio.android.retryStoreInstall()
       if (result.status === 'failed') {
         setStoreInstall({ phase: 'failed', message: result.message })
       } else {
@@ -231,7 +231,7 @@ export function AndroidDisplay(): React.JSX.Element {
 
   const handleManualInstallStore = useCallback(async () => {
     try {
-      const picked = await window.deepink.dialog.showOpenDialog({
+      const picked = await window.cclinkStudio.dialog.showOpenDialog({
         title: '选择应用商店 APK',
         filters: [{ name: 'Android APK', extensions: ['apk'] }],
       })
@@ -239,7 +239,7 @@ export function AndroidDisplay(): React.JSX.Element {
       const apkPath = picked.filePaths[0]
       if (!apkPath) return
       setStoreInstall({ phase: 'installing', message: '正在安装所选 APK...' })
-      await window.deepink.android.installApk(apkPath)
+      await window.cclinkStudio.android.installApk(apkPath)
       setStoreInstall({ phase: 'done', message: '应用商店已安装' })
       setTimeout(() => setStoreInstall({ phase: 'idle' }), 4000)
     } catch (err: any) {

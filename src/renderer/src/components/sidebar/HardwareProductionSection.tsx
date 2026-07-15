@@ -172,7 +172,7 @@ export function HardwareProductionSection({
       runtime: {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
         workspaceRef,
       },
       activate: true,
@@ -197,7 +197,7 @@ export function HardwareProductionSection({
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
           workspaceRef,
         },
         sessionId: conversationId,
@@ -214,7 +214,7 @@ export function HardwareProductionSection({
       runtime: {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
         workspaceRef,
       },
       activate: true,
@@ -231,14 +231,14 @@ export function HardwareProductionSection({
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
           workspaceRef,
         },
         sessionId: conversationId,
       },
     })
     try {
-      await window.deepink.agent.sendMessage(conversationId, { message: prompt })
+      await window.cclinkStudio.agent.sendMessage(conversationId, { message: prompt })
     } catch (error) {
       addSystemMessage(`发送失败: ${String(error)}`, conversationId)
     }

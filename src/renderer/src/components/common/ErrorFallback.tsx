@@ -32,7 +32,7 @@ export function RootErrorFallback(
       </p>
       <pre style={preStyle}>{error.message}</pre>
       <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-        <button onClick={() => window.deepink.window.reload()} style={buttonPrimaryStyle}>
+        <button onClick={() => window.cclinkStudio.window.reload()} style={buttonPrimaryStyle}>
           重新加载
         </button>
         <button onClick={retry} style={buttonSecondaryStyle}>

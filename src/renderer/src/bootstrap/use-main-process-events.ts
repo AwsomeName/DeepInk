@@ -6,10 +6,10 @@ import { useUpdateStore } from '../stores/update-store'
 export function useMainProcessEvents(): void {
   useEffect(() => {
     const setStoreInstall = useAndroidStore.getState().setStoreInstall
-    const offProgress = window.deepink.android.onStoreInstallProgress((msg) => {
+    const offProgress = window.cclinkStudio.android.onStoreInstallProgress((msg) => {
       setStoreInstall({ phase: 'installing', message: msg })
     })
-    const offResult = window.deepink.android.onStoreInstallResult((result) => {
+    const offResult = window.cclinkStudio.android.onStoreInstallResult((result) => {
       if (result.status === 'failed') {
         setStoreInstall({ phase: 'failed', message: result.message })
       } else {
@@ -28,7 +28,7 @@ export function useMainProcessEvents(): void {
 
   useEffect(() => {
     const setUpdate = useUpdateStore.getState().setUpdate
-    const offUpdate = window.deepink.update.onUpdateAvailable((info) => {
+    const offUpdate = window.cclinkStudio.update.onUpdateAvailable((info) => {
       if (info.latest) setUpdate(info.latest)
     })
     return () => { offUpdate() }

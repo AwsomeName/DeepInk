@@ -169,7 +169,7 @@ export function WorkbenchAgentConversation({
   const handlePermissionModeChange = useCallback(
     async (nextMode: PermissionMode) => {
       if (nextMode === permissionMode) return
-      await window.deepink.agent.setPermissionMode(nextMode)
+      await window.cclinkStudio.agent.setPermissionMode(nextMode)
       setPermissionMode(nextMode)
     },
     [permissionMode, setPermissionMode],
@@ -179,14 +179,14 @@ export function WorkbenchAgentConversation({
   }, [openTab])
   const handleConfirmApprove = useCallback(
     async (id: string, alwaysAllow = false) => {
-      await window.deepink.agent.resolveToolConfirmation(id, true, alwaysAllow)
+      await window.cclinkStudio.agent.resolveToolConfirmation(id, true, alwaysAllow)
       removePendingConfirmation(id)
     },
     [removePendingConfirmation],
   )
   const handleConfirmReject = useCallback(
     async (id: string) => {
-      await window.deepink.agent.resolveToolConfirmation(id, false)
+      await window.cclinkStudio.agent.resolveToolConfirmation(id, false)
       removePendingConfirmation(id)
     },
     [removePendingConfirmation],
@@ -224,8 +224,8 @@ export function WorkbenchAgentConversation({
         skills: toSendSkills(skills),
       }
     },
-    sendMessage: window.deepink.agent.sendMessage,
-    abortMessage: window.deepink.agent.abort,
+    sendMessage: window.cclinkStudio.agent.sendMessage,
+    abortMessage: window.cclinkStudio.agent.abort,
   })
 
   return (
@@ -416,9 +416,8 @@ function getRuntimeMeta(runtime: ConversationRuntimeRef): {
   const workspace = runtime.workspaceRef
   const workspaceLabel = workspace ? workspaceRefLabel(workspace) : '未绑定工作空间'
   const sourceLabel = workspace ? workspaceRefSourceLabel(workspace) : '系统'
-  const locationLabel = runtime.location === 'remote' ? '远程' : '本地'
-  const transportLabel =
-    runtime.transport === 'local' ? 'Local' : runtime.transport === 'direct' ? 'Direct' : 'CCLink'
+  const locationLabel = '本地'
+  const transportLabel = 'Local'
 
   return {
     subtitle: `${sourceLabel} · ${workspaceLabel}`,

@@ -16,7 +16,7 @@ import { FileService } from './file-service'
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-fs-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-fs-'))
   electronMock.home = tempDir
 })
 
@@ -28,10 +28,10 @@ describe('FileService', () => {
   it('reads markdown as UTF-8 text', async () => {
     const service = new FileService()
     const filePath = join(tempDir, 'README.md')
-    await writeFile(filePath, '# DeepInk', 'utf-8')
+    await writeFile(filePath, '# CCLink Studio', 'utf-8')
 
     await expect(service.readFile(filePath)).resolves.toEqual({
-      content: '# DeepInk',
+      content: '# CCLink Studio',
       encoding: 'utf-8',
     })
   })

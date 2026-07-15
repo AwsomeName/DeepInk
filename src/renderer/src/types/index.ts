@@ -2,7 +2,7 @@
  * CCLink Studio 全局类型定义
  */
 
-import type { RemoteWorkspaceTransport, WorkspaceRef } from '@shared/workspace-ref'
+import type { WorkspaceRef } from '@shared/workspace-ref'
 import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { TerminalCommandConfirmationRequest, TerminalTabRef } from '@shared/terminal'
 
@@ -30,8 +30,6 @@ export type TabType =
   | 'android'
   | 'model'
   | 'conversation'
-  | 'cclink'
-  | 'remote-file'
   | 'hardware-gerber'
   | 'terminal'
   | 'terminal-record'
@@ -40,11 +38,11 @@ export type TabType =
 
 export type ConversationSurface = 'assistant-panel' | 'workbench-tab'
 
-export type ConversationRuntimeLocation = 'local' | 'remote'
+export type ConversationRuntimeLocation = 'local'
 
-export type ConversationTransport = 'local' | RemoteWorkspaceTransport
+export type ConversationTransport = 'local'
 
-export type ConversationBackend = 'deepink-agent' | 'codex' | 'claude-code' | 'custom'
+export type ConversationBackend = 'cclink-studio-agent' | 'codex' | 'claude-code' | 'custom'
 
 export type AgentMountedResourceKind =
   | 'file'
@@ -94,7 +92,7 @@ export interface AgentMountedSkill {
   source?: 'builtin' | 'user' | 'workspace'
 }
 
-/** 会话运行环境：同一类 conversation，可运行在本地或远端。 */
+/** 会话运行环境 */
 export type ConversationRuntimeRef = {
   location: ConversationRuntimeLocation
   transport: ConversationTransport
@@ -102,21 +100,12 @@ export type ConversationRuntimeRef = {
   workspaceRef?: WorkspaceRef
 }
 
-/** 旧远程会话 Tab 引用；仅用于恢复迁移窗口内的历史快照。 */
-export type LegacyConversationTabRef = {
-  kind: 'remote'
-  transport: RemoteWorkspaceTransport
+/** Workbench 会话 Tab 引用 */
+export type ConversationTabRef = {
+  surface: 'workbench-tab'
+  runtime: ConversationRuntimeRef
   sessionId: string
 }
-
-/** Workbench 会话 Tab 引用 */
-export type ConversationTabRef =
-  | {
-      surface: 'workbench-tab'
-      runtime: ConversationRuntimeRef
-      sessionId: string
-    }
-  | LegacyConversationTabRef
 
 /** Workbench Tab */
 export interface Tab {
@@ -142,18 +131,10 @@ export interface Tab {
     history?: string[]
     historyIndex?: number
   }
-  /** 通用会话 Tab 引用；旧 cclinkSessionId / LegacyConversationTabRef 迁移完成前并存 */
+  /** 通用会话 Tab 引用 */
   conversation?: ConversationTabRef
-  /** CCLink 远程会话 ID */
-  cclinkSessionId?: string
   /** 设置页目标分组 */
   settingsSection?: string
-  /** 远程只读文件 */
-  remoteFile?: {
-    serverId: string
-    workspaceId: string
-    path: string
-  }
   /** Gerber 生产包层预览 */
   hardwareGerber?: {
     workspacePath: string

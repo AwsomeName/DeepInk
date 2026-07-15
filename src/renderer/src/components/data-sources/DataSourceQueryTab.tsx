@@ -53,7 +53,7 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
     try {
       if (sources.length === 0) await loadSources()
       const parsed = JSON.parse(queryText) as unknown
-      const result = await window.deepink.dataSource.runQuery({
+      const result = await window.cclinkStudio.dataSource.runQuery({
         sourceId,
         collection,
         query: parsed,

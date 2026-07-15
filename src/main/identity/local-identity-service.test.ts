@@ -16,7 +16,7 @@ import { LocalIdentityService } from './local-identity-service'
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-local-identity-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-local-identity-'))
   mockPaths.userDataDir = tempDir
 })
 

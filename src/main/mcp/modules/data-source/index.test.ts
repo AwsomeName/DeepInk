@@ -115,7 +115,7 @@ describe('DataSourceToolModule', () => {
     const snapshot = await module.execute('data_source_search', {
       sourceId: 'source-1',
       collection: 'articles-*',
-      text: 'DeepInk',
+      text: 'CCLink Studio',
       limit: 999,
     })
 
@@ -125,7 +125,7 @@ describe('DataSourceToolModule', () => {
       query: {
         query: {
           multi_match: {
-            query: 'DeepInk',
+            query: 'CCLink Studio',
             fields: ['title^3', 'content', 'author', 'tags'],
           },
         },

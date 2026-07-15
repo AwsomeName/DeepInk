@@ -18,9 +18,9 @@ function createRuntime(): TerminalRuntimeRef {
     backend: 'local-shell',
     workspaceRef: {
       kind: 'local',
-      path: '/Users/apple/Desktop/DeepInk',
+      path: '/Users/apple/Desktop/CCLink Studio',
     },
-    cwd: '/Users/apple/Desktop/DeepInk',
+    cwd: '/Users/apple/Desktop/CCLink Studio',
     shell: '/bin/zsh',
   }
 }
@@ -38,12 +38,12 @@ function createWindow(options: { destroyed?: boolean; throwOnSend?: boolean } = 
 function createInput() {
   return {
     terminalSessionId: 'terminal-1',
-    workspaceKey: '/Users/apple/Desktop/DeepInk',
+    workspaceKey: '/Users/apple/Desktop/CCLink Studio',
     command: 'rm -rf dist',
     actor: 'agent' as const,
     risk: 'destructive' as const,
     reason: '命令风险需要确认',
-    cwd: '/Users/apple/Desktop/DeepInk',
+    cwd: '/Users/apple/Desktop/CCLink Studio',
     runtime: createRuntime(),
   }
 }
@@ -88,7 +88,7 @@ describe('TerminalConfirmationService', () => {
     expect(auditStore.recordEvent.mock.calls[1][0]).toMatchObject({
       id: 'confirmation-1:command-approved',
       terminalSessionId: 'terminal-1',
-      workspaceKey: '/Users/apple/Desktop/DeepInk',
+      workspaceKey: '/Users/apple/Desktop/CCLink Studio',
       command: 'rm -rf dist',
       actor: 'agent',
       risk: 'destructive',

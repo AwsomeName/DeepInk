@@ -1,4 +1,4 @@
-appId: com.deepink.app
+appId: com.cclink.studio
 productName: CCLink Studio
 directories:
   buildResources: resources
@@ -37,4 +37,4 @@ mac:
     - zip
   category: public.app-category.productivity
   identity: null
-# 开源壳不内置发布源；官方更新源、签名和公证由 cclink-dev overlay 注入。
+# 开源壳不内置发布源；官方更新源、签名和公证由 cclink-dev 官方构建层注入。

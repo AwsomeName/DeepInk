@@ -23,7 +23,6 @@ interface WorkspaceState {
   activateLocalWorkspace: (path: string) => void
   activateGlobalWorkspace: () => void
   switchToGlobalWorkspace: () => Promise<void>
-  activateRemoteWorkspace: (ref: Extract<WorkspaceRef, { kind: 'remote' }>) => Promise<void>
 }
 
 function describeError(error: unknown): string {
@@ -60,24 +59,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     }
   },
 
-  activateRemoteWorkspace: async (ref) => {
-    const nextKey = workspaceRefKey(ref)
-    const currentKey = getWorkspaceStateKey()
-    if (nextKey === currentKey) {
-      set({ activeWorkspaceRef: ref, activating: false, error: null })
-      return
-    }
-
-    set({ activating: true, error: null })
-
-    try {
-      const transition = await prepareWorkspaceRuntimeTransition(ref)
-      applyWorkspaceRuntimeTransition(transition)
-      set({ activeWorkspaceRef: ref, activating: false, error: null })
-    } catch (error) {
-      set({ activating: false, error: describeError(error) })
-    }
-  },
 }))
 
 export function getWorkspaceDisplayTitle(ref: WorkspaceRef): string {

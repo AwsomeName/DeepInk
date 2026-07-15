@@ -99,11 +99,11 @@ export class PtyExecutionAdapter implements TerminalExecutionAdapter {
       ...input.env,
       TERM: process.env.TERM || 'xterm-256color',
       COLORTERM: process.env.COLORTERM || 'truecolor',
-      DEEPINK_TERMINAL_SESSION_ID: input.sessionId,
-      DEEPINK_TERMINAL_PARENT_PID: String(process.pid),
-      DEEPINK_TERMINAL_RUNTIME: input.runtime.location,
+      CCLINK_STUDIO_TERMINAL_SESSION_ID: input.sessionId,
+      CCLINK_STUDIO_TERMINAL_PARENT_PID: String(process.pid),
+      CCLINK_STUDIO_TERMINAL_RUNTIME: input.runtime.location,
     }
-    if (cwd) env.DEEPINK_TERMINAL_CWD = cwd
+    if (cwd) env.CCLINK_STUDIO_TERMINAL_CWD = cwd
     const launch = createPtyLaunch(input.runtime.shell || getDefaultShell(), input.sessionId)
     const child = this.spawnPty({
       shell: launch.shell,
@@ -283,7 +283,7 @@ function createPtyLaunch(shell: string, sessionId: string): { shell: string; arg
     shell: '/bin/sh',
     args: [
       '-lc',
-      `DEEPINK_TERMINAL_SESSION_ID=${shellQuote(sessionId)} ${shellQuote(shell)} -i`,
+      `CCLINK_STUDIO_TERMINAL_SESSION_ID=${shellQuote(sessionId)} ${shellQuote(shell)} -i`,
     ],
   }
 }

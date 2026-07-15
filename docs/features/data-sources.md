@@ -42,7 +42,7 @@ CCLink Studio 应新增 **数据源（Data Sources）** 能力：左侧 Activity
 | Agent | 数据源、查询结果、记录可通过 `@` 挂载，也可通过 MCP 工具读取 |
 | 设置页 | 管理全局数据源、安全策略、凭证状态和默认超时 |
 | Activity Bar | 数据源作为内容入口展示，不把连接配置细节塞进工作空间侧栏 |
-| 官方同步 / overlay | OSS 默认不内置云同步；若商业 overlay 同步数据源配置，只能同步非敏感配置，不能同步明文凭证 |
+| 官方同步 | OSS 默认不内置云同步；若官方集成层同步数据源配置，只能同步非敏感配置，不能同步明文凭证 |
 
 ## Activity Bar 与信息架构
 
@@ -333,7 +333,7 @@ data_source.run_saved_query
 
 - 新建 `src/main/data-source/data-source-ipc.ts`。
 - 在 `src/main/index.ts` 注册 IPC。
-- 在 `src/preload/index.ts` 暴露 `window.deepink.dataSource`。
+- 在 `src/preload/index.ts` 暴露 `window.cclinkStudio.dataSource`。
 - 在 `src/preload/index.d.ts` 补齐类型。
 - 所有输入用 Zod schema 校验。
 
@@ -380,7 +380,7 @@ data_source.run_saved_query
 
 方案：
 
-- 在工作空间下保存 `.deepink/data-sources.json` 或等价 workspace state。
+- 在工作空间下保存 `.cclink-studio/data-sources.json` 或等价 workspace state。
 - 保存 Saved Queries：名称、sourceId、index、query、fieldMapping、默认 maxRows。
 - 保存最近查询和打开的 Data Source Tab 状态。
 - 支持导入/导出非敏感数据源配置。

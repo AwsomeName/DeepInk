@@ -5,7 +5,7 @@ import { formatWorkspaceDiagnosticsMarkdown } from '../../utils/workspace-diagno
 async function copyWorkspaceDiagnostics(): Promise<void> {
   const showToast = useToastStore.getState().show
   try {
-    const diagnostics = await window.deepink.workspaceState.diagnostics()
+    const diagnostics = await window.cclinkStudio.workspaceState.diagnostics()
     const text = formatWorkspaceDiagnosticsMarkdown(diagnostics)
     await navigator.clipboard.writeText(text)
     showToast(`工作台状态诊断已复制 · ${diagnostics.workspaceCount} 个工作空间`, 'success')

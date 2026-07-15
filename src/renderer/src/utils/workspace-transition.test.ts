@@ -32,7 +32,7 @@ function snapshot(
 
 beforeEach(() => {
   vi.stubGlobal('window', {
-    deepink: {
+    cclinkStudio: {
       workspaceState: {
         get: vi.fn().mockResolvedValue(snapshot('/workspace/b', {
           tabs: {
@@ -78,8 +78,8 @@ afterEach(() => {
 describe('workspace-transition', () => {
   it('persists the current workspace before loading and applying the next runtime snapshot', async () => {
     const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef('/workspace/b'))
-    const getSnapshot = window.deepink.workspaceState.get as ReturnType<typeof vi.fn>
-    const setSection = window.deepink.workspaceState.setSection as ReturnType<typeof vi.fn>
+    const getSnapshot = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
+    const setSection = window.cclinkStudio.workspaceState.setSection as ReturnType<typeof vi.fn>
 
     expect(getSnapshot).toHaveBeenCalledWith('/workspace/b', 'local:owner-1')
     expect(setSection.mock.calls.some((call) => call[0] === '/workspace/a')).toBe(true)

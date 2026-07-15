@@ -8,19 +8,19 @@ function createRequest(id: string, command = 'rm -rf dist'): TerminalCommandConf
     createdAt: 1_000,
     expiresAt: 61_000,
     terminalSessionId: 'terminal-1',
-    workspaceKey: '/Users/apple/Desktop/DeepInk',
+    workspaceKey: '/Users/apple/Desktop/CCLink Studio',
     command,
     actor: 'agent',
     risk: 'destructive',
     reason: '命令风险需要确认',
-    cwd: '/Users/apple/Desktop/DeepInk',
+    cwd: '/Users/apple/Desktop/CCLink Studio',
     runtime: {
       location: 'local',
       transport: 'local',
       backend: 'local-shell',
       workspaceRef: {
         kind: 'local',
-        path: '/Users/apple/Desktop/DeepInk',
+        path: '/Users/apple/Desktop/CCLink Studio',
       },
     },
   }

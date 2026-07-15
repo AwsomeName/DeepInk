@@ -114,9 +114,9 @@ export function ContextMenu(): React.ReactElement | null {
     if (!node) return
     hide()
     try {
-      const file = await window.deepink.fs.readFile(node.path)
+      const file = await window.cclinkStudio.fs.readFile(node.path)
       const content = typeof file === 'string' ? file : file.content
-      const result = await window.deepink.wechat.convert(content)
+      const result = await window.cclinkStudio.wechat.convert(content)
       if (result.error) {
         showToast('转换失败: ' + result.error, 'error')
         return

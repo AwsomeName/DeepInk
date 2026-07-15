@@ -364,7 +364,7 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
       this.toolHost.getPort(),
       this.mcpSessionToken,
     )
-    this.mcpConfigDir = mkdtempSync(join(tmpdir(), 'deepink-mcp-'))
+    this.mcpConfigDir = mkdtempSync(join(tmpdir(), 'cclink-studio-mcp-'))
     const mcpConfigFile = join(this.mcpConfigDir, 'mcp-config.json')
     writeFileSync(mcpConfigFile, JSON.stringify(mcpConfig, null, 2))
     args.push('--mcp-config', mcpConfigFile)

@@ -2,7 +2,7 @@
 
 > 状态：实施中
 > 最后更新：2026-07-15
-> 关联文档：`docs/features/hardware-workspace.md`、`docs/features/cad-conversion-plugins.md`、`docs/features/product-milestones.md`
+> 关联文档：`docs/features/hardware-workspace.md`、`docs/features/cad-conversion-plugins.md`
 
 ## 结论
 

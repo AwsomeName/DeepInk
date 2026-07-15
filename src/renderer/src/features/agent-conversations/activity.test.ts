@@ -62,7 +62,7 @@ function conversation({
     runtime: {
       location: 'local',
       transport: 'local',
-      backend: 'deepink-agent',
+      backend: 'cclink-studio-agent',
     },
     messages: [
       {

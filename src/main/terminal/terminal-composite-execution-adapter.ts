@@ -10,7 +10,6 @@ import type {
 
 export interface CompositeTerminalExecutionAdapterOptions {
   local: TerminalExecutionAdapter
-  cclink?: TerminalExecutionAdapter
 }
 
 export class CompositeTerminalExecutionAdapter implements TerminalExecutionAdapter {
@@ -21,7 +20,6 @@ export class CompositeTerminalExecutionAdapter implements TerminalExecutionAdapt
 
   constructor(private readonly options: CompositeTerminalExecutionAdapterOptions) {
     this.bindAdapter(options.local)
-    if (options.cclink) this.bindAdapter(options.cclink)
   }
 
   async start(input: TerminalStartInput): Promise<TerminalStartResult> {
@@ -60,10 +58,7 @@ export class CompositeTerminalExecutionAdapter implements TerminalExecutionAdapt
     })
   }
 
-  private resolveStartAdapter(input: TerminalStartInput): TerminalExecutionAdapter {
-    if (input.runtime.location === 'remote' && input.runtime.transport === 'cclink') {
-      return this.options.cclink ?? this.options.local
-    }
+  private resolveStartAdapter(_input: TerminalStartInput): TerminalExecutionAdapter {
     return this.options.local
   }
 

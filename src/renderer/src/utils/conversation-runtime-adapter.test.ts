@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentConversationState } from '../stores/agent-store'
-import {
-  getLocalAgentConversationMeta,
-  getUnsupportedConversationMeta,
-} from './conversation-runtime-adapter'
+import { getLocalAgentConversationMeta } from './conversation-runtime-adapter'
 
 function localConversation(
   overrides: Partial<AgentConversationState> = {},
@@ -15,7 +12,7 @@ function localConversation(
     runtime: {
       location: 'local',
       transport: 'local',
-      backend: 'deepink-agent',
+      backend: 'cclink-studio-agent',
     },
     messages: [],
     input: '',
@@ -70,17 +67,4 @@ describe('conversation-runtime-adapter', () => {
     expect(meta.status).toBe('archived')
   })
 
-  it('生成 unsupported 会话元信息', () => {
-    expect(
-      getUnsupportedConversationMeta({
-        kind: 'unsupported',
-        tabId: 'tab-direct',
-        reason: '暂不支持 remote/direct 会话 Tab',
-      }),
-    ).toEqual({
-      kind: 'unsupported',
-      title: '这个会话暂时打不开',
-      reason: '暂不支持 remote/direct 会话 Tab',
-    })
-  })
 })

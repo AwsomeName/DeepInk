@@ -41,7 +41,7 @@ interface CommandState {
   getFilteredCommands: () => Command[]
 }
 
-const COMMAND_STORAGE_KEY = 'deepink-command-state'
+const COMMAND_STORAGE_KEY = 'cclink-studio-command-state'
 
 function loadRecentCommandIds(): string[] {
   try {

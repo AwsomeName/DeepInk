@@ -80,7 +80,7 @@ export class McpClientManager {
       // 内部 deepink server
       // 关键：Claude Code 的 MCP schema 要求 HTTP server 必须显式带 `type: 'http'`，
       // 否则报 "Does not adhere to MCP server configuration schema" 并 exit 1。
-      deepink: {
+      cclinkStudio: {
         type: 'http',
         url: internalUrl.toString(),
       },

@@ -2,7 +2,7 @@
 
 > 状态：M7.1-M7.5 已实现，待人工验收
 > 最后更新：2026-07-14
-> 关联文档：`docs/features/founder-operations-workbench.md`、`docs/features/product-milestones.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/agent-diagnostic-log.md`
+> 关联文档：`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/agent-diagnostic-log.md`
 
 ## 结论
 
@@ -13,7 +13,7 @@ CCLink Studio 只需要把现有能力组织成一个简单闭环：
 ```text
 项目目录
 ├─ 项目资料与 Markdown 文档
-├─ deepink-accounts.json
+├─ cclink-accounts.json
 ├─ 文案会话：读取项目资料，写 Markdown
 └─ 平台操作会话：打开浏览器，读取账号配置，填表并等待确认提交
 ```
@@ -37,7 +37,7 @@ CCLink Studio 只需要把现有能力组织成一个简单闭环：
 CCLink Studio 需要：
 
 - 从当前项目读取资料和草稿。
-- 从 `deepink-accounts.json` 读取平台入口、账号备注和浏览器 profile。
+- 从 `cclink-accounts.json` 读取平台入口、账号备注和浏览器 profile。
 - 使用独立浏览器 profile 打开平台。
 - 让 Agent 可见地填写页面。
 - 真正点击发布、提交、删除、修改资料前必须用户确认。
@@ -49,7 +49,7 @@ CCLink Studio 需要：
 第一版只约定一个轻量配置文件：
 
 ```text
-deepink-accounts.json
+cclink-accounts.json
 ```
 
 示例：
@@ -107,7 +107,7 @@ deepink-accounts.json
 
 职责：
 
-- 读取 `deepink-accounts.json`。
+- 读取 `cclink-accounts.json`。
 - 根据平台 id 打开 URL。
 - 使用对应 `browserProfile` 恢复登录态。
 - 读取指定 Markdown 文件。
@@ -157,7 +157,7 @@ deepink-accounts.json
 
 方案：
 
-- 定义 `deepink-accounts.json` schema。
+- 定义 `cclink-accounts.json` schema。
 - 增加读取/校验工具。
 - 在当前工作空间中展示可用平台列表，先不做复杂 UI。
 
@@ -196,7 +196,7 @@ deepink-accounts.json
 验收：
 
 - [x] 微信公众号和知乎可以使用不同 `browserProfile`。
-- [x] 浏览器使用 `persist:deepink-profile-${browserProfile}` 持久化上下文，重启后可恢复站点登录态。
+- [x] 浏览器使用 `persist:cclink-studio-profile-${browserProfile}` 持久化上下文，重启后可恢复站点登录态。
 - [x] 平台操作会话和侧栏会显示当前使用的 profile。
 
 ### M7.4：平台操作会话
@@ -206,7 +206,7 @@ deepink-accounts.json
 方案：
 
 - 命令格式先走自然语言，不先做复杂表单。
-- Agent 读取 `deepink-accounts.json` 和目标 Markdown。
+- Agent 读取 `cclink-accounts.json` 和目标 Markdown。
 - 浏览器自动化填入标题、正文、素材。
 - 发布前走确认卡片。
 
@@ -234,10 +234,10 @@ deepink-accounts.json
 
 ## 当前实现
 
-- 新增 `ProjectOpsService` 和 `projectOps` preload API，负责 `deepink-accounts.json`、文案草稿和发布记录写回。
+- 新增 `ProjectOpsService` 和 `projectOps` preload API，负责 `cclink-accounts.json`、文案草稿和发布记录写回。
 - 工作空间侧栏新增“项目运营”区，只在本地工作空间显示。
-- 可一键创建 `deepink-accounts.json` 模板。
-- 兼容读取旧 `.deepink/accounts.json`，但新建和文档约定统一使用项目根目录可见文件。
+- 可一键创建 `cclink-accounts.json` 模板。
+- 兼容读取旧 `.cclink-studio/accounts.json`，但新建和文档约定统一使用项目根目录可见文件。
 - 可按平台创建文案草稿和文案工作会话。
 - 可按平台打开独立浏览器 profile，并创建平台操作工作会话。
 - 可追加 `docs/发布记录.md`。

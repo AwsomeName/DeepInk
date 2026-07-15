@@ -274,7 +274,7 @@ describe('useAgentStore', () => {
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
         },
       })
 
@@ -283,7 +283,7 @@ describe('useAgentStore', () => {
       expect(conversation.runtime).toEqual({
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
       })
     })
 
@@ -294,7 +294,7 @@ describe('useAgentStore', () => {
         runtime: {
           location: 'local',
           transport: 'local',
-          backend: 'deepink-agent',
+          backend: 'cclink-studio-agent',
         },
         activate: false,
       })
@@ -311,10 +311,10 @@ describe('useAgentStore', () => {
       useAgentStore.getState().markAsWorkConversation(id, {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
         workspaceRef: {
           kind: 'local',
-          path: '/Users/apple/Desktop/DeepInk',
+          path: '/Users/apple/Desktop/CCLink Studio',
         },
       })
 
@@ -323,10 +323,10 @@ describe('useAgentStore', () => {
       expect(conversation.runtime).toEqual({
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
         workspaceRef: {
           kind: 'local',
-          path: '/Users/apple/Desktop/DeepInk',
+          path: '/Users/apple/Desktop/CCLink Studio',
         },
       })
     })
@@ -337,7 +337,7 @@ describe('useAgentStore', () => {
       useAgentStore.getState().markAsWorkConversation(id, {
         location: 'local',
         transport: 'local',
-        backend: 'deepink-agent',
+        backend: 'cclink-studio-agent',
       })
 
       const state = useAgentStore.getState()

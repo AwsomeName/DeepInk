@@ -21,11 +21,11 @@ describe('terminal-confirmation utils', () => {
       backend: 'local-shell',
       workspaceRef: {
         kind: 'local',
-        path: '/Users/apple/Desktop/DeepInk',
+        path: '/Users/apple/Desktop/CCLink Studio',
       },
     }
 
-    expect(formatTerminalRuntime(runtime)).toBe('本地 · DeepInk · local-shell')
+    expect(formatTerminalRuntime(runtime)).toBe('本地 · CCLink Studio · local-shell')
   })
 
   it('formats remaining confirmation time', () => {

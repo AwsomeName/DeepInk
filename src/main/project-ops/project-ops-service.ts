@@ -27,7 +27,7 @@ const ACCOUNTS_SCHEMA = z.object({
   platforms: z.array(PLATFORM_SCHEMA),
 })
 
-const ACCOUNTS_FILE_NAME = 'deepink-accounts.json'
+const ACCOUNTS_FILE_NAME = 'cclink-accounts.json'
 
 const DEFAULT_ACCOUNTS_TEMPLATE: ProjectOpsAccountsConfig = {
   version: 1,
@@ -87,10 +87,6 @@ export class ProjectOpsService {
     const filePath = this.accountsPath(workspace)
     const visibleResult = await this.readAccountsFile(filePath)
     if (visibleResult) return visibleResult
-
-    const legacyFilePath = this.legacyAccountsPath(workspace)
-    const legacyResult = await this.readAccountsFile(legacyFilePath)
-    if (legacyResult) return legacyResult
 
     return { exists: false, filePath, issues: [] }
   }
@@ -209,10 +205,6 @@ export class ProjectOpsService {
 
   private accountsPath(workspacePath: string): string {
     return this.resolveWithinWorkspace(workspacePath, ACCOUNTS_FILE_NAME)
-  }
-
-  private legacyAccountsPath(workspacePath: string): string {
-    return this.resolveWithinWorkspace(workspacePath, '.deepink', 'accounts.json')
   }
 
   private validateWorkspacePath(workspacePath: string): string {

@@ -39,7 +39,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => ({
 
   loadSources: async () => {
     set({ loading: true, error: null })
-    const result = await window.deepink.dataSource.listSources()
+    const result = await window.cclinkStudio.dataSource.listSources()
     if (result.success) {
       set({
         sources: result.data,
@@ -53,7 +53,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => ({
 
   createSource: async (input) => {
     set({ loading: true, error: null })
-    const result = await window.deepink.dataSource.createSource(input)
+    const result = await window.cclinkStudio.dataSource.createSource(input)
     if (!result.success) {
       set({ ...setError(result.error), loading: false })
       return null
@@ -67,8 +67,8 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => ({
   selectSource: async (sourceId) => {
     set({ selectedSourceId: sourceId, loading: true, error: null })
     const [collectionsResult, savedQueriesResult] = await Promise.all([
-      window.deepink.dataSource.listCollections(sourceId),
-      window.deepink.dataSource.listSavedQueries(sourceId),
+      window.cclinkStudio.dataSource.listCollections(sourceId),
+      window.cclinkStudio.dataSource.listSavedQueries(sourceId),
     ])
     if (collectionsResult.success === false) {
       set({ ...setError(collectionsResult.error), loading: false })
@@ -89,7 +89,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => ({
   },
 
   loadSavedQueries: async (sourceId) => {
-    const result = await window.deepink.dataSource.listSavedQueries(sourceId)
+    const result = await window.cclinkStudio.dataSource.listSavedQueries(sourceId)
     if (!result.success) {
       set(setError(result.error))
       return
@@ -109,7 +109,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => ({
 
   saveQuery: async (input) => {
     set({ error: null })
-    const result = await window.deepink.dataSource.saveQuery(input)
+    const result = await window.cclinkStudio.dataSource.saveQuery(input)
     if (!result.success) {
       set(setError(result.error))
       return null
@@ -131,7 +131,7 @@ export const useDataSourceStore = create<DataSourceState>((set, get) => ({
 
   testConnection: async (sourceId) => {
     set({ loading: true, error: null })
-    const result = await window.deepink.dataSource.testConnection(sourceId)
+    const result = await window.cclinkStudio.dataSource.testConnection(sourceId)
     set({ loading: false })
     if (!result.success) {
       set(setError(result.error))

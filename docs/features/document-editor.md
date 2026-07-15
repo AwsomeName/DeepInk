@@ -11,7 +11,7 @@ AI 驱动的文档编辑器：
 - **写文档**：Markdown / 富文本 / AI 辅助写作
 - **看文档**：PDF / Word / Excel / PPT 预览
 - **做文档**：AI 生成、改写、翻译、排版
-- **发文档**：本地导出；通过 IM 分享由 CCLink 网络或商业 overlay 提供
+- **发文档**：本地导出；官方消息分享由 CCLink 网络提供
 
 **核心差异化**：不是"编辑器 + AI 插件"，而是 AI 和编辑器深度集成——你跟 AI 说"帮我写一份产品方案"，AI 直接在编辑器里生成，你可以实时看到、实时干预。
 
@@ -36,9 +36,9 @@ Tiptap 编辑器
 │   └── AI 对话批注（在文档中插入 AI 对话气泡）
 │
 └── CCLink Studio 集成
-    ├── 保存到本地（云存储由商业 overlay 或插件提供）
+    ├── 保存到本地（云存储由官方集成层或插件提供）
     ├── 导出为 PDF / DOCX
-    ├── 导出 / 分享（IM 自定义消息由 CCLink 网络或商业 overlay 提供）
+    ├── 导出 / 分享（官方消息分享由 CCLink 网络提供）
     └── Agent 可操作（MCP EditorToolModule）
 ```
 
@@ -72,7 +72,7 @@ Tiptap 编辑器
 │   ├── 文件读写（本地文件系统）
 │   ├── 格式转换（MD ↔ DOCX ↔ ProseMirror JSON）
 │   ├── 自动保存（定时保存 + 失焦保存）
-│   └── 本地保存（云同步由商业 overlay 或插件提供）
+│   └── 本地保存（云同步由官方集成层或插件提供）
 │
 └── MCP EditorToolModule（5 个工具）
     ├── editor_write — Agent 写入 Markdown（替换全部，无 Tab 自动创建）

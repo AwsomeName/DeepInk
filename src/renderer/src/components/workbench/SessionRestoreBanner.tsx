@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react'
 import { useTabStore } from '../../stores'
 import { IconHistory, IconClose } from '../common/Icons'
 
-type BrowserInstanceSnapshot = Awaited<ReturnType<typeof window.deepink.browser.listSnapshots>>[number]
+type BrowserInstanceSnapshot = Awaited<ReturnType<typeof window.cclinkStudio.browser.listSnapshots>>[number]
 
 export function SessionRestoreBanner(): React.ReactElement | null {
   const [snapshots, setSnapshots] = useState<BrowserInstanceSnapshot[]>([])
@@ -18,7 +18,7 @@ export function SessionRestoreBanner(): React.ReactElement | null {
 
   // 启动时拉取一次快照
   useEffect(() => {
-    void window.deepink.browser.listSnapshots().then((list) => {
+    void window.cclinkStudio.browser.listSnapshots().then((list) => {
       if (list.length > 0) setSnapshots(list)
     })
   }, [])
@@ -42,13 +42,13 @@ export function SessionRestoreBanner(): React.ReactElement | null {
         forceNew: true,
       })
       // 重建后从快照列表移除（已恢复，不再重复提示）
-      await window.deepink.browser.removeSnapshot(snap.id)
+      await window.cclinkStudio.browser.removeSnapshot(snap.id)
     }
     setSnapshots([])
   }
 
   const dismissAll = async (): Promise<void> => {
-    await window.deepink.browser.clearSnapshots()
+    await window.cclinkStudio.browser.clearSnapshots()
     setDismissed(true)
   }
 

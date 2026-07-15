@@ -27,7 +27,7 @@ import type { DataSourceConfig, DataSourceSecret, RunDataQueryInput } from './ty
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-data-source-service-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-data-source-service-'))
   mockPaths.userDataDir = tempDir
 })
 

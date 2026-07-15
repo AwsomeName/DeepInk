@@ -31,8 +31,8 @@ function describeError(err: unknown): string {
   return raw
 }
 
-const FS_STORAGE_KEY = 'deepink-fs-state'
-const RECENT_WORKSPACES_STORAGE_KEY = 'deepink-recent-workspaces'
+const FS_STORAGE_KEY = 'cclink-studio-fs-state'
+const RECENT_WORKSPACES_STORAGE_KEY = 'cclink-studio-recent-workspaces'
 const MAX_RECENT_WORKSPACES = 8
 
 function normalizeWorkspacePath(path: unknown): string | null {
@@ -246,7 +246,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     // 不在开头设 workspacePath：readDir 成功后才赋值，避免非法路径作为中间态
     // 泄露给 SyncPanel/SearchPanel 等消费方（loading=true 期间它们通常已禁用，仍求稳妥）
     try {
-      const entries = await window.deepink.fs.readDir(path)
+      const entries = await window.cclinkStudio.fs.readDir(path)
       // 并发守卫：若期间又发起了新的 setWorkspace，丢弃本次过期结果
       if (seq !== setWorkspaceSeq) return false
       const expandedSet = new Set(get().expandedPaths)
@@ -283,7 +283,7 @@ export const useFsStore = create<FsState>((set, get) => ({
 
   initWorkspace: async () => {
     try {
-      const settings = await window.deepink.settings.getAll()
+      const settings = await window.cclinkStudio.settings.getAll()
       const recentWorkspacePaths = getRecentWorkspacePathsFromSettings(settings)
       set({ recentWorkspacePaths })
       saveRecentWorkspaceFallback(recentWorkspacePaths)
@@ -291,11 +291,11 @@ export const useFsStore = create<FsState>((set, get) => ({
         JSON.stringify(recentWorkspacePaths) !==
         JSON.stringify(Array.isArray(settings.recentWorkspacePaths) ? settings.recentWorkspacePaths : [])
       ) {
-        void window.deepink.settings.set({ recentWorkspacePaths }).catch(() => {})
+        void window.cclinkStudio.settings.set({ recentWorkspacePaths }).catch(() => {})
       }
       const last = settings.lastWorkspacePath
       if (!last) return
-      const snapshot = await window.deepink.workspaceState
+      const snapshot = await window.cclinkStudio.workspaceState
         .get(last, getWorkspaceStateOwnerKey())
         .catch(() => null)
       if (snapshot) get().hydrateFromWorkspaceState(snapshot.sections.fileTree)
@@ -310,7 +310,7 @@ export const useFsStore = create<FsState>((set, get) => ({
           transition.snapshot?.sections.fileTree ?? { expandedPaths: [], selectedPath: null },
         )
         applyWorkspaceRuntimeTransition(transition)
-        await window.deepink.settings.set({ lastWorkspacePath: '' }).catch(() => {})
+        await window.cclinkStudio.settings.set({ lastWorkspacePath: '' }).catch(() => {})
         setWorkspaceStatePath(null)
       } else {
         useWorkspaceStore.getState().activateLocalWorkspace(last)
@@ -325,7 +325,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     if (!confirmProjectSwitch(get().workspacePath)) return
     set({ picking: true, error: null })
     try {
-      const result = await window.deepink.dialog.showOpenDialog({
+      const result = await window.cclinkStudio.dialog.showOpenDialog({
         selectDirectory: true,
         title: '选择工作空间文件夹',
       })
@@ -339,7 +339,7 @@ export const useFsStore = create<FsState>((set, get) => ({
         applyWorkspaceRuntimeTransition(transition)
         const recentWorkspacePaths = get().recentWorkspacePaths
         saveRecentWorkspaceFallback(recentWorkspacePaths)
-        const r = await window.deepink.settings.set({ lastWorkspacePath: path, recentWorkspacePaths })
+        const r = await window.cclinkStudio.settings.set({ lastWorkspacePath: path, recentWorkspacePaths })
         // 持久化失败不阻断当前会话（workspacePath 已生效），仅提示下次不会记住
         if (!r.success) {
           set({ error: '无法记住此工作空间，下次启动需重新选择' })
@@ -364,7 +364,7 @@ export const useFsStore = create<FsState>((set, get) => ({
       applyWorkspaceRuntimeTransition(transition)
       const recentWorkspacePaths = get().recentWorkspacePaths
       saveRecentWorkspaceFallback(recentWorkspacePaths)
-      await window.deepink.settings.set({ lastWorkspacePath: path, recentWorkspacePaths }).catch(() => {})
+      await window.cclinkStudio.settings.set({ lastWorkspacePath: path, recentWorkspacePaths }).catch(() => {})
     }
   },
 
@@ -392,7 +392,7 @@ export const useFsStore = create<FsState>((set, get) => ({
       })
       saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: get().selectedPath }, null)
       saveRecentWorkspaceFallback(get().recentWorkspacePaths)
-      await window.deepink.settings.set({
+      await window.cclinkStudio.settings.set({
         lastWorkspacePath: '',
         recentWorkspacePaths: get().recentWorkspacePaths,
       }).catch(() => {})
@@ -403,7 +403,7 @@ export const useFsStore = create<FsState>((set, get) => ({
 
   refreshDir: async (dirPath) => {
     try {
-      const entries = await window.deepink.fs.readDir(dirPath)
+      const entries = await window.cclinkStudio.fs.readDir(dirPath)
       const expandedSet = new Set(get().expandedPaths)
       const newChildren: FileTreeNode[] = entries.map((e) => ({
         name: e.name,
@@ -483,7 +483,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     const searchDir = async (dirPath: string, depth: number): Promise<void> => {
       if (depth > 3) return // 限制搜索深度
       try {
-        const entries = await window.deepink.fs.readDir(dirPath)
+        const entries = await window.cclinkStudio.fs.readDir(dirPath)
         for (const e of entries) {
           if (e.name.toLowerCase().includes(query.toLowerCase())) {
             results.push({
@@ -517,7 +517,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     const newPath = parent + '/' + newName.trim()
     set({ editingPath: null })
     try {
-      await window.deepink.fs.rename(oldPath, newPath)
+      await window.cclinkStudio.fs.rename(oldPath, newPath)
       await get().refreshDir(parent)
     } catch (err) {
       set({ error: '重命名失败: ' + describeError(err) })
@@ -531,7 +531,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     const newPath = parentPath + '/' + name.trim()
     set({ editingPath: null, newFolderParent: null })
     try {
-      await window.deepink.fs.mkdir(newPath)
+      await window.cclinkStudio.fs.mkdir(newPath)
       await get().refreshDir(parentPath)
     } catch (err) {
       set({ error: '新建文件夹失败: ' + describeError(err) })
@@ -545,7 +545,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     const newPath = parentPath + '/' + name.trim()
     set({ editingPath: null, newFolderParent: null })
     try {
-      await window.deepink.fs.writeFile(newPath, '')
+      await window.cclinkStudio.fs.writeFile(newPath, '')
       await get().refreshDir(parentPath)
       set({ selectedPath: newPath })
       saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: newPath }, get().workspacePath)

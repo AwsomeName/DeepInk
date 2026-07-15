@@ -32,14 +32,14 @@ export async function submitTerminalCommand(
     workspaceKey: workspaceRefKey(terminal.runtime.workspaceRef),
   }
 
-  const first = await window.deepink.terminal.submitCommand(input)
+  const first = await window.cclinkStudio.terminal.submitCommand(input)
   if (!isSessionMissing(first)) {
     return { result: first, retriedAfterRegister: false }
   }
 
   await recordTerminalLifecycleEvent(terminal, 'created', 'Terminal Tab 已重新登记')
   return {
-    result: await window.deepink.terminal.submitCommand(input),
+    result: await window.cclinkStudio.terminal.submitCommand(input),
     retriedAfterRegister: true,
   }
 }

@@ -32,25 +32,12 @@ function getTerminalCwd(workspaceRef: WorkspaceRef): string | undefined {
   switch (workspaceRef.kind) {
     case 'local':
       return workspaceRef.path
-    case 'remote':
-      return workspaceRef.path
     case 'global':
       return undefined
   }
 }
 
 function getTerminalRuntime(workspaceRef: WorkspaceRef): TerminalTabRef['runtime'] {
-  if (workspaceRef.kind === 'remote') {
-    return {
-      location: 'remote',
-      transport: workspaceRef.transport,
-      backend: 'remote-shell',
-      workspaceRef,
-      cwd: getTerminalCwd(workspaceRef),
-      endpointId: workspaceRef.endpointId,
-    }
-  }
-
   return {
     location: 'local',
     transport: 'local',
@@ -63,7 +50,7 @@ function getTerminalRuntime(workspaceRef: WorkspaceRef): TerminalTabRef['runtime
 export function getTerminalPermissionPolicy(
   workspaceRef: WorkspaceRef,
 ): TerminalTabRef['permissionPolicy'] {
-  if (workspaceRef.kind === 'remote' || workspaceRef.kind === 'global') {
+  if (workspaceRef.kind === 'global') {
     return {
       mode: 'ask-every-command',
       requireConfirmationFor: ['read', 'write', 'network', 'destructive', 'privileged', 'unknown'],

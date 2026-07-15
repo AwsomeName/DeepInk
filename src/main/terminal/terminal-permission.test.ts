@@ -11,7 +11,7 @@ describe('classifyTerminalCommand', () => {
   it('classifies read-only commands', () => {
     expect(classifyTerminalCommand('pwd')).toBe('read')
     expect(classifyTerminalCommand('git status --short')).toBe('read')
-    expect(classifyTerminalCommand('cat README.md | grep DeepInk')).toBe('read')
+    expect(classifyTerminalCommand('cat README.md | grep CCLink Studio')).toBe('read')
   })
 
   it('classifies write commands', () => {

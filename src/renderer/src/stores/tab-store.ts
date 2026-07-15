@@ -39,37 +39,24 @@ function isProjectTab(tab: Tab): boolean {
 }
 
 function getConversationRuntime(conversation?: ConversationTabRef): {
-  location: 'local' | 'remote'
-  transport: 'local' | 'cclink' | 'direct'
+  location: 'local'
+  transport: 'local'
   sessionId: string
 } | null {
   if (!conversation) return null
-  if ('runtime' in conversation) {
-    return {
-      location: conversation.runtime.location,
-      transport: conversation.runtime.transport,
-      sessionId: conversation.sessionId,
-    }
+  return {
+    location: conversation.runtime.location,
+    transport: conversation.runtime.transport,
+    sessionId: conversation.sessionId,
   }
-  if (conversation.kind === 'remote') {
-    return {
-      location: 'remote',
-      transport: conversation.transport,
-      sessionId: conversation.sessionId,
-    }
-  }
-  return null
 }
 
 function getConversationKey(
-  tab: Pick<Tab, 'type' | 'conversation' | 'cclinkSessionId'>,
+  tab: Pick<Tab, 'type' | 'conversation'>,
 ): string | null {
   if (tab.type === 'conversation') {
     const runtime = getConversationRuntime(tab.conversation)
     return runtime ? `${runtime.location}:${runtime.transport}:${runtime.sessionId}` : null
-  }
-  if (tab.type === 'cclink' && tab.cclinkSessionId) {
-    return `remote:cclink:${tab.cclinkSessionId}`
   }
   return null
 }
@@ -141,14 +128,10 @@ interface OpenTabOptions {
     history?: string[]
     historyIndex?: number
   }
-  /** CCLink 远程会话 ID */
-  cclinkSessionId?: string
   /** 通用会话 Tab 引用 */
   conversation?: ConversationTabRef
   /** 设置页目标分组 */
   settingsSection?: string
-  /** CCLink 远程只读文件 */
-  remoteFile?: Tab['remoteFile']
   /** Gerber 生产包层预览 */
   hardwareGerber?: Tab['hardwareGerber']
   /** Terminal 工作现场 */
@@ -206,10 +189,8 @@ export const useTabStore = create<TabState>((set, get) => ({
     initialUrl,
     browserProfile,
     restore,
-    cclinkSessionId,
     conversation,
     settingsSection,
-    remoteFile,
     hardwareGerber,
     terminal,
     terminalRecord,
@@ -254,29 +235,10 @@ export const useTabStore = create<TabState>((set, get) => ({
             )
             return { tabs: nextTabs, activeTabId: existing.id }
           }
-        } else if (type === 'cclink' && cclinkSessionId) {
-          // 兼容旧 CCLink Tab：按通用会话 key 去重。
-          const targetKey = getConversationKey({ type, cclinkSessionId })
-          const existing = state.tabs.find((tab) => getConversationKey(tab) === targetKey)
-          if (existing) {
-            return { activeTabId: existing.id }
-          }
         } else if (type === 'conversation' && conversation) {
-          // 会话按来源和会话 ID 去重，一个远程会话只开一个 Tab。
+          // 会话按来源和会话 ID 去重。
           const targetKey = getConversationKey({ type, conversation })
           const existing = state.tabs.find((tab) => getConversationKey(tab) === targetKey)
-          if (existing) {
-            return { activeTabId: existing.id }
-          }
-        } else if (type === 'remote-file' && remoteFile) {
-          // 远程文件按 server/workspace/path 去重，避免同一文件开多个只读 Tab
-          const existing = state.tabs.find(
-            (t) =>
-              t.type === 'remote-file' &&
-              t.remoteFile?.serverId === remoteFile.serverId &&
-              t.remoteFile?.workspaceId === remoteFile.workspaceId &&
-              t.remoteFile?.path === remoteFile.path,
-          )
           if (existing) {
             return { activeTabId: existing.id }
           }
@@ -314,10 +276,8 @@ export const useTabStore = create<TabState>((set, get) => ({
         initialUrl,
         browserProfile,
         restore,
-        cclinkSessionId,
         conversation,
         settingsSection,
-        remoteFile,
         hardwareGerber,
         terminal,
         terminalRecord,

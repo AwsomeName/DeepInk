@@ -54,7 +54,7 @@ const UI_DEFAULTS = {
   agentPanelModeSource: 'system' as AgentPanelModeSource,
 }
 
-const UI_STORAGE_KEY = 'deepink-ui-state'
+const UI_STORAGE_KEY = 'cclink-studio-ui-state'
 const VISIBLE_ACTIVITY_PANELS = new Set<ActivityPanel>([
   'projects',
   'browser',
@@ -82,17 +82,17 @@ function normalizeAgentPanelModeSource(value: unknown): AgentPanelModeSource {
   return value === 'user' || value === 'system' ? value : UI_DEFAULTS.agentPanelModeSource
 }
 
-function normalizeStoredAgentPanelMode(value: unknown, legacyVisible: unknown): AgentPanelMode {
+function normalizeStoredAgentPanelMode(value: unknown, storedVisible: unknown): AgentPanelMode {
   if (value === 'center' || value === 'right' || value === 'hidden') return value
-  return legacyVisible === false ? 'hidden' : UI_DEFAULTS.agentPanelMode
+  return storedVisible === false ? 'hidden' : UI_DEFAULTS.agentPanelMode
 }
 
 function normalizeStoredAgentPanelModeSource(
   value: unknown,
-  legacyVisible: unknown,
+  storedVisible: unknown,
 ): AgentPanelModeSource {
   if (value === 'user' || value === 'system') return value
-  return legacyVisible === false ? 'user' : UI_DEFAULTS.agentPanelModeSource
+  return storedVisible === false ? 'user' : UI_DEFAULTS.agentPanelModeSource
 }
 
 function agentVisibleFromMode(mode: AgentPanelMode): boolean {

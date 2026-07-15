@@ -16,7 +16,7 @@ import { TerminalAuditStore } from './terminal-audit-store'
 let tempDir = ''
 
 beforeEach(async () => {
-  tempDir = await mkdtemp(join(tmpdir(), 'deepink-terminal-audit-'))
+  tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-terminal-audit-'))
   mockPaths.userDataDir = tempDir
 })
 
@@ -78,17 +78,17 @@ describe('TerminalAuditStore', () => {
       kind: 'created',
     })
     await store.recordEvent({
-      id: 'remote',
-      terminalSessionId: 'terminal-remote',
-      workspaceKey: 'cclink://agent/ws',
+      id: 'namespaced',
+      terminalSessionId: 'terminal-namespaced',
+      workspaceKey: 'official://agent/ws',
       timestamp: 200,
       kind: 'created',
     })
 
     expect((await store.listEvents({ terminalSessionId: 'terminal-local' })).map((event) => event.id))
       .toEqual(['local'])
-    expect((await store.listEvents({ workspaceKey: 'cclink://agent/ws' })).map((event) => event.id))
-      .toEqual(['remote'])
+    expect((await store.listEvents({ workspaceKey: 'official://agent/ws' })).map((event) => event.id))
+      .toEqual(['namespaced'])
   })
 
   it('limits to the latest events while keeping chronological order', async () => {
