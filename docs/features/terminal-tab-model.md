@@ -6,7 +6,7 @@
 
 CCLink Studio OSS 当前只承诺本地受控 Terminal：本地 PTY、本地 shell、权限确认、审计、session 状态、输出事件和只读诊断。
 
-远程 Terminal、CCLink 单命令执行、RemoteError、entitlement、远程 PTY、Direct Remote 都不属于开源壳默认能力。历史远程 Terminal 方向已归入 commercial/CCLink runtime，不能据此把已迁走的远程 adapter 加回 Studio OSS。
+网络执行、CCLink 单命令执行、旧网络运行时错误、entitlement、网络 PTY、直连网络运行时都不属于开源壳默认能力。历史网络执行方向已归入 commercial/CCLink runtime，不能据此把已迁走的 adapter 加回 Studio OSS。
 
 ## 产品定位
 
@@ -24,7 +24,7 @@ Terminal 是当前工作空间里的高风险 Tab 类型，不是全局黑箱，
 - 脱离工作空间的全局 shell。
 - 没有权限确认的 Agent 执行通道。
 - 没有审计的后台任务系统。
-- OSS 默认远程 root shell。
+- OSS 默认网络 root shell。
 
 ## 共享模型
 
@@ -61,7 +61,7 @@ runtime
 - `workspaceRef` 必填。
 - `cwd` 默认使用当前工作空间路径。
 - 没有工作空间时，Terminal 可归属未归档/global workspace，但必须明确 cwd。
-- OSS 默认不创建 `remote` runtime。
+- OSS 默认不创建 `network` runtime。
 
 ## 权限策略
 
@@ -249,7 +249,7 @@ error
 
 ## 错误模型
 
-OSS Terminal 使用中性的本地 execution error，不复用历史 `RemoteError`。
+OSS Terminal 使用中性的本地 execution error，不复用历史 `旧网络运行时错误`。
 
 错误来源包括：
 
@@ -262,7 +262,7 @@ OSS Terminal 使用中性的本地 execution error，不复用历史 `RemoteErro
 - 本地 shell 启动失败。
 - 本地进程写入、resize 或 terminate 失败。
 
-不要在 OSS 默认路径重新引入 `remote-error`、`REMOTE_ERROR_CODE` 或远程 provider 错误模型。
+不要在 OSS 默认路径重新引入旧网络错误模型、旧错误码或网络 provider 错误模型。
 
 ## 已落地
 
@@ -279,20 +279,20 @@ OSS Terminal 使用中性的本地 execution error，不复用历史 `RemoteErro
 
 ## 未落地
 
-- 远程 Terminal。
+- 网络执行。
 - CCLink 单命令执行。
-- Direct Remote。
-- 远程 PTY。
-- 远端执行事件回传。
+- 直连网络运行时。
+- 网络 PTY。
+- 网络执行事件回传。
 - commercial entitlement gate。
 - 完整按工作空间/session 深筛的审计页面。
 
 ## 拷问
 
-第一问：本地 Terminal 已经能跑，为什么还要强调 OSS 不做远程？因为远程需要账号、transport、Agent runtime、token、entitlement、远端审计和错误归因；这些都不在开源壳默认边界里。
+第一问：本地 Terminal 已经能跑，为什么还要强调 OSS 不做网络执行？因为网络执行需要账号、transport、Agent runtime、token、entitlement、端侧审计和错误归因；这些都不在开源壳默认边界里。
 
 第二问：最危险的失败路径是什么？Agent 或用户命令绕过权限确认，或者关闭 Tab 后进程仍在跑但 UI 以为结束了。
 
-第三问：为什么不复用 RemoteError？因为 remote error 类型已经迁出。继续在 OSS 文档里引用它，会诱导把远程 shared contract 加回来。
+第三问：为什么不复用 旧网络运行时错误？因为 network error 类型已经迁出。继续在 OSS 文档里引用它，会诱导把远程 shared contract 加回来。
 
 第四问：下一步最该验收什么？本地 `pwd/ls/git status/pnpm build/top`、resize、关闭终止、重启后只读记录、审计可追溯。

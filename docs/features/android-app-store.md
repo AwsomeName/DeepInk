@@ -6,9 +6,9 @@
 
 ## 一、背景与问题
 
-DeepInk 自建的 AVD 使用 Google 官方 **Google APIs 镜像**（[sdk-setup.ts](../../src/main/android/sdk-setup.ts) `createDefaultAvd()` 中 `tag.id=google_apis` + `PlayStore.enabled=false`），开机后桌面**没有任何应用商店**（无 Google Play，无国产商店），用户无法安装 APP。
+CCLink Studio 自建的 AVD 使用 Google 官方 **Google APIs 镜像**（[sdk-setup.ts](../../src/main/android/sdk-setup.ts) `createDefaultAvd()` 中 `tag.id=google_apis` + `PlayStore.enabled=false`），开机后桌面**没有任何应用商店**（无 Google Play，无国产商店），用户无法安装 APP。
 
-`AdbBridge.installApk()`（[adb-bridge.ts:331](../../src/main/android/adb-bridge.ts#L331)）已具备"传输安装"能力，但完整装应用链路有 5 步，DeepInk 只通了 1 步：
+`AdbBridge.installApk()`（[adb-bridge.ts:331](../../src/main/android/adb-bridge.ts#L331)）已具备"传输安装"能力，但完整装应用链路有 5 步，CCLink Studio 只通了 1 步：
 
 | 步骤 | 现状 |
 |------|------|
@@ -37,7 +37,7 @@ DeepInk 自建的 AVD 使用 Google 官方 **Google APIs 镜像**（[sdk-setup.t
 
 ### 2.2 镜像/运行时：保留自建 Google AVD 为基石
 
-- **Google AVD（现状）**：可控、可打包分发、DeepInk 自有资产 → **默认运行时**
+- **Google AVD（现状）**：可控、可打包分发、CCLink Studio 自有资产 → **默认运行时**
 - **MuMu**：`adb connect 127.0.0.1:16384` 可复用全部 ADB+scrcpy 能力，自带国产生态，但属第三方产品、不可捆绑分发 → **可选后端**（仅游戏/重度兼容场景）
 - **长期**：抽象 `AndroidBackend` 接口，本地 AVD / MuMu / 云手机三后端可切换（与 agent-backend 可插拔模式一致）
 
@@ -134,7 +134,7 @@ EmulatorManager.launch() 成功 → setState('running')
 
 1. **网页解析会失效**：腾讯/APKPure 页面改版时解析规则需更新。这是方案 A 的终身运维成本，配置化只是让它好改，不能消灭。缓解：多源 + 缓存兜底。
 2. **首次启动慢**：现状冷启动 + 首次还要下 APK（32MB）+ install。缓解靠缓存（第二次起跳过下载）。
-3. **合法灰度**：运行时从腾讯官方源下载 ≠ 重新分发，DeepInk 安装包内不含别人 APK，风险低；解析官方页面属灰色地带。
+3. **合法灰度**：运行时从腾讯官方源下载 ≠ 重新分发，CCLink Studio 安装包内不含别人 APK，风险低；解析官方页面属灰色地带。
 
 ## 九、调研来源
 

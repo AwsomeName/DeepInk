@@ -194,7 +194,7 @@ DATA_SOURCE_SECRET_MISSING
 DATA_SOURCE_AUTH_FAILED
 DATA_SOURCE_NETWORK_ERROR
 DATA_SOURCE_TLS_ERROR
-DATA_SOURCE_TIMEOUT
+DATA_SOURCE_官方消息网络EOUT
 DATA_SOURCE_COLLECTION_NOT_FOUND
 DATA_SOURCE_QUERY_INVALID
 DATA_SOURCE_QUERY_REJECTED
@@ -240,7 +240,7 @@ DATA_SOURCE_INTERNAL_ERROR
 ### 存储建议
 
 ```text
-~/Library/Application Support/DeepInk/data-source/
+~/Library/Application Support/CCLink Studio/data-source/
 ├── connections.json
 ├── saved-queries.json
 ├── audit-log.jsonl
@@ -262,9 +262,9 @@ macOS Keychain:
 - 创建数据源后，配置文件中只有 `authRef`，没有明文 secret。
 - 更新凭证不会改变 source id。
 - 删除数据源会删除凭证引用。
-- `rg "password|apiKey|token" ~/Library/Application Support/DeepInk/data-source` 不应搜到真实 secret。
+- `rg "password|apiKey|token" ~/Library/Application Support/CCLink Studio/data-source` 不应搜到真实 secret。
 
-说明：`Application Support/DeepInk` 是当前兼容保留的 Electron `userData` 目录，不随产品名机械替换。
+说明：`Application Support/CCLink Studio` 是当前兼容保留的 Electron `userData` 目录，不随产品名机械替换。
 - 单测覆盖 create/update/delete/list 和 secret 缺失。
 
 ### 拷问
@@ -306,7 +306,7 @@ macOS Keychain:
 - 能用只读 ES 账号 test 成功。
 - 认证失败返回 `DATA_SOURCE_AUTH_FAILED`。
 - 网络失败返回 `DATA_SOURCE_NETWORK_ERROR`。
-- 超时返回 `DATA_SOURCE_TIMEOUT`。
+- 超时返回 `DATA_SOURCE_官方消息网络EOUT`。
 - index 不存在返回 `DATA_SOURCE_COLLECTION_NOT_FOUND`。
 - 写入类路径被拒绝为 `DATA_SOURCE_QUERY_REJECTED`。
 - 单测覆盖路径拒绝、size 限制、超时、错误归一化。

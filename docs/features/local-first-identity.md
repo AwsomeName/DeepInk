@@ -1,6 +1,6 @@
 # 本地优先身份与未登录工作台
 
-> 当前状态：概念仍然成立，但文档中的登录、订阅、CCLink/TIM、云同步表述需要按 CCLink Studio 新边界继续清理。
+> 当前状态：概念仍然成立，但文档中的登录、订阅、CCLink/官方消息网络、云同步表述需要按 CCLink Studio 新边界继续清理。
 >
 > 当前 OSS 目标更明确：CCLink Studio 开源壳应免登录进入本地工作台；官方账号、云身份、配对、消息网络和 entitlement 由商业/CCLink 项目侧接入，不是 OSS 默认路径。
 
@@ -120,7 +120,7 @@ interface WorkspaceStateSnapshot {
 
 - 保留本地工作台。
 - 清除 accessToken、refreshToken、云用户缓存。
-- 清除或失效 CCLink identity / TIM session。
+- 清除或失效 CCLink identity / 官方消息网络 session。
 - 订阅状态回到未登录/未知。
 - 右上角或设置页显示“未登录，本机工作台可用”。
 
@@ -137,7 +137,7 @@ interface WorkspaceStateSnapshot {
 
 未登录不可用或需提示登录：
 
-- CCLink identity 创建、TIM 实时连接、远程配对。
+- CCLink identity 创建、官方消息网络 实时连接、远程配对。
 - 订阅、支付、Pro 权益。
 - 官方云同步/云存储。
 - 跨设备同步。

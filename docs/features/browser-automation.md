@@ -63,7 +63,7 @@ export class BrowserManager {
    */
   async getCdpEndpoint(): Promise<string> {
     // 通过 Chrome DevTools Protocol 获取调试端口
-    // 方式: 启动时设置 --remote-debugging-port
+    // 方式: 启动时设置 --network-debugging-port
     return `http://127.0.0.1:${this.cdpPort}`
   }
 
@@ -157,7 +157,7 @@ export class PlaywrightBridge {
 import { app, BrowserWindow } from 'electron'
 
 // 在应用启动时，通过命令行开关开启 CDP
-app.commandLine.appendSwitch('remote-debugging-port', '0') // 0 = 随机端口
+app.commandLine.appendSwitch('network-debugging-port', '0') // 0 = 随机端口
 
 // 获取实际分配的端口
 app.on('ready', () => {
@@ -175,7 +175,7 @@ app.on('ready', () => {
 - [x] WebContentsView 创建与嵌入主窗口（多视图，按 tabId 索引）
 - [x] setBounds() 正确定位到中间工作区
 - [x] 窗口 resize 时 WebContentsView 自动跟随（ResizeObserver + IPC）
-- [x] CDP 端口自动获取（`--remote-debugging-port=0`）
+- [x] CDP 端口自动获取（`--network-debugging-port=0`）
 - [x] Playwright 通过 `chromium.connectOverCDP()` 连接
 - [x] 浏览器工具栏 UI（地址栏、前进/后退/刷新）
 

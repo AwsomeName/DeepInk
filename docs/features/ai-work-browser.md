@@ -2,11 +2,11 @@
 
 > 状态：📋 方案设计中
 > 优先级：P0，浏览器支柱的下一阶段
-> 目标：让 DeepInk 同时成为可靠的 AI 任务浏览器，以及具备基础日常浏览能力的工作浏览器。
+> 目标：让 CCLink Studio 同时成为可靠的 AI 任务浏览器，以及具备基础日常浏览能力的工作浏览器。
 
 ## 一句话结论
 
-DeepInk 浏览器不是单纯的内嵌 Chrome，也不应一开始追求完整替代 Chrome。它的定位是：
+CCLink Studio 浏览器不是单纯的内嵌 Chrome，也不应一开始追求完整替代 Chrome。它的定位是：
 
 ```text
 AI 任务浏览器优先，逐步具备日常主力浏览器能力。
@@ -250,7 +250,7 @@ idle
 | 下载类型 | 默认位置 | 说明 |
 |----------|----------|------|
 | 用户手动下载 | 系统下载目录，例如 macOS `~/Downloads` | 符合日常浏览器习惯 |
-| Agent 任务下载 | DeepInk 临时下载区：`userData/agent-downloads/{taskRunId}/` | 不污染用户工作空间，保留任务归属 |
+| Agent 任务下载 | CCLink Studio 临时下载区：`userData/agent-downloads/{taskRunId}/` | 不污染用户工作空间，保留任务归属 |
 | Agent 明确生成的成果文件 | 当前工作空间 `.deepink/downloads/{taskRunId}/` 或用户指定路径 | 需要用户确认或任务权限授权 |
 
 用户操作：

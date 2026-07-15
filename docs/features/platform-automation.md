@@ -2,7 +2,7 @@
 
 > 本文档界定 CCLink Studio Agent 操作各类外部平台(电商 / 内容 / IM)时的**路径选择、合规边界与禁区**。
 >
-> 当前 OSS 边界：本文可作为本地浏览器/Agent 自动化合规参考；TIM、自建 IM、官方账号和消息网络属于 CCLink/commercial 侧，不是 Studio 开源壳默认能力。
+> 当前 OSS 边界：本文可作为本地浏览器/Agent 自动化合规参考；官方消息网络、自建 IM、官方账号和消息网络属于 CCLink/commercial 侧，不是 Studio 开源壳默认能力。
 > 与 [cloud-phone.md](./cloud-phone.md) 配套:cloud-phone 解决「远程 Android 实例怎么接」,本文档解决「哪些平台该用什么方式自动化」。
 
 ## 概述
@@ -48,7 +48,7 @@ CCLink Studio 的 Agent 工具体系按此分层(MCP 工具模块):
    - **绝不碰个人社交 IM(微信/QQ)、绝不碰批量多账号营销**
 
 3. **自建通道(无 API 的高敏感场景)** —— CCLink/commercial 消息网络
-   - 微信场景的合规替代应走官方 CCLink 消息网络或商业 overlay，不操控个人微信号客户端；OSS 默认不内置 TIM SDK。
+   - 微信场景的合规替代应走官方 CCLink 消息网络或商业 overlay，不操控个人微信号客户端；OSS 默认不内置 官方消息网络 SDK。
 
 ## 各平台 API 入口
 
@@ -59,7 +59,7 @@ CCLink Studio 的 Agent 工具体系按此分层(MCP 工具模块):
 | 飞书 | [open.feishu.cn](https://open.feishu.cn) | Lark/Feishu Open Platform:消息、机器人、多维表、事件订阅 |
 | 京东 | [open.jd.com](https://open.jd.com) | 京东开放平台:商品、订单、物流 |
 | B 站 | 搜索「bilibili 开放平台」 | 投稿、内容、数据 |
-| CCLink/commercial 消息网络 | 由官方 CCLink 项目侧维护 | OSS 默认不内置 TIM SDK、UserSig 或消息路由 |
+| CCLink/commercial 消息网络 | 由官方 CCLink 项目侧维护 | OSS 默认不内置 官方消息网络 SDK、message credential 或消息路由 |
 
 > ⚠️ 上述入口为平台通用开放平台,具体 API 能力 / 配额 / 资质要求(企业认证等)以各平台实时文档为准。本文档为路径选型指导,不替代各平台 API 详细接入设计。
 

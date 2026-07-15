@@ -16,7 +16,7 @@ CCLink Studio 不再推进云手机，原因不是云手机技术不可行，而
 
 因此：
 
-- 不接入阿里云无影云手机、华为云 CPH、腾讯云 CVP 或其他云手机 provider。
+- 不接入阿里云无影云手机、华为云 CPH、cloud provider CVP 或其他云手机 provider。
 - 不新增云手机后端模块。
 - 不把云手机作为 Android 能力兜底。
 - 如未来重新评估，必须先证明真实业务场景强依赖云端常驻手机，而不是普通浏览器或用户自有手机可解决。
@@ -31,10 +31,10 @@ CCLink Studio 当前已有**本地 Android 实例**方案(`src/main/android/`,AD
 - ~~**云端作为主流方案**(默认走云端,本地作为离线/调试兜底);~~
 - ~~三种接入能力**全都要**:~~
   - a. **程序化自动化控制**(Agent 通过 ADB / API 脚本操控)
-  - b. **推流手动操作**(画面嵌入 DeepInk,人工点点点)
+  - b. **推流手动操作**(画面嵌入 CCLink Studio,人工点点点)
   - c. **应用托管 / 挂机**(实例常驻、定时任务)
 
-调研范围以**阿里云**为重点,横向对比华为云、腾讯云、百度云。
+调研范围以**阿里云**为重点,横向对比华为云、cloud provider、百度云。
 
 当前有效结论以“当前决策”一节为准：不推进云手机。
 
@@ -49,7 +49,7 @@ CCLink Studio 当前已有**本地 Android 实例**方案(`src/main/android/`,AD
 | **推流嵌入** | 官方 `Wuying.WebSDK`,iframe inline 内嵌 + 会话内 `lync_adb_shell` 通道,推流与控制合一 |
 | **托管挂机** | 支持 7x24 常驻,但 ⚠️ **关机不停止计费**,每 4 小时为一个计费单位,挂机不能靠关机省钱 |
 | **价格(中国内地)** | 轻量型 ¥65/月(2C4G) ~ 性能型 ¥239/月(8C16G);按量 ¥0.30~1.00/小时;无抢占式 |
-| **备选** | 华为云 CPH(公网 ADB 需 SSH 隧道,较重)、腾讯云 CVP(有 Web SDK,但批量/保活接口未验证) |
+| **备选** | 华为云 CPH(公网 ADB 需 SSH 隧道,较重)、cloud provider CVP(有 Web SDK,但批量/保活接口未验证) |
 | **最大风险** | 个人开发者开放门槛 / 配额 / 自动化合规未取得一手证据;Web SDK 在 Electron 的兼容性需实测 |
 
 ---
@@ -90,7 +90,7 @@ CCLink Studio 当前已有**本地 Android 实例**方案(`src/main/android/`,AD
 - ✅ 「Web SDK iframe inline + lync_adb_shell 通道」→ 3-0
 - ✅ 「按量付费关机不停止计费、每 4 小时一单位」→ 3-0
 - ❌ 「新购实例默认无法联网、需手动配 NAT/EIP/SNAT」→ **1-2 被推翻**(联网配置另有说明)
-- ❌ 「腾讯云批量任务接口 tcr_instance_request / AddKeepAliveList 保活」→ **1-2 被推翻**(程序化保活能力存疑)
+- ❌ 「cloud provider批量任务接口 tcr_instance_request / AddKeepAliveList 保活」→ **1-2 被推翻**(程序化保活能力存疑)
 
 被推翻的论断已从结论中剔除,并记入下方「被推翻/存疑项」一节,避免后续再次采信。
 
@@ -131,7 +131,7 @@ CCLink Studio 当前已有**本地 Android 实例**方案(`src/main/android/`,AD
 
 `StartInstanceAdb` API **可批量(1~100 个)程序化开启**实例 ADB 连接功能。
 
-→ **意义**:DeepInk 现有 ADB 客户端代码几乎原样复用 —— ADB 协议没变,只把连接端点从本地 USB/模拟器换成 `adb connect <IP>:5555`。
+→ **意义**:CCLink Studio 现有 ADB 客户端代码几乎原样复用 —— ADB 协议没变,只把连接端点从本地 USB/模拟器换成 `adb connect <IP>:5555`。
 
 **OpenAPI 完整生命周期**(与 ECS 同一套签名体系,有官方 Node.js SDK):
 
@@ -195,21 +195,21 @@ CCLink Studio 当前已有**本地 Android 实例**方案(`src/main/android/`,AD
 
 ## 五、横向对比
 
-| 维度 | 阿里云 无影云手机 | 华为云 CPH | 腾讯云 CVP | 百度云 |
+| 维度 | 阿里云 无影云手机 | 华为云 CPH | cloud provider CVP | 百度云 |
 |------|-------------------|------------|------------|--------|
 | ADB 接入 | ✅ DNAT+安全组 / 一键 ADB / 私网 | ⚠️ 公网需 **SSH 隧道**保活,较重 | 有 Web SDK | 缺一手证据 |
 | OpenAPI / SDK | ✅ eds-aic,与 ECS 同体系,Node SDK | 有 | 有 | 未验证 |
 | 推流 Web SDK | ✅ Wuying.WebSDK(iframe + lync_adb_shell) | — | ✅ [Web SDK](https://cloud.tencent.com/document/product/1801/122860) | 未验证 |
 | 批量任务 / 保活 API | ✅ RunCommand + 实例组常驻 | 未验证 | ❌ **未核验**(被推翻,存疑) | 未验证 |
-| DeepInk 集成成本 | **低** | 中(SSH 隧道) | 中 | 未知 |
+| CCLink Studio 集成成本 | **低** | 中(SSH 隧道) | 中 | 未知 |
 
-**华为云 CPH**([用户手册](https://support.huaweicloud.com/usermanual-cph/cph_ug_0010.html)):公网 ADB 因弹性公网 IP 绑在服务器而非单个手机实例,必须先 `ssh -L <本地端口>:<内网IP>:5555 <projectID>@<公网IP>` 建隧道,再 `adb connect 127.0.0.1:<本地端口>`。DeepInk 主进程需额外维护 SSH 隧道保活,集成成本明显高于阿里云。
+**华为云 CPH**([用户手册](https://support.huaweicloud.com/usermanual-cph/cph_ug_0010.html)):公网 ADB 因弹性公网 IP 绑在服务器而非单个手机实例,必须先 `ssh -L <本地端口>:<内网IP>:5555 <projectID>@<公网IP>` 建隧道,再 `adb connect 127.0.0.1:<本地端口>`。CCLink Studio 主进程需额外维护 SSH 隧道保活,集成成本明显高于阿里云。
 
-**腾讯云 CVP**:有完整 Web SDK(`CreateAndroidInstancesAccessToken` 换 Token → `TcrSdk` 初始化 → `requestStream` 建立串流),可作备选;但其**批量任务/保活接口(`tcr_instance_request`、`AddKeepAliveList` 等)在本次核验中被推翻(1-2)**,程序化保活能力存疑,对比时谨慎。
+**cloud provider CVP**:有完整 Web SDK(`CreateAndroidInstancesAccessToken` 换 Token → `TcrSdk` 初始化 → `requestStream` 建立串流),可作备选;但其**批量任务/保活接口(`tcr_instance_request`、`AddKeepAliveList` 等)在本次核验中被推翻(1-2)**,程序化保活能力存疑,对比时谨慎。
 
 **百度云**:本次未取得一手商用证据。
 
-## 六、DeepInk 集成最短路径
+## 六、CCLink Studio 集成最短路径
 
 主进程侧,在现有 `src/main/android/`(本地)旁新建一个云端手机后端模块,抽象出统一的 `AndroidBackend` 接口,本地 / 远程两实现:
 
@@ -239,7 +239,7 @@ src/main/android/
 1. **个人开发者开放门槛 / 实名认证 / 配额上限** —— 阿里云对个人是否开放、自动化脚本合规边界、反检测策略、网络出口、是否需备案,需查官方「使用限制」「实名认证」文档或提工单。
 2. **Web SDK 在 Electron 的实测** —— ASP/WebRTC 在 Electron Chromium 下的画质、延迟、稳定性。
 3. **完整规格档位** —— 通用/标准/增强型价格、Root 可选性、独享 vs 共享实例、地域分布全量。
-4. **腾讯云 / 华为云的程序化保活能力** —— 本次未能交叉验证,若需多供应商兜底需补查对应 OpenAPI 产品代码与价格表。
+4. **cloud provider / 华为云的程序化保活能力** —— 本次未能交叉验证,若需多供应商兜底需补查对应 OpenAPI 产品代码与价格表。
 5. **百度云** —— 是否有正式商用云手机产品、OpenAPI/Web SDK/ADB/价格。
 
 ## 被推翻 / 存疑项(避免再次采信)
@@ -247,7 +247,7 @@ src/main/android/
 | 论断 | 核验结果 | 说明 |
 |------|----------|------|
 | 新购实例默认无法联网、需手动配 NAT/EIP/SNAT | ❌ 1-2 推翻 | 联网配置另有说明,以[云手机访问互联网](https://help.aliyun.com/zh/ecp/how-cloud-phones-access-the-internet)官方文档为准 |
-| 腾讯云批量任务接口 `tcr_instance_request` / `AddKeepAliveList` 保活 | ❌ 1-2 推翻 | 程序化保活能力存疑,横向对比时对腾讯云该项保持谨慎 |
+| cloud provider批量任务接口 `tcr_instance_request` / `AddKeepAliveList` 保活 | ❌ 1-2 推翻 | 程序化保活能力存疑,横向对比时对cloud provider该项保持谨慎 |
 
 ---
 
@@ -260,7 +260,7 @@ src/main/android/
 1. ~~**主流云端方案选阿里云无影云手机(eds-aic)** —— 三接入能力齐全且与现有 ADB+Scrcpy 栈协议级兼容。~~
 2. ~~**本地方案保留** —— 本地 ADB+Scrcpy 作为离线 / 调试兜底,云端为默认主流。~~
 3. ~~**架构上抽象 `AndroidBackend` 接口** —— 本地 / 远程可切换,与现有 `agent-backend`(Claude Code / HTTP API)的可插拔模式一致。~~
-4. ~~**计费策略:默认包月/年常驻** —— 控制台实测(2026-06)按量需「用完即释放」才省钱,操作链路不便且关机不停费(每 4 小时一单位);DeepInk 作为工作台,云手机应默认包月/年常驻。~~
+4. ~~**计费策略:默认包月/年常驻** —— 控制台实测(2026-06)按量需「用完即释放」才省钱,操作链路不便且关机不停费(每 4 小时一单位);CCLink Studio 作为工作台,云手机应默认包月/年常驻。~~
 5. ~~**控制台实测发现(2026-06)**:创建页规格名为「轻量型2c4g / 平衡型3c6g / 通用型4c4g / 标准型4c8g / 性能型8c16g」,其中标准型 4c8g 即购买页「实例版(4核8G) ¥140/月」。~~
 
 ### 原待实施（已废弃）
@@ -287,9 +287,9 @@ src/main/android/
 - [计费说明](https://www.alibabacloud.com/help/zh/ecp/billing-of-cloud-phone)
 - [云手机访问互联网](https://help.aliyun.com/zh/ecp/how-cloud-phones-access-the-internet)
 
-**华为云 / 腾讯云(对比)**
+**华为云 / cloud provider(对比)**
 - [华为云 CPH 用户手册](https://support.huaweicloud.com/usermanual-cph/cph_ug_0010.html)
-- [腾讯云云手机 Web SDK](https://cloud.tencent.com/document/product/1801/122860)
+- [cloud provider云手机 Web SDK](https://cloud.tencent.com/document/product/1801/122860)
 
 **相关文档**
 - [android-mirror.md](./android-mirror.md) — 本地 Android 实例方案(ADB + Scrcpy),云端方案的对照与兜底

@@ -13,7 +13,7 @@
 
 ## 当前边界
 
-CCLink Studio 是开源桌面壳。官方账号、云函数、配对、TIM、额度、商业发布、签名、公证和生产 API 注入不在 OSS 默认路径里。
+CCLink Studio 是开源桌面壳。官方账号、云函数、配对、官方消息网络、额度、商业发布、签名、公证和生产 API 注入不在 OSS 默认路径里。
 
 真实项目位置：
 
@@ -22,33 +22,24 @@ CCLink Studio 是开源桌面壳。官方账号、云函数、配对、TIM、额
 - CCLink 云函数：`/Users/apple/Desktop/chat-cc/deploy`
 - CCLink Agent runtime：`/Users/apple/Desktop/chat-cc/Agent`
 
-不存在独立的 `cclink-cloud` 或 `cclink-agent` 项目。`private-serv` 是废弃历史项目。
+不存在额外拆分出的云端或 Agent 独立项目。历史服务仓库方向不再作为当前或未来事实源。
 
 ## 历史文档处理规则
 
-`docs/features/`、`docs/remote-program/` 和部分 `docs/ops/` 文件里仍可能出现 DeepInk、private-serv、Remote Program、订阅、云同步、CCLink/TIM 等旧设计。除非文件头明确标注为当前事实源，否则这些内容只作为历史材料参考。
+`docs/features/` 和部分 `docs/ops/` 文件中若涉及账号、订阅、旧网络工作区、云同步或官方消息网络，应只作为历史材料或迁移后的边界说明，不得作为当前 OSS 能力事实源。
 
 清理历史文档时按三类处理：
 
 - 本地工作台、浏览器、编辑器、Android、Terminal、MCP、Agent 面板：可留在 Studio 文档，改名为 CCLink Studio。
-- 账号、订阅、entitlement、quota、TIM、远程配对、云同步、官方 updater/release：迁到 `cclink-dev/commercial` 或改为历史说明。
+- 账号、订阅、entitlement、quota、官方消息网络、远程配对、云同步、官方 updater/release：迁到 `cclink-dev/commercial` 或改为历史说明。
 - 云函数和 Agent runtime：迁到 `/Users/apple/Desktop/chat-cc/deploy` 或 `/Users/apple/Desktop/chat-cc/Agent`。
 
 已明确封存为历史/商业材料的高风险区域：
 
-- `docs/remote-program/`
-- `docs/features/remote-codex-workspace-plan.md`
-- `docs/features/remote-error-model.md`
-- `docs/features/cclink-integration.md`
-- `docs/features/chatcc-agent-structured-error-protocol.md`
-- `docs/features/auto-update.md`
-- `docs/features/im-system.md`
-- `docs/features/subscription.md`
-- `docs/features/cloud-sync.md`
-- `docs/features/product-milestones.md`
-- `docs/architecture-optimization-plan.md`
-- `docs/features/historical-remote-workspace-model.md`
-- `docs/features/historical-remote-operations-priority.md`
+- 官方账号、消息、配对、订阅、quota、entitlement。
+- 云同步和旧网络工作区方案。
+- 官方发布、更新源、签名、公证和制品上传。
+- 旧 UI 入口迁移审计和商业运维工作台。
 
 ## 不要机械替换
 
@@ -56,7 +47,7 @@ CCLink Studio 是开源桌面壳。官方账号、云函数、配对、TIM、额
 
 - `window.deepink`
 - `com.deepink.app`
-- `userData/DeepInk`
+- legacy userData path
 - `deepink-*` storage key
 - 旧 fixture / snapshot / migration case
 

@@ -6,7 +6,7 @@
 
 CCLink Studio OSS 的工作空间第一阶段只承诺本地工作空间、未归档内容、工作空间内 Tab、草稿、会话和本地文件树。
 
-Remote、CCLink transport、远程文件 provider、远程 Terminal、账号、订阅和配对不属于开源壳默认工作空间模型。旧 Remote 工作空间方案已封存到 `docs/features/historical-remote-workspace-model.md`，不能据此把远程/商业模块加回 Studio OSS。
+网络工作区、CCLink transport、网络文件 provider、网络执行、账号、订阅和配对不属于开源壳默认工作空间模型。旧网络工作区方案已封存，不能据此把商业模块加回 Studio OSS。
 
 ## 一句话原则
 
@@ -208,7 +208,7 @@ Terminal 是当前工作空间里的高风险 Tab 类型。
 - Terminal 默认继承当前工作空间路径。
 - 高风险命令进入权限确认和审计链路。
 - 关闭 Terminal Tab 时必须定义进程生命周期：终止、保持后台或转为只读记录。
-- OSS 默认不承诺远程 Terminal；远程执行由 commercial/CCLink runtime 另行注入。
+- OSS 默认不承诺网络执行；相关能力由 commercial/CCLink runtime 另行注入。
 
 ## 分阶段实现
 
@@ -251,11 +251,11 @@ Terminal 是当前工作空间里的高风险 Tab 类型。
 
 当前 OSS 工作空间模型不做：
 
-- 远程工作空间。
+- 网络工作区。
 - CCLink transport。
-- 远程文件树。
-- 远程 Terminal。
-- 远程 Agent 面板。
+- 网络文件树。
+- 网络执行。
+- 网络 Agent 面板。
 - 账号、订阅、entitlement、配对。
 - 云同步工作空间状态。
 - 把 `workspacePath` 机械替换为新对象模型。
@@ -264,9 +264,9 @@ Terminal 是当前工作空间里的高风险 Tab 类型。
 
 ## 拷问
 
-第一问：本地工作空间等同文件夹是不是太窄？是，但它是当前 OSS 最稳的可交付边界。未归档先兜住无文件夹场景，远程/云端后置。
+第一问：本地工作空间等同文件夹是不是太窄？是，但它是当前 OSS 最稳的可交付边界。未归档先兜住无文件夹场景，网络/云端后置。
 
-第二问：为什么不继续保留 Remote 模型？因为相关代码和商业边界已经迁出。文档继续把 Remote 写成当前计划，会诱导把 `remote`、`cclink`、`entitlement` 文件加回开源壳。
+第二问：为什么不继续保留 网络工作区 模型？因为相关代码和商业边界已经迁出。文档继续把 网络工作区 写成当前计划，会诱导把 `network`、`cclink`、`entitlement` 文件加回开源壳。
 
 第三问：为什么不重命名 `workspacePath`？因为这是现有状态恢复和兼容路径。先稳住产品文案，再做兼容迁移设计。
 

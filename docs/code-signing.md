@@ -39,7 +39,7 @@ xattr -cr /path/to/CCLink\\ Studio.app
 - updater feed。
 - 上传脚本。
 
-不要把证书、Apple ID、App 专用密码、Team ID、COS 密钥或生产 feed URL 写回 `cclink-studio` 默认路径。
+不要把证书、Apple ID、App 专用密码、Team ID、制品上传 密钥或生产 feed URL 写回 `cclink-studio` 默认路径。
 
 ## 拷问
 

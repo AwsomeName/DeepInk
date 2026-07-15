@@ -2,7 +2,7 @@
 
 ## 概述
 
-DeepInk 集成多格式富文本编辑器，支持 Markdown、Word、Excel、PowerPoint 等文件的编辑与渲染。编辑器以"所见即所得"为核心体验，让用户无需关心格式语法，专注于内容创作。
+CCLink Studio 集成多格式富文本编辑器，支持 Markdown、Word、Excel、PowerPoint 等文件的编辑与渲染。编辑器以"所见即所得"为核心体验，让用户无需关心格式语法，专注于内容创作。
 
 ## 设计原则
 
