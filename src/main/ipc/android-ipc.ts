@@ -6,13 +6,10 @@ import { PhysicalDeviceManager } from '../android/physical-device-manager'
 import { executeAndroidAction } from '../android/android-actions'
 import { ensureStoreInstalled } from '../android/store-installer'
 
-const ANDROID_EMULATOR_ARCHIVED_MESSAGE =
-  'CCLink Studio 开源壳当前只支持用户自有真机的 USB 或 Wi-Fi ADB 连接，不提供 Android SDK / AVD / 模拟器一键安装。'
-
 /**
  * 注册 Android 相关的 IPC 处理器。
  *
- * SDK/AVD/模拟器安装不在开源壳默认路径。Android 只保留真机连接与操控。
+ * Android 只保留用户自有真机连接与操控。
  * 对标 ipc/browser-ipc.ts
  */
 export function registerAndroidIpc(
@@ -22,60 +19,6 @@ export function registerAndroidIpc(
   activeDeviceManager: ActiveDeviceManager,
   physicalDeviceManager: PhysicalDeviceManager,
 ): void {
-  // ─── SDK 设置 / AVD / 模拟器生命周期：开源壳不可用 ───
-
-  /** 获取安装状态 */
-  ipcMain.handle('android:getSetupStatus', () => {
-    return {
-      adb: false,
-      emulator: false,
-      systemImage: false,
-      avd: false,
-      licenseAccepted: false,
-      ready: false,
-      archived: true,
-      message: ANDROID_EMULATOR_ARCHIVED_MESSAGE,
-    }
-  })
-
-  /** 获取需用户同意的 Android SDK License 正文 */
-  ipcMain.handle('android:getLicense', () => {
-    return {
-      id: 'android-emulator-archived',
-      text: ANDROID_EMULATOR_ARCHIVED_MESSAGE,
-    }
-  })
-
-  /** 记录用户已接受 License */
-  ipcMain.handle('android:acceptLicense', () => {
-    return { success: false, error: ANDROID_EMULATOR_ARCHIVED_MESSAGE }
-  })
-
-  /** 一键安装不可用 */
-  ipcMain.handle('android:setup', async () => {
-    return { success: false, error: ANDROID_EMULATOR_ARCHIVED_MESSAGE }
-  })
-
-  /** AVD 列表不可用 */
-  ipcMain.handle('android:listAvds', async () => {
-    return []
-  })
-
-  /** AVD 启动不可用 */
-  ipcMain.handle('android:launch', async (_event, avdName: string) => {
-    throw new Error(`${ANDROID_EMULATOR_ARCHIVED_MESSAGE} 已忽略启动请求：${avdName}`)
-  })
-
-  /** 停止模拟器 */
-  ipcMain.handle('android:terminate', async () => {
-    return
-  })
-
-  /** 获取模拟器状态 */
-  ipcMain.handle('android:getState', () => {
-    return 'stopped'
-  })
-
   // ─── ADB 操控（通过共享 Action Executor） ───
 
   /** 获取 deviceId（scrcpy 连接需要） */

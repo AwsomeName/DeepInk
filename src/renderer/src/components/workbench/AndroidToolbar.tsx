@@ -7,11 +7,12 @@ import { useAndroidStore } from '../../stores/android-store'
  * 对标 Workbench 中的浏览器工具栏。
  */
 export function AndroidToolbar(): React.JSX.Element {
-  const emulatorState = useAndroidStore((s) => s.emulatorState)
-  const isRunning = emulatorState === 'running'
+  const deviceMode = useAndroidStore((s) => s.deviceMode)
+  const mirrorConnected = useAndroidStore((s) => s.mirrorConnected)
+  const isConnected = deviceMode === 'physical' && mirrorConnected
 
   const handleKey = async (key: string) => {
-    if (!isRunning) return
+    if (!isConnected) return
     try {
       await window.cclinkStudio.android.pressKey(key)
     } catch (err) {
@@ -33,26 +34,26 @@ export function AndroidToolbar(): React.JSX.Element {
       }}
     >
       {/* Android 导航按钮 */}
-      <ToolbarButton title="返回 (Back)" onClick={() => handleKey('back')} disabled={!isRunning}>
+      <ToolbarButton title="返回 (Back)" onClick={() => handleKey('back')} disabled={!isConnected}>
         ◀
       </ToolbarButton>
-      <ToolbarButton title="桌面 (Home)" onClick={() => handleKey('home')} disabled={!isRunning}>
+      <ToolbarButton title="桌面 (Home)" onClick={() => handleKey('home')} disabled={!isConnected}>
         ●
       </ToolbarButton>
-      <ToolbarButton title="最近任务 (Recent)" onClick={() => handleKey('recent')} disabled={!isRunning}>
+      <ToolbarButton title="最近任务 (Recent)" onClick={() => handleKey('recent')} disabled={!isConnected}>
         ■
       </ToolbarButton>
 
       <div style={{ width: '1px', height: '20px', background: '#444', margin: '0 4px' }} />
 
       {/* 音量控制 */}
-      <ToolbarButton title="音量+" onClick={() => handleKey('volume_up')} disabled={!isRunning}>
+      <ToolbarButton title="音量+" onClick={() => handleKey('volume_up')} disabled={!isConnected}>
         🔊+
       </ToolbarButton>
-      <ToolbarButton title="音量-" onClick={() => handleKey('volume_down')} disabled={!isRunning}>
+      <ToolbarButton title="音量-" onClick={() => handleKey('volume_down')} disabled={!isConnected}>
         🔉-
       </ToolbarButton>
-      <ToolbarButton title="电源" onClick={() => handleKey('power')} disabled={!isRunning}>
+      <ToolbarButton title="电源" onClick={() => handleKey('power')} disabled={!isConnected}>
         ⏻
       </ToolbarButton>
 
@@ -62,7 +63,7 @@ export function AndroidToolbar(): React.JSX.Element {
       <span
         style={{
           fontSize: '11px',
-          color: isRunning ? '#4ec9b0' : '#888',
+          color: isConnected ? '#4ec9b0' : '#888',
           display: 'flex',
           alignItems: 'center',
           gap: '4px',
@@ -73,11 +74,11 @@ export function AndroidToolbar(): React.JSX.Element {
             width: '6px',
             height: '6px',
             borderRadius: '50%',
-            backgroundColor: isRunning ? '#4ec9b0' : '#666',
+            backgroundColor: isConnected ? '#4ec9b0' : '#666',
             display: 'inline-block',
           }}
         />
-        {isRunning ? '已连接' : '未连接'}
+        {isConnected ? '已连接' : '未连接'}
       </span>
     </div>
   )

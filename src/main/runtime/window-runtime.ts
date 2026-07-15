@@ -71,5 +71,5 @@ export function createWindowRuntime(runtime: CclinkStudioRuntimeState, options: 
     runtime.activeDeviceManager,
     runtime.physicalDeviceManager,
   )
-  console.log('[CCLink Studio] Android 模块已注册（模拟器路径已封存，仅真机连接可用）')
+  console.log('[CCLink Studio] Android 模块已注册（真机连接）')
 }

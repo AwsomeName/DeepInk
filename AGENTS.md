@@ -37,12 +37,19 @@
 - Android 真机连接和本地设备自动化能力。
 - 本地设置、主题、命令面板、状态栏。
 
+启动边界：
+
+- `cclink-studio` 必须可以单仓库独立启动。
+- `pnpm dev` 和 `bash scripts/restart.sh restart` 不应依赖 `cclink-dev`、`chat-cc/deploy` 或 `chat-cc/Agent`。
+- Android 只支持用户自有 USB / Wi-Fi ADB 真机；缺少 adb 时只降级设备能力，不阻断应用启动。
+
 不在开源壳默认路径中的能力：
 
 - CCLink Account、device registry、pairing、message routing。
 - 官方消息凭证、实时消息网络、跨设备任务状态。
 - 订阅、entitlement、quota、支付。
 - 云同步、网络工作区、网络执行、网络文件树。
+- Android SDK/AVD 管理、模拟器启动、托管设备服务。
 - 官方发布上传、生产更新源、签名、公证。
 
 ## 开发规范

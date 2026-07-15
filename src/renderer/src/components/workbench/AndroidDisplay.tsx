@@ -4,8 +4,7 @@ import { useAndroidStore } from '../../stores/android-store'
 /**
  * Android 真机画面显示。
  *
- * 模拟器 / SDK / AVD 路线已封存：此组件只在用户主动连接 USB / Wi-Fi ADB 真机后
- * 连接 scrcpy 投屏，不再触发 SDK 安装、AVD 枚举或 emulator 启动。
+ * 此组件只在用户主动连接 USB / Wi-Fi ADB 真机后连接 scrcpy 投屏。
  */
 export function AndroidDisplay(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -250,10 +249,9 @@ export function AndroidDisplay(): React.JSX.Element {
   if (deviceMode !== 'physical') {
     return (
       <CenterMessage>
-        <div style={{ marginBottom: '12px' }}>Android 模拟器已封存</div>
+        <div style={{ marginBottom: '12px' }}>未连接 Android 真机</div>
         <div style={{ fontSize: '12px', color: '#888', maxWidth: '420px', lineHeight: 1.6 }}>
-          CCLink Studio 不再安装或启动 Android SDK / AVD / 模拟器。请在设置页扫描并连接自己的
-          USB 或 Wi-Fi ADB 真机。
+          请在设置页扫描并连接自己的 USB 或 Wi-Fi ADB 真机。
         </div>
       </CenterMessage>
     )

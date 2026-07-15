@@ -121,7 +121,7 @@ export class AgentDeviceToolModule implements ToolModule {
     const result = await this.manager.captureSnapshot({ interactiveOnly })
     if (!result) {
       throw new Error(
-        'agent_device_snapshot 失败：agent-device 不可用（库未加载/daemon 起不来/模拟器未连接）。' +
+        'agent_device_snapshot 失败：agent-device 不可用（库未加载/daemon 起不来/真机未连接）。' +
           '请改用 android_dump_ui 获取 UI（注意它可能漏部分元素）。',
       )
     }

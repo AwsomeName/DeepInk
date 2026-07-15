@@ -19,6 +19,15 @@ pnpm install
 pnpm dev
 ```
 
+后台独立启动：
+
+```bash
+bash scripts/restart.sh restart
+bash scripts/restart.sh status
+```
+
+启动成功后，renderer dev server 默认在 `http://localhost:5173/`。本仓库默认启动不依赖 `cclink-dev`、`chat-cc/deploy` 或 `chat-cc/Agent`。
+
 常用验证：
 
 ```bash
@@ -84,6 +93,19 @@ cclink-studio/
 | MCP | `@modelcontextprotocol/sdk` |
 | Schema | Zod |
 | 样式 | CSS variables + component CSS |
+
+## Android 真机边界
+
+开源壳只支持用户自有 Android 真机：
+
+- 支持 USB ADB 或 Wi-Fi ADB。
+- 使用系统已有 `adb`，优先从可选自带 platform-tools、`ANDROID_HOME`、`ANDROID_SDK_ROOT`、常见 SDK 目录和 PATH 发现。
+- 不下载 Android SDK。
+- 不创建 AVD。
+- 不启动模拟器。
+- 不接托管设备服务。
+
+没有 `adb` 时，应用仍必须能启动；Android MCP / agent-device 能力可以报告不可用。联调 Android 前，测试机器需要安装 adb 或配置 `ANDROID_HOME` / `ANDROID_SDK_ROOT`。
 
 ## 开发规范
 

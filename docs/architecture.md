@@ -32,6 +32,17 @@ CCLink Studio 开源壳保留这些本地能力：
 
 这些能力不需要用户登录 CCLink，也不依赖官方云服务。
 
+## 独立启动边界
+
+`cclink-studio` 必须可以作为单仓库独立启动：
+
+- `pnpm dev` 直接启动开发模式。
+- `bash scripts/restart.sh restart` 启动后台开发进程。
+- 默认启动不得要求存在 `cclink-dev`、`chat-cc/deploy` 或 `chat-cc/Agent`。
+- 官方账号、官方运行时、生产 API、签名、公证和发布上传只通过官方集成层进入。
+
+Android 是本地真机能力：只连接用户自有 USB 或 Wi-Fi ADB 真机。不提供 Android SDK 下载、AVD 创建、模拟器启动或托管设备服务。找不到 `adb` 时，Studio 应继续启动，Android 设备能力降级为不可用。
+
 ## 不在开源壳默认路径的能力
 
 以下能力必须通过 `cclink-dev` / `chat-cc` 侧官方集成层接入：
@@ -41,6 +52,7 @@ CCLink Studio 开源壳保留这些本地能力：
 - 登录、订阅、entitlement、quota、官方 feature gate。
 - 云同步、网络文件树、网络文件查看、网络 session sidebar。
 - 私有服务配置、生产 API 地址、官方更新源、制品上传、签名和公证流程。
+- Android SDK/AVD 管理、模拟器启动、托管设备服务。
 
 验收上，开源壳不应默认 import 官方账号、订阅、同步、消息网络或网络工作区实现，也不应默认暴露这些 preload API。
 

@@ -76,8 +76,7 @@ function getApkCacheDir(): string {
  * 确保默认应用商店已安装（幂等）
  *
  * 流程：检测包是否存在 → 未装则取 APK（缓存优先 → 多源下载）→ adb install。
- * 调用方通常在模拟器 boot 完成、状态变 running 后触发，
- * 且**不应 await**（商店安装不应阻塞「模拟器就绪」），结果用 onProgress/返回值回调处理。
+ * 调用方通常在真机连接完成后触发，结果用 onProgress/返回值回调处理。
  *
  * @param adbBridge 已连接的 AdbBridge
  * @param onProgress 进度回调（下载/安装阶段提示），可选

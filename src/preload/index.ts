@@ -391,40 +391,8 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
       ipcRenderer.invoke('editor:saveResult', id, success, error),
   },
 
-  // Android 设备控制（当前只支持用户自有真机）
+  // Android 设备控制（用户自有真机）
   android: {
-    // ─── SDK / AVD 状态查询（开源壳不提供一键安装） ───
-    /** 获取安装状态 */
-    getSetupStatus: () => ipcRenderer.invoke('android:getSetupStatus'),
-    /** 获取当前 Android 支持说明 */
-    getLicense: () => ipcRenderer.invoke('android:getLicense'),
-    /** 开源壳不接受 SDK License */
-    acceptLicense: () => ipcRenderer.invoke('android:acceptLicense'),
-    /** 开源壳不下载 adb/emulator/系统镜像或创建 AVD */
-    setup: () => ipcRenderer.invoke('android:setup'),
-    /** 开源壳不提供 SDK 安装进度 */
-    onSetupProgress: (callback: (data: { step: string; progress: any }) => void) => {
-      ipcRenderer.removeAllListeners('android:setupProgress')
-      ipcRenderer.on('android:setupProgress', (_event, data) => callback(data))
-    },
-
-    // ─── AVD / 模拟器生命周期（开源壳不可用） ───
-    /** 开源壳不提供 AVD 列表 */
-    listAvds: () => ipcRenderer.invoke('android:listAvds'),
-    /** 开源壳不启动 AVD 模拟器 */
-    launch: (avdName: string) => ipcRenderer.invoke('android:launch', avdName),
-    /** 开源壳不控制模拟器进程 */
-    terminate: () => ipcRenderer.invoke('android:terminate'),
-    /** 当前模拟器状态 */
-    getState: () => ipcRenderer.invoke('android:getState'),
-    /** 当前不会推送模拟器状态变化 */
-    onStateChanged: (callback: (state: string) => void) => {
-      const handler = (_event: unknown, state: string) => callback(state)
-      ipcRenderer.on('android:stateChanged', handler)
-      return () => {
-        ipcRenderer.removeListener('android:stateChanged', handler)
-      }
-    },
     /** 重连投屏（reconcile + 重绑 + scrcpy connect，替代裸 getDeviceId + connectMirror） */
     reconnect: () => ipcRenderer.invoke('android:reconnect'),
     /** 监听设备丢失（reconcile 检测到 serial 不在线时推送） */

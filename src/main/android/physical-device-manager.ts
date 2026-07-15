@@ -54,7 +54,7 @@ export class PhysicalDeviceManager {
    * scrcpy 由调用方按需 connect）。
    */
   async connect(serial: string): Promise<{ deviceInfo: DeviceInfo }> {
-    this.adbBridge.setSerial(serial, null) // avdName=null 标识真机
+    this.adbBridge.setSerial(serial)
     const deviceInfo = await this.adbBridge.getDeviceInfo()
     this.activeDeviceManager.set(serial, 'physical')
     return { deviceInfo }

@@ -1,33 +1,3 @@
-export type EmulatorState = 'stopped' | 'booting' | 'running' | 'error'
-
-export interface AndroidSetupStatus {
-  adb: boolean
-  emulator: boolean
-  systemImage: boolean
-  avd: boolean
-  licenseAccepted: boolean
-  ready: boolean
-  archived?: boolean
-  message?: string
-}
-
-export interface AndroidLicense {
-  id: string
-  text: string
-}
-
-export interface AndroidSetupResult {
-  success: boolean
-  adbPath?: string
-  avdName?: string
-  error?: string
-}
-
-export interface AndroidSetupProgress {
-  step: string
-  progress: any
-}
-
 export interface AndroidDeviceLostPayload {
   reason: string
 }
@@ -109,17 +79,6 @@ export interface ScrcpyVideoFrame {
 }
 
 export interface AndroidApiContract {
-  getSetupStatus(): Promise<AndroidSetupStatus>
-  getLicense(): Promise<AndroidLicense>
-  acceptLicense(): Promise<AndroidActionSuccess>
-  setup(): Promise<AndroidSetupResult>
-  onSetupProgress(callback: (data: AndroidSetupProgress) => void): void
-
-  listAvds(): Promise<string[]>
-  launch(avdName: string): Promise<void>
-  terminate(): Promise<void>
-  getState(): Promise<EmulatorState>
-  onStateChanged(callback: (state: EmulatorState) => void): () => void
   reconnect(): Promise<void>
   onDeviceLost(callback: (info: AndroidDeviceLostPayload) => void): () => void
 

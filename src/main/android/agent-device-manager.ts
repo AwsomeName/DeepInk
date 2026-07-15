@@ -94,7 +94,7 @@ export class AgentDeviceManager {
         // lazy：仅记录 serial 待用，不立即 open
         this.currentSerial = device.serial
       } else {
-        // 活跃设备清除（模拟器停止 / 真机断开）→ 关闭 session 释放 lease
+        // 活跃设备清除（真机断开）→ 关闭 session 释放 lease
         void this.unbind()
       }
     })
@@ -280,7 +280,7 @@ export class AgentDeviceManager {
     this.sessionOpen = false
   }
 
-  /** 模拟器停止时调用：关 session + 清 serial 绑定。同步清除标记防止与新 session 竞态。 */
+  /** 真机解绑时调用：关 session + 清 serial 绑定。同步清除标记防止与新 session 竞态。 */
   async unbind(): Promise<void> {
     // 同步清除标记，防止 fire-and-forget 的 unbind 与新 ensureSession 竞态：
     // 若不在此处同步清除，closeSession 异步期间新的 doEnsureSession 可能读到旧 sessionOpen=true

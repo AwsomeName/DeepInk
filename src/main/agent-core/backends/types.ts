@@ -24,7 +24,7 @@ export interface AgentHostContext {
   hostName?: string
   /** MCP server name shown in the generated tool table. */
   mcpServerName?: string
-  /** Label for the process that owns Android/emulator lifecycle. */
+  /** Label for the process that owns Android device control. */
   androidControllerName?: string
 }
 

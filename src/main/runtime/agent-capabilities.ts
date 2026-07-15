@@ -28,7 +28,7 @@ export function getAgentCapabilities(runtime: CclinkStudioRuntimeState): AgentCa
       reason:
         runtime.activeDeviceManager?.getSource() === 'physical'
           ? undefined
-          : '未连接用户真机；模拟器与云手机已封存',
+          : '未连接用户真机',
     },
     {
       name: 'agent-device',

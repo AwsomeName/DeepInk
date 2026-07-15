@@ -261,11 +261,11 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
       const adbConnected = this.adbBridge?.isConnected() ?? false
       sections.push(
         '### 当前 Android 真机状态',
-        '- Android 模拟器 / 云手机路线已封存；只操作用户主动连接的 USB / Wi-Fi ADB 真机',
+        '- 只操作用户主动连接的 USB / Wi-Fi ADB 真机',
         `- ADB 设备号: ${adbDeviceId ?? '未连接'}${adbConnected ? '' : '（未连接）'}`,
         '',
         '### Android 操作约定',
-        '- 不要启动、安装或管理 Android 模拟器；没有真机连接时，请提示用户到设备设置页连接手机',
+        '- 没有真机连接时，请提示用户到设备设置页连接手机',
         `- **不要自己 adb connect**；android_* 工具只会面向 ${this.hostContext.androidControllerName} 当前选中的真机`,
         '- 操控应用：android_tap / android_swipe / android_type_text / android_press_key',
         '- 看界面：android_screenshot / android_dump_ui；查设备用 android_device_info',

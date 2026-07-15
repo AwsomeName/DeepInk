@@ -29,8 +29,6 @@ export class AdbBridge {
   private adbPath: string | null = null
   /** 绑定的设备 serial（由 PhysicalDeviceManager 下发，不再自己发现） */
   private serial: string | null = null
-  /** 绑定的 AVD 名称；开源壳默认不主动启动 AVD。 */
-  private avdName: string | null = null
   /** ADB 是否已连接到设备 */
   private connected = false
   /** @yume-chan adb 客户端（懒初始化，用于 getDevices 等设备列表操作） */
@@ -108,20 +106,18 @@ export class AdbBridge {
 
   // ─── serial 管理（由 PhysicalDeviceManager 持有并下发） ───
 
-  /** 设置绑定的 serial + AVD 名称 */
-  setSerial(serial: string | null, avdName: string | null): void {
+  /** 设置绑定的 serial */
+  setSerial(serial: string | null): void {
     this.serial = serial
-    this.avdName = avdName
     this.connected = !!serial
     if (serial) {
-      console.log(`[AdbBridge] 绑定 serial: ${serial} (AVD: ${avdName})`)
+      console.log(`[AdbBridge] 绑定 serial: ${serial}`)
     }
   }
 
   /** 清空绑定 */
   clearSerial(): void {
     this.serial = null
-    this.avdName = null
     this.connected = false
   }
 
@@ -138,18 +134,9 @@ export class AdbBridge {
     }
   }
 
-  /** 列出所有在线的 emulator-* 设备（状态 device） */
-  async listOnlineDevices(): Promise<string[]> {
-    const devices = await this.fetchAllDevices()
-    return devices
-      .filter((d) => d.serial.startsWith('emulator-') && d.state === 'device')
-      .map((d) => d.serial)
-  }
-
   /**
    * 列出所有设备（含物理真机），返回 serial/state/isEmulator
    *
-   * 供 PhysicalDeviceManager 发现真机用（listOnlineDevices 只列 emulator-*）。
    * 含 offline/unauthorized 状态，便于 UI 引导授权。
    */
   async listAllDevices(): Promise<Array<{ serial: string; state: string; isEmulator: boolean }>> {
@@ -214,30 +201,7 @@ export class AdbBridge {
   }
 
   /**
-   * 按 AVD 名称查找对应的 emulator serial
-   *
-   * 遍历所有在线 emulator-* 设备，逐个执行 `adb -s <serial> emu avd name` 匹配。
-   * 用于 serial 解析的消歧、自愈重绑、启动前检查。
-   */
-  async findSerialByAvd(avdName: string): Promise<string | null> {
-    const emulators = await this.listOnlineDevices()
-    for (const serial of emulators) {
-      try {
-        const { stdout } = await this.execAdbWithSerial(serial, ['emu', 'avd', 'name'])
-        if (stdout.trim() === avdName) {
-          return serial
-        }
-      } catch {
-        // 该 emulator 控制台未就绪或不匹配，跳过
-      }
-    }
-    return null
-  }
-
-  /**
    * 对指定 serial 执行 adb 命令（绕过 this.serial，不经过 buildArgs）
-   *
-   * 用于 findSerialByAvd、terminate 的 emu kill 等需要指定特定 serial 的场景。
    */
   async execAdbWithSerial(serial: string, args: string[], options?: { timeout?: number }): Promise<AdbResult> {
     const adb = await this.discoverAdb()
@@ -551,25 +515,9 @@ export class AdbBridge {
     })
   }
 
-  /**
-   * 执行 adb 命令（带 self-heal：设备丢失时自动按 AVD 重绑 + 重试一次）
-   *
-   * 所有 adb 操作统一通过此方法执行。当检测到 device not found / offline 时，
-   * 尝试按 AVD 身份重新绑定 serial，然后重试原命令。找不到则让错误冒泡。
-   */
+  /** 执行 adb 命令。 */
   private async execAdb(args: string[], options?: { timeout?: number }): Promise<AdbResult> {
-    try {
-      return await this.doExecAdb(args, options)
-    } catch (err) {
-      if (!this.isDeviceGoneError(err) || !this.serial || !this.avdName) throw err
-      // AVD 身份重绑
-      const rebound = await this.findSerialByAvd(this.avdName)
-      if (!rebound) throw err
-      console.log(`[AdbBridge] 自愈重绑: ${this.serial} → ${rebound}`)
-      this.serial = rebound
-      for (const cb of this.serialReboundListeners) cb(rebound)
-      return await this.doExecAdb(args, options)
-    }
+    return this.doExecAdb(args, options)
   }
 
   /** 判断错误是否为设备丢失/离线（用于触发 self-heal） */
@@ -598,7 +546,6 @@ export class AdbBridge {
    */
   disconnect(): void {
     this.serial = null
-    this.avdName = null
     this.connected = false
     console.log('[AdbBridge] 已断开连接')
   }

@@ -9,10 +9,13 @@
 - `docs/architecture.md`：当前架构事实源。
 - `docs/development.md`：当前开发事实源。
 - `docs/features/project-system.md`：当前 OSS 本地工作空间模型。
+- `docs/features/agent-device.md`：Android 真机和 agent-device 边界。
 
 ## 当前边界
 
 CCLink Studio 是开源桌面壳。官方账号、云函数、配对、官方消息网络、额度、官方发布、签名、公证和生产 API 注入不在 OSS 默认路径里。
+
+Studio 默认可单仓库独立启动，不要求 `cclink-dev`、`chat-cc/deploy` 或 `chat-cc/Agent` 存在。Android 默认只支持用户自有 USB / Wi-Fi ADB 真机；缺少 adb 时只降级设备能力，不阻断启动。
 
 真实项目位置：
 
@@ -27,7 +30,7 @@ CCLink Studio 是开源桌面壳。官方账号、云函数、配对、官方消
 
 - 架构与开发：`docs/architecture.md`、`docs/development.md`。
 - 官方集成：`docs/official-integration-contract.md`。
-- 工作台能力：`docs/features/project-system.md`、`docs/features/agent-system.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/terminal-tab-model.md`。
+- 工作台能力：`docs/features/project-system.md`、`docs/features/agent-system.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/terminal-tab-model.md`、`docs/features/agent-device.md`。
 - 行业能力：数据源、硬件工作区、FPC 改版、CAD 转换、项目内运营助手。
 
 文档只描述最新产品方向和当前工程边界，不保留旧方案细节。
