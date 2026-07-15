@@ -56,6 +56,8 @@ export function TabContextMenu(): React.ReactElement | null {
   // 仅浏览器 / 编辑器可复制（其余类型无独立内容）
   const canDuplicate = tab.type === 'browser' || tab.type === 'editor'
   const canClose = tabs.length > 0
+  const isTerminalLike = tab.type === 'terminal' || tab.type === 'terminal-record'
+  const closeLabel = isTerminalLike ? '关闭 Terminal' : '关闭'
 
   const handleDuplicate = (): void => {
     duplicateTab(tabId)
@@ -78,20 +80,24 @@ export function TabContextMenu(): React.ReactElement | null {
   return (
     <div className="context-menu" ref={ref} style={menuStyle}>
       <div className="context-menu-items">
-        <div
-          className={`context-menu-item ${canDuplicate ? '' : 'disabled'}`}
-          onClick={canDuplicate ? handleDuplicate : undefined}
-        >
-          <span className="context-menu-icon">📋</span>
-          <span>复制此页</span>
-        </div>
-        <div className="context-menu-separator" />
+        {!isTerminalLike && (
+          <>
+            <div
+              className={`context-menu-item ${canDuplicate ? '' : 'disabled'}`}
+              onClick={canDuplicate ? handleDuplicate : undefined}
+            >
+              <span className="context-menu-icon">📋</span>
+              <span>复制此页</span>
+            </div>
+            <div className="context-menu-separator" />
+          </>
+        )}
         <div
           className={`context-menu-item ${canClose ? '' : 'disabled'}`}
           onClick={canClose ? handleClose : undefined}
         >
           <span className="context-menu-icon">✕</span>
-          <span>关闭</span>
+          <span>{closeLabel}</span>
         </div>
       </div>
     </div>

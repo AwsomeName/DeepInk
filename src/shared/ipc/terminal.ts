@@ -4,6 +4,7 @@ import type {
   TerminalCommandActor,
   TerminalCommandConfirmationRequest,
   TerminalExecutionEvent,
+  TerminalClosePolicy,
   TerminalPermissionPolicy,
   TerminalPermissionRisk,
   TerminalRuntimeRef,
@@ -32,6 +33,8 @@ export interface TerminalLifecycleAuditInput {
   kind: TerminalLifecycleAuditKind
   message?: string
   runtime?: TerminalRuntimeRef
+  permissionPolicy?: TerminalPermissionPolicy
+  closePolicy?: TerminalClosePolicy
 }
 
 export interface TerminalSessionSnapshot {
@@ -42,8 +45,32 @@ export interface TerminalSessionSnapshot {
   updatedAt: number
   processId?: string | number
   exitCode?: number
+  signal?: string
+  exitedAt?: number
   errorMessage?: string
   lastCommand?: string
+  workspaceKey?: string | null
+  permissionPolicy?: TerminalPermissionPolicy
+  closePolicy?: TerminalClosePolicy
+  attachable?: boolean
+  outputBuffer?: TerminalSessionOutputLine[]
+  commandHistory?: TerminalSessionCommandRecord[]
+}
+
+export type TerminalSessionOutputKind = 'stdout' | 'stderr' | 'system' | 'error' | 'input'
+
+export interface TerminalSessionOutputLine {
+  id: string
+  kind: TerminalSessionOutputKind
+  text: string
+  timestamp: number
+}
+
+export interface TerminalSessionCommandRecord {
+  id: string
+  command: string
+  actor: TerminalCommandActor
+  timestamp: number
 }
 
 export interface TerminalSubmitCommandInput {
@@ -52,6 +79,31 @@ export interface TerminalSubmitCommandInput {
   actor: TerminalCommandActor
   permissionPolicy: TerminalPermissionPolicy
   workspaceKey?: string | null
+}
+
+export interface TerminalPtySize {
+  columns: number
+  rows: number
+}
+
+export interface TerminalPtyStartInput {
+  terminalSessionId: string
+  runtime: TerminalRuntimeRef
+  size?: TerminalPtySize
+}
+
+export interface TerminalPtyWriteInput {
+  terminalSessionId: string
+  data: string
+}
+
+export interface TerminalPtyResizeInput {
+  terminalSessionId: string
+  size: TerminalPtySize
+}
+
+export interface TerminalPtyStartResult extends TerminalOperationResult {
+  processId?: string | number
 }
 
 export interface TerminalSubmitCommandAcceptedResult {
@@ -81,6 +133,10 @@ export interface TerminalApiContract {
   resolveCommandConfirmation(id: string, approved: boolean): Promise<{ success: boolean }>
   recordLifecycleEvent(input: TerminalLifecycleAuditInput): Promise<TerminalOperationResult>
   submitCommand(input: TerminalSubmitCommandInput): Promise<TerminalSubmitCommandResult>
+  startPty(input: TerminalPtyStartInput): Promise<TerminalPtyStartResult>
+  writePty(input: TerminalPtyWriteInput): Promise<TerminalOperationResult>
+  resizePty(input: TerminalPtyResizeInput): Promise<TerminalOperationResult>
+  terminatePty(terminalSessionId: string): Promise<TerminalOperationResult>
   listSessions(): Promise<TerminalSessionSnapshot[]>
   listAuditEvents(filter?: TerminalAuditListFilter): Promise<TerminalAuditEvent[]>
   clearAuditSession(terminalSessionId: string): Promise<TerminalOperationResult>

@@ -9,12 +9,12 @@
 
 import type { BrowserWindow } from 'electron'
 import type { PermissionManager } from '../mcp/permission'
-import type { IAgentBackend, BackendConfig } from './backend/types'
+import type { IAgentBackend, BackendConfig, AgentSendOptions } from './backend/types'
 import {
   AgentRuntime,
   DEFAULT_CONVERSATION_ID,
   type AgentRuntimeEvent,
-} from 'core-agent/runtime/agent-runtime'
+} from '../agent-core/runtime/agent-runtime'
 import type { McpToolHost } from '../mcp/tool-host'
 import type { McpClientManager } from '../mcp/client-manager'
 import type { PlaywrightBridge } from '../playwright/playwright-bridge'
@@ -25,8 +25,11 @@ import type { AgentScope } from './scope'
 import { buildAgentMessageWithContext, type AgentSendMessageContext } from './message-context'
 
 export interface AgentBridgeOptions {
+  agentEngine?: 'local-claude-code'
   backendType?: 'claude-code' | 'http-api'
   maxBudgetUsd?: number
+  /** Claude Code CLI 路径；为空时由 LocalClaudeCodeBackend 交给 spawn 按 PATH 解析。 */
+  claudeCodePath?: string
   /** API 格式（anthropic → CLI + env, openai → HTTP API） */
   apiFormat?: 'anthropic' | 'openai'
   /** API 基础地址（Anthropic 格式时注入为 ANTHROPIC_BASE_URL） */
@@ -96,42 +99,15 @@ export class AgentBridge {
   /**
    * 根据选项构建 BackendConfig
    *
-   * apiFormat 决定后端类型：
-   * - 'anthropic' → ClaudeCodeBackend + env 注入
-   * - 'openai' → HttpApiBackend + HTTP 配置
+   * M9 开源底座只创建本机 Claude Code 后端。
+   * provider/apiFormat/apiKey 字段暂保留旧设置兼容，但不再决定后端能力。
    */
   private buildBackendConfig(options?: AgentBridgeOptions): BackendConfig {
-    const apiFormat = options?.apiFormat ?? 'anthropic'
-    const backendType = apiFormat === 'openai' ? 'http-api' : 'claude-code'
-
-    if (backendType === 'http-api') {
-      return {
-        type: 'http-api',
-        httpApi: {
-          endpoint: options?.apiBaseUrl ?? '',
-          apiKey: options?.apiKey ?? '',
-          model: options?.modelName ?? 'gpt-4o',
-        },
-      }
-    }
-
-    // Anthropic 格式 → Claude Code CLI + 环境变量
-    const env: Record<string, string> = {}
-    if (options?.apiBaseUrl) {
-      env['ANTHROPIC_BASE_URL'] = options.apiBaseUrl
-    }
-    if (options?.apiKey) {
-      env['ANTHROPIC_API_KEY'] = options.apiKey
-    }
-    if (options?.modelName) {
-      env['ANTHROPIC_MODEL'] = options.modelName
-    }
-
     return {
-      type: 'claude-code',
+      type: 'local-claude-code',
       claudeCode: {
+        claudeCodePath: options?.claudeCodePath,
         maxBudgetUsd: options?.maxBudgetUsd,
-        env: Object.keys(env).length > 0 ? env : undefined,
         getWorkspacePath: this.getWorkspacePath,
         hostContext: {
           hostName: 'DeepInk',
@@ -148,12 +124,66 @@ export class AgentBridge {
     conversationId = DEFAULT_CONVERSATION_ID,
     context?: AgentSendMessageContext,
   ): Promise<void> {
-    this.startBrowserTaskIfNeeded(conversationId, message)
+    const sendPlan = this.resolveSendPlan(conversationId, message, context)
+    if (sendPlan.options.forceVisibleBrowser) {
+      await this.syncVisibleBrowserPage(sendPlan.browserTabId)
+    }
+    this.startBrowserTaskIfNeeded(conversationId, message, sendPlan.browserTabId)
     try {
-      await this.runtime.sendMessage(buildAgentMessageWithContext(message, context), conversationId)
+      await this.runtime.sendMessage(
+        buildAgentMessageWithContext(message, context),
+        conversationId,
+        sendPlan.options,
+      )
     } catch (error) {
       this.failActiveBrowserTask(conversationId, error)
       throw error
+    }
+  }
+
+  private resolveSendPlan(
+    conversationId: string,
+    message: string,
+    context?: AgentSendMessageContext,
+  ): { options: AgentSendOptions; browserTabId: string | null } {
+    const scope = this.runtime.getScope(conversationId)
+    const explicitBrowserTabId = this.getMountedBrowserTabId(context)
+    const scopedBrowserTabId = scope.kind === 'browser' ? scope.instanceId : null
+    const visibleBrowserTabId =
+      scope.kind === 'all' && looksLikeBrowserTask(message)
+        ? this.deps.browserManager?.getActiveViewId?.() ?? null
+        : null
+    const browserTabId = explicitBrowserTabId ?? scopedBrowserTabId ?? visibleBrowserTabId
+    const forceVisibleBrowser = Boolean(browserTabId)
+
+    return {
+      options: { forceVisibleBrowser },
+      browserTabId,
+    }
+  }
+
+  private getMountedBrowserTabId(context?: AgentSendMessageContext): string | null {
+    for (const resource of context?.resources ?? []) {
+      if ((resource.kind === 'browser' || resource.ref.type === 'browser') && resource.ref.tabId) {
+        return resource.ref.tabId
+      }
+    }
+    return null
+  }
+
+  private async syncVisibleBrowserPage(tabId: string | null): Promise<void> {
+    const visibleTabId = tabId ?? this.deps.browserManager?.getActiveViewId?.()
+    if (!visibleTabId) return
+    try {
+      this.deps.browserManager?.setActive(visibleTabId)
+    } catch {
+      // 浏览器管理器未接入或视图不存在，继续尝试同步 Playwright 注册表
+    }
+    try {
+      await this.deps.playwrightBridge.switchToPage(visibleTabId)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      console.warn(`[AgentBridge] 同步可视浏览器页失败 tabId=${visibleTabId}:`, message)
     }
   }
 
@@ -285,6 +315,8 @@ export class AgentBridge {
 
   /** 根据 API 设置重新配置后端（用于设置变更时的热重载） */
   reconfigure(apiSettings: {
+    agentEngine?: string
+    claudeCodePath?: string
     apiFormat?: string
     apiBaseUrl?: string
     apiKey?: string
@@ -293,10 +325,8 @@ export class AgentBridge {
   }): void {
     const config = this.buildBackendConfig({
       maxBudgetUsd: apiSettings.maxBudgetUsd,
-      apiFormat: apiSettings.apiFormat as 'anthropic' | 'openai',
-      apiBaseUrl: apiSettings.apiBaseUrl,
-      apiKey: apiSettings.apiKey,
-      modelName: apiSettings.modelName,
+      agentEngine: 'local-claude-code',
+      claudeCodePath: apiSettings.claudeCodePath,
     })
     this.switchBackend(config)
   }
@@ -321,15 +351,20 @@ export class AgentBridge {
     this.forwardToRenderer(event.type, event.data, event.conversationId)
   }
 
-  private startBrowserTaskIfNeeded(conversationId: string, message: string): void {
+  private startBrowserTaskIfNeeded(
+    conversationId: string,
+    message: string,
+    browserTabId: string | null = null,
+  ): void {
     const scope = this.runtime.getScope(conversationId)
-    if (scope.kind !== 'browser') return
+    const tabId = browserTabId ?? (scope.kind === 'browser' ? scope.instanceId : null)
+    if (!tabId) return
     const runtime = this.deps.browserTaskRuntime
     if (!runtime) return
 
     const goal = message.trim().replace(/\s+/g, ' ').slice(0, 200) || '浏览器任务'
     const task = runtime.startTask({
-      tabId: scope.instanceId,
+      tabId,
       goal,
     })
     this.activeBrowserTaskIds.set(conversationId, task.id)
@@ -400,4 +435,12 @@ export class AgentBridge {
       this.mainWindow.webContents.send(channel, payload)
     }
   }
+}
+
+function looksLikeBrowserTask(message: string): boolean {
+  const normalized = message.trim().toLowerCase()
+  if (!normalized) return false
+  return /https?:\/\/|www\.|网页|网站|浏览器|打开|访问|搜索|百度|知乎|小红书|微博|公众号|登录|登陆|投稿|发布|点击|填写|上传|下载|截图|抓取|提取|页面|url|link|search|login|sign in|open|visit|click|submit|post/.test(
+    normalized,
+  )
 }

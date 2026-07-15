@@ -39,11 +39,32 @@ export function IconFiles(p: IconProps = defaults): React.ReactElement {
     p,
     <>
       <path
-        d="M2 3.5A1.5 1.5 0 0 1 3.5 2h2.086a1 1 0 0 1 .707.293l.707.707H12.5A1.5 1.5 0 0 1 14 4.5v8a1.5 1.5 0 0 1-1.5 1.5h-9A1.5 1.5 0 0 1 2 12.5v-9z"
+        d="M4 1.5h5.5L13 5v8.5A1.5 1.5 0 0 1 11.5 15H4A1.5 1.5 0 0 1 2.5 13.5V3A1.5 1.5 0 0 1 4 1.5z"
         stroke="currentColor"
         strokeWidth="1.2"
         strokeLinejoin="round"
       />
+      <path d="M9.5 1.5V5H13" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+      <path
+        d="M5 6.5h5.5M5 9h6M5 11.5h4.5"
+        stroke="currentColor"
+        strokeWidth="1.0"
+        strokeLinecap="round"
+        opacity="0.72"
+      />
+    </>,
+  )
+}
+
+/** 项目 / 工作空间集合 */
+export function IconProjects(p: IconProps = defaults): React.ReactElement {
+  return I(
+    p,
+    <>
+      <rect x="2" y="2.5" width="5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.15" />
+      <rect x="9" y="2.5" width="5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.15" />
+      <rect x="2" y="9" width="5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.15" />
+      <rect x="9" y="9" width="5" height="4.5" rx="1" stroke="currentColor" strokeWidth="1.15" />
     </>,
   )
 }
@@ -151,6 +172,29 @@ export function IconFile(p: IconProps = defaults): React.ReactElement {
       strokeWidth="1.1"
       strokeLinejoin="round"
     />,
+  )
+}
+
+export function IconClipboard(p: IconProps = defaults): React.ReactElement {
+  return I(
+    p,
+    <>
+      <rect x="4" y="3.5" width="9" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.1" />
+      <path
+        d="M6.2 3.5v-1A1.2 1.2 0 0 1 7.4 1.3h2.2a1.2 1.2 0 0 1 1.2 1.2v1"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
+      <path
+        d="M6.5 7h4M6.5 9.5h4M6.5 12h2.5"
+        stroke="currentColor"
+        strokeWidth="1"
+        strokeLinecap="round"
+        opacity="0.72"
+      />
+      <path d="M3 5.5H2.5A1.2 1.2 0 0 0 1.3 6.7v5.8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+    </>,
   )
 }
 

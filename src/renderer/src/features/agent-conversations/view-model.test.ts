@@ -12,6 +12,7 @@ import {
   buildSessionDetail,
   createConversationRuntimeForWorkspace,
 } from './view-model'
+import { getWorkspaceConversationGroups } from './local-session-sidebar'
 
 const now = new Date('2026-07-14T12:00:00+08:00').getTime()
 const workspace: WorkspaceRef = { kind: 'local', path: '/Users/apple/project' }
@@ -120,6 +121,50 @@ describe('agent conversation view model', () => {
     ])
   })
 
+  it('groups workbench conversations for the left session sidebar', () => {
+    const otherWorkspace: WorkspaceRef = { kind: 'local', path: '/Users/apple/other' }
+    const conversations = {
+      current: conversation({
+        id: 'current',
+        title: '当前项目',
+        surface: 'workbench-tab',
+      }),
+      unbound: conversation({
+        id: 'unbound',
+        title: '未绑定',
+        surface: 'workbench-tab',
+        workspaceRef: null,
+      }),
+      closed: conversation({
+        id: 'closed',
+        title: '已关闭',
+        surface: 'workbench-tab',
+        archivedAt: now - 1000,
+      }),
+      other: conversation({
+        id: 'other',
+        title: '其他项目',
+        surface: 'workbench-tab',
+        workspaceRef: otherWorkspace,
+      }),
+      assistant: conversation({
+        id: 'assistant',
+        title: '即时助手',
+        surface: 'assistant-panel',
+      }),
+    }
+
+    const groups = getWorkspaceConversationGroups(
+      ['assistant', 'other', 'closed', 'unbound', 'current'],
+      conversations,
+      workspace,
+    )
+
+    expect(groups.current.map((item) => item.id)).toEqual(['current'])
+    expect(groups.unbound.map((item) => item.id)).toEqual(['unbound'])
+    expect(groups.closed.map((item) => item.id)).toEqual(['closed'])
+  })
+
   it('builds session stats for visible assistant sessions', () => {
     const conversations = {
       bound: conversation({ id: 'bound', title: '已绑定' }),
@@ -212,8 +257,9 @@ describe('agent conversation view model', () => {
     expect(chips[1].label).toBe('DeepInk 官网')
   })
 
-  it('builds @ resource candidates from selected files, open tabs, and drafts', () => {
+  it('builds @ resource candidates from workspace, selected files, open tabs, and drafts', () => {
     const candidates = buildResourceCandidates({
+      activeWorkspaceRef: workspace,
       selectedPath: '/Users/apple/project/选题库.md',
       tabs: [
         {
@@ -230,6 +276,18 @@ describe('agent conversation view model', () => {
           filePath: '/Users/apple/project/README.md',
           dirty: false,
         },
+        {
+          id: 'android-1',
+          type: 'android',
+          title: 'Pixel 真机',
+          icon: 'A',
+        },
+        {
+          id: 'terminal-1',
+          type: 'terminal',
+          title: '部署命令',
+          icon: 'T',
+        },
       ],
       editorFiles: {
         '/Users/apple/project/README.md': {
@@ -242,12 +300,20 @@ describe('agent conversation view model', () => {
     })
 
     expect(candidates.map((candidate) => candidate.id)).toEqual([
+      'project:/Users/apple/project',
       'file:/Users/apple/project/选题库.md',
       'browser:browser-1',
       'file:/Users/apple/project/README.md',
+      'android:android-1',
+      'terminal:terminal-1',
       'draft:virtual:draft-1',
     ])
     expect(candidates[0]).toMatchObject({
+      kind: 'project',
+      label: 'project',
+      source: 'workspace',
+    })
+    expect(candidates[1]).toMatchObject({
       kind: 'file',
       label: '选题库.md',
       source: 'selected-file',
@@ -256,7 +322,8 @@ describe('agent conversation view model', () => {
 
   it('filters @ resource candidates by query text', () => {
     const candidates = buildResourceCandidates({
-      query: '官网',
+      activeWorkspaceRef: workspace,
+      query: '本地',
       tabs: [
         {
           id: 'browser-1',
@@ -274,7 +341,7 @@ describe('agent conversation view model', () => {
       ],
     })
 
-    expect(candidates.map((candidate) => candidate.id)).toEqual(['browser:browser-1'])
+    expect(candidates.map((candidate) => candidate.id)).toEqual(['project:/Users/apple/project'])
   })
 
   it('builds / skill candidates by query text', () => {

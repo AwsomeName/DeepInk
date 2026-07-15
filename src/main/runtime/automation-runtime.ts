@@ -5,6 +5,7 @@ import { BrowserToolModule } from '../mcp/modules/browser'
 import { EditorToolModule } from '../mcp/modules/editor'
 import { registerEditorIpc } from '../ipc/editor-ipc'
 import { MeshyToolModule } from '../mcp/modules/meshy'
+import { HardwareToolModule } from '../mcp/modules/hardware'
 import { AndroidToolModule } from '../mcp/modules/android'
 import { AgentDeviceManager } from '../android/agent-device-manager'
 import { AgentDeviceToolModule } from '../mcp/modules/agent-device'
@@ -36,6 +37,9 @@ export async function bootstrapAutomationRuntime(runtime: DeepInkRuntimeState): 
 
     runtime.toolHost.registerModule(new MeshyToolModule(runtime.meshyService!))
     console.log('[DeepInk] Meshy MCP 工具模块已注册')
+
+    runtime.toolHost.registerModule(new HardwareToolModule(runtime.hardwareService!))
+    console.log('[DeepInk] 硬件 MCP 工具模块已注册')
 
     runtime.toolHost.registerModule(new AndroidToolModule(runtime.adbBridge!, runtime.scrcpyBridge!))
     console.log('[DeepInk] Android MCP 工具模块已注册')

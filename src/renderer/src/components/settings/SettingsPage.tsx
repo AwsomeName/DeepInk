@@ -34,8 +34,8 @@ import { Toggle } from '../common/Toggle'
 import { CclinkPanel } from '../cclink/CclinkPanel'
 import type { SyncPhase, SyncResult } from '@shared/ipc/sync'
 import { SYNC_PHASE_LABEL } from '../../constants/sync-labels'
-import { PROVIDER_PRESETS, DEFAULT_SETTINGS } from '@shared/ipc/settings'
-import type { AppSettings, Provider } from '@shared/ipc/settings'
+import { DEFAULT_SETTINGS } from '@shared/ipc/settings'
+import type { AppSettings, ClaudeCodeStatus } from '@shared/ipc/settings'
 import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { TerminalAuditEvent, TerminalAuditEventKind, TerminalPermissionRisk } from '@shared/terminal'
 
@@ -118,38 +118,17 @@ const SETTINGS_SEARCH_INDEX = [
   // Agent
   {
     sectionId: 'agent',
-    label: 'AI 提供商',
-    description: '选择模型服务提供商',
-    keywords: ['provider', 'anthropic', 'deepseek', 'glm', 'qwen', 'openai'],
-    settingKey: 'provider',
+    label: 'Agent 引擎',
+    description: '本机 Claude Code Agent',
+    keywords: ['agent', 'claude', 'code', 'local', '引擎'],
+    settingKey: 'agentEngine',
   },
   {
     sectionId: 'agent',
-    label: 'API 格式',
-    description: 'Anthropic 或 OpenAI 兼容格式',
-    keywords: ['format', 'anthropic', 'openai', 'api'],
-    settingKey: 'apiFormat',
-  },
-  {
-    sectionId: 'agent',
-    label: 'API 地址',
-    description: 'API 基础地址',
-    keywords: ['url', 'base', 'endpoint', '端点'],
-    settingKey: 'apiBaseUrl',
-  },
-  {
-    sectionId: 'agent',
-    label: 'API 密钥',
-    description: '在提供商控制台申请的 API Key',
-    keywords: ['key', 'secret', 'token', '密码'],
-    settingKey: 'apiKey',
-  },
-  {
-    sectionId: 'agent',
-    label: '模型名称',
-    description: '指定要使用的模型',
-    keywords: ['model', 'gpt', 'claude', 'glm', 'qwen'],
-    settingKey: 'modelName',
+    label: 'Claude Code 路径',
+    description: '检测或手动填写本机 claude CLI 路径',
+    keywords: ['claude', 'path', 'cli', '路径', '检测'],
+    settingKey: 'claudeCodePath',
   },
   {
     sectionId: 'agent',
@@ -1308,175 +1287,93 @@ function AgentSettings({ onReset }: { onReset: (key: AppSettingKey) => void }): 
   const clearError = useSettingsStore((s) => s.clearError)
   // 预算输入用本地 state，避免中间状态（如 "0."）被受控 value 吞掉
   const [budgetInput, setBudgetInput] = useState(String(settings.maxBudgetUsd))
-  // API 密码显示/隐藏
-  const [showApiKey, setShowApiKey] = useState(false)
+  const [claudeStatus, setClaudeStatus] = useState<ClaudeCodeStatus | null>(null)
+  const [detectingClaude, setDetectingClaude] = useState(false)
 
   // store 中的值变化时同步到本地 state
   useEffect(() => {
     setBudgetInput(String(settings.maxBudgetUsd))
   }, [settings.maxBudgetUsd])
 
-  /** 选择提供商时联动更新 apiBaseUrl、apiFormat、modelName */
-  const handleProviderChange = (provider: string) => {
-    const preset = PROVIDER_PRESETS[provider as Provider]
-    if (!preset) return
-
-    // 根据当前 apiFormat 确定新 baseUrl
-    const currentFormat = settings.apiFormat
-    const newBaseUrl =
-      currentFormat === 'anthropic' ? preset.anthropicBaseUrl : preset.openaiBaseUrl
-
-    // 如果当前格式不支持（空 URL），自动切换到另一种
-    let apiFormat = currentFormat
-    let apiBaseUrl = newBaseUrl
-    if (!newBaseUrl) {
-      apiFormat = currentFormat === 'anthropic' ? 'openai' : 'anthropic'
-      apiBaseUrl = apiFormat === 'anthropic' ? preset.anthropicBaseUrl : preset.openaiBaseUrl
+  const detectClaudeCode = async (): Promise<void> => {
+    setDetectingClaude(true)
+    try {
+      const result = await window.deepink.settings.detectClaudeCode()
+      if (result.success && result.status) {
+        setClaudeStatus(result.status)
+        if (result.status.installed && result.status.path && !settings.claudeCodePath) {
+          await updateSettings({ claudeCodePath: result.status.path })
+        }
+      }
+    } finally {
+      setDetectingClaude(false)
     }
-
-    // 计算新的 backendType
-    const backendType = apiFormat === 'openai' ? 'http-api' : 'claude-code'
-
-    updateSettings({
-      provider: provider as AppSettings['provider'],
-      apiFormat,
-      apiBaseUrl,
-      modelName: preset.defaultModel || settings.modelName,
-      backendType: backendType as AppSettings['backendType'],
-    })
   }
 
-  /** 切换 API 格式时联动更新 apiBaseUrl */
-  const handleFormatChange = (format: 'anthropic' | 'openai') => {
-    const preset = PROVIDER_PRESETS[settings.provider]
-    const baseUrl = format === 'anthropic' ? preset.anthropicBaseUrl : preset.openaiBaseUrl
-    const backendType = format === 'openai' ? 'http-api' : 'claude-code'
-
-    updateSettings({
-      apiFormat: format,
-      apiBaseUrl: baseUrl || settings.apiBaseUrl,
-      backendType: backendType as AppSettings['backendType'],
-    })
-  }
-
-  const preset = PROVIDER_PRESETS[settings.provider] ?? PROVIDER_PRESETS.custom
-  const isCustom = settings.provider === 'custom'
-  const anthropicAvailable = !!preset.anthropicBaseUrl || isCustom
-  const openaiAvailable = !!preset.openaiBaseUrl || isCustom
+  useEffect(() => {
+    void detectClaudeCode()
+  }, [settings.claudeCodePath])
 
   return (
     <div className="settings-section">
       <h2>Agent</h2>
       <div className="settings-group">
-        {/* ── 提供商选择 ── */}
-        <SettingsRow settingKey="provider" settings={settings} onReset={onReset}>
+        <SettingsRow settingKey="agentEngine" settings={settings} onReset={onReset}>
           <div className="settings-label">
-            <span>AI 提供商</span>
-            <span className="settings-description">选择模型服务提供商</span>
-          </div>
-          <select
-            className="settings-select"
-            value={settings.provider}
-            onChange={(e) => handleProviderChange(e.target.value)}
-          >
-            {Object.entries(PROVIDER_PRESETS).map(([key, p]) => (
-              <option key={key} value={key}>
-                {p.label}
-              </option>
-            ))}
-          </select>
-        </SettingsRow>
-
-        {/* ── API 格式 ── */}
-        <SettingsRow settingKey="apiFormat" settings={settings} onReset={onReset}>
-          <div className="settings-label">
-            <span>API 格式</span>
+            <span>Agent 引擎</span>
             <span className="settings-description">
-              {settings.apiFormat === 'anthropic'
-                ? '使用 Claude Code CLI + 环境变量注入（支持完整工具链）'
-                : '直接 HTTP API 调用（纯对话模式）'}
+              本机 Claude Code Agent，支持 DeepInk 浏览器、编辑器和 MCP 工具
             </span>
           </div>
-          <div className="settings-format-group">
-            <button
-              className={`settings-format-btn ${settings.apiFormat === 'anthropic' ? 'active' : ''}`}
-              disabled={!anthropicAvailable}
-              onClick={() => handleFormatChange('anthropic')}
-              title={!anthropicAvailable ? '该提供商不支持 Anthropic 格式' : ''}
-            >
-              Anthropic
-            </button>
-            <button
-              className={`settings-format-btn ${settings.apiFormat === 'openai' ? 'active' : ''}`}
-              disabled={!openaiAvailable}
-              onClick={() => handleFormatChange('openai')}
-              title={!openaiAvailable ? '该提供商不支持 OpenAI 格式' : ''}
-            >
-              OpenAI
-            </button>
-          </div>
+          <div className="settings-value">Local Claude Code</div>
         </SettingsRow>
 
-        {/* ── API 地址 ── */}
-        <SettingsRow settingKey="apiBaseUrl" settings={settings} onReset={onReset}>
+        <SettingsRow settingKey="claudeCodePath" settings={settings} onReset={onReset}>
           <div className="settings-label">
-            <span>API 地址</span>
+            <span>Claude Code 路径</span>
             <span className="settings-description">
-              {settings.apiFormat === 'anthropic' ? 'Anthropic 兼容端点' : 'OpenAI 兼容端点'}
+              Finder 启动的桌面应用不一定继承 shell PATH，必要时手动填写绝对路径
             </span>
-          </div>
-          <input
-            type="text"
-            className="settings-input settings-input-wide"
-            value={settings.apiBaseUrl}
-            readOnly={!isCustom}
-            onChange={(e) => isCustom && updateSettings({ apiBaseUrl: e.target.value })}
-            placeholder="https://api.example.com/v1"
-          />
-        </SettingsRow>
-
-        {/* ── API 密钥 ── */}
-        <SettingsRow settingKey="apiKey" settings={settings} onReset={onReset}>
-          <div className="settings-label">
-            <span>API 密钥</span>
-            <span className="settings-description">在提供商控制台申请的 API Key</span>
           </div>
           <div className="settings-input-group">
             <input
-              type={showApiKey ? 'text' : 'password'}
-              className="settings-input settings-input-apikey"
-              value={settings.apiKey}
-              onChange={(e) => updateSettings({ apiKey: e.target.value })}
-              placeholder="sk-..."
+              type="text"
+              className="settings-input settings-input-wide"
+              value={settings.claudeCodePath}
+              onChange={(e) => updateSettings({ claudeCodePath: e.target.value })}
+              placeholder="/opt/homebrew/bin/claude"
             />
             <button
-              className="settings-icon-btn"
-              onClick={() => setShowApiKey(!showApiKey)}
-              title={showApiKey ? '隐藏密钥' : '显示密钥'}
+              className="settings-format-btn"
+              onClick={() => void detectClaudeCode()}
+              disabled={detectingClaude}
             >
-              {showApiKey ? '🙈' : '👁'}
+              {detectingClaude ? '检测中...' : '检测'}
             </button>
           </div>
         </SettingsRow>
 
-        {/* ── 模型名称 ── */}
-        <SettingsRow settingKey="modelName" settings={settings} onReset={onReset}>
+        <div className="settings-row">
           <div className="settings-label">
-            <span>模型名称</span>
+            <span>Claude Code 状态</span>
+            <span className="settings-description">模型登录、API Key 和服务商配置由本机 Claude Code 管理</span>
+          </div>
+          <div className="settings-value">
+            {claudeStatus?.installed
+              ? `已找到：${claudeStatus.path}`
+              : claudeStatus?.error || '尚未检测'}
+          </div>
+        </div>
+
+        <div className="settings-row">
+          <div className="settings-label">
+            <span>模型服务配置</span>
             <span className="settings-description">
-              {settings.apiFormat === 'anthropic' && settings.provider !== 'custom'
-                ? '部分提供商在服务端做模型映射，无需填写'
-                : '指定要使用的模型'}
+              在终端中使用 claude login 或 claude config 管理；DeepInk 第一版不保存模型 API Key
             </span>
           </div>
-          <input
-            type="text"
-            className="settings-input"
-            value={settings.modelName}
-            onChange={(e) => updateSettings({ modelName: e.target.value })}
-            placeholder={preset.defaultModel || 'model-name'}
-          />
-        </SettingsRow>
+          <div className="settings-value">由 Claude Code 管理</div>
+        </div>
 
         {/* ── 权限模式 ── */}
         <SettingsRow settingKey="permissionMode" settings={settings} onReset={onReset}>
@@ -1658,7 +1555,7 @@ function TerminalAuditSettings(): React.ReactElement {
     <section className="settings-account-card terminal-audit-card">
       <div className="settings-account-card-title">Terminal 审计</div>
       <div className="settings-description">
-        这里只展示 Terminal Tab 的命令确认、审批、超时、错误和退出记录；当前仍未接入真实 shell 执行。
+        这里只展示 Terminal Tab 的命令确认、审批、超时、错误和退出记录；本地 Terminal 已接入本机 shell，远程 Terminal 走对应远程执行通道。
       </div>
 
       <div className="terminal-audit-actions">
@@ -1683,7 +1580,7 @@ function TerminalAuditSettings(): React.ReactElement {
         )}
         {!loading && sessions.length === 0 && (
           <div className="terminal-audit-empty">
-            暂无活跃 Terminal session；当前仍未接入真实 shell。
+            暂无活跃 Terminal session；从 Terminal 面板或工作台新建 Terminal 后会显示在这里。
           </div>
         )}
         {sessions.map((session) => (

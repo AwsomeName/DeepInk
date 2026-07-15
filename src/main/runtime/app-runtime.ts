@@ -24,6 +24,7 @@ import type { SettingsService } from '../settings/settings-service'
 import type { WorkspaceStateService } from '../workspace/workspace-state-service'
 import type { MeshyService } from '../meshy/meshy-service'
 import type { ProjectOpsService } from '../project-ops/project-ops-service'
+import type { HardwareService } from '../hardware/hardware-service'
 import type { CclinkStore } from '../cclink/cclink-store'
 import type { CclinkIdentityStore } from '../cclink/cclink-identity-store'
 import type { CclinkIdentityService } from '../cclink/cclink-identity-service'
@@ -33,10 +34,13 @@ import type { CclinkRealtimeBridge } from '../cclink/cclink-realtime-bridge'
 import type { CclinkRealtimeService } from '../cclink/cclink-realtime-service'
 import type { CclinkTimTransport } from '../cclink/cclink-tim-transport'
 import type { CclinkFileService } from '../cclink/cclink-file-service'
+import type { RemoteProviderRegistry } from '../remote/remote-provider-registry'
 import type { TerminalAuditStore } from '../terminal/terminal-audit-store'
 import type { TerminalConfirmationService } from '../terminal/terminal-confirmation-service'
 import type { TerminalSessionRegistry } from '../terminal/terminal-session-registry'
+import type { TerminalSessionStore } from '../terminal/terminal-session-store'
 import type { TerminalCommandOrchestrator } from '../terminal/terminal-command-orchestrator'
+import type { TerminalExecutionAdapter } from '../terminal/terminal-execution-adapter'
 
 export interface DeepInkRuntimeState {
   isDev: boolean
@@ -66,6 +70,7 @@ export interface DeepInkRuntimeState {
   workspaceStateService: WorkspaceStateService | null
   meshyService: MeshyService | null
   projectOpsService: ProjectOpsService | null
+  hardwareService: HardwareService | null
   cclinkStore: CclinkStore | null
   cclinkIdentityStore: CclinkIdentityStore | null
   cclinkIdentityService: CclinkIdentityService | null
@@ -75,10 +80,13 @@ export interface DeepInkRuntimeState {
   cclinkRealtimeService: CclinkRealtimeService | null
   cclinkTimTransport: CclinkTimTransport | null
   cclinkFileService: CclinkFileService | null
+  remoteProviderRegistry: RemoteProviderRegistry | null
   terminalAuditStore: TerminalAuditStore | null
   terminalConfirmationService: TerminalConfirmationService | null
   terminalSessionRegistry: TerminalSessionRegistry | null
+  terminalSessionStore: TerminalSessionStore | null
   terminalCommandOrchestrator: TerminalCommandOrchestrator | null
+  terminalExecutionAdapter: TerminalExecutionAdapter | null
 }
 
 export function createRuntimeState(isDev: boolean): DeepInkRuntimeState {
@@ -110,6 +118,7 @@ export function createRuntimeState(isDev: boolean): DeepInkRuntimeState {
     workspaceStateService: null,
     meshyService: null,
     projectOpsService: null,
+    hardwareService: null,
     cclinkStore: null,
     cclinkIdentityStore: null,
     cclinkIdentityService: null,
@@ -119,9 +128,12 @@ export function createRuntimeState(isDev: boolean): DeepInkRuntimeState {
     cclinkRealtimeService: null,
     cclinkTimTransport: null,
     cclinkFileService: null,
+    remoteProviderRegistry: null,
     terminalAuditStore: null,
     terminalConfirmationService: null,
     terminalSessionRegistry: null,
+    terminalSessionStore: null,
     terminalCommandOrchestrator: null,
+    terminalExecutionAdapter: null,
   }
 }

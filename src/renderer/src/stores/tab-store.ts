@@ -168,8 +168,12 @@ interface OpenTabOptions {
   settingsSection?: string
   /** CCLink 远程只读文件 */
   remoteFile?: Tab['remoteFile']
+  /** Gerber 生产包层预览 */
+  hardwareGerber?: Tab['hardwareGerber']
   /** Terminal 工作现场 */
   terminal?: Tab['terminal']
+  /** Terminal 只读历史记录 */
+  terminalRecord?: Tab['terminalRecord']
   /** 强制新建，跳过所有去重 */
   forceNew?: boolean
 }
@@ -224,7 +228,9 @@ export const useTabStore = create<TabState>((set, get) => ({
     conversation,
     settingsSection,
     remoteFile,
+    hardwareGerber,
     terminal,
+    terminalRecord,
     forceNew,
   }) => {
     set((state) => {
@@ -243,6 +249,7 @@ export const useTabStore = create<TabState>((set, get) => ({
                     icon,
                     dirty: false,
                     initialContent: type === 'model' ? undefined : tab.initialContent,
+                    hardwareGerber,
                   }
                 : tab,
             )
@@ -290,6 +297,17 @@ export const useTabStore = create<TabState>((set, get) => ({
           if (existing) {
             return { activeTabId: existing.id }
           }
+        } else if (type === 'hardware-gerber' && hardwareGerber) {
+          const existing = state.tabs.find(
+            (t) =>
+              t.type === 'hardware-gerber' &&
+              t.hardwareGerber?.workspacePath === hardwareGerber.workspacePath &&
+              t.hardwareGerber?.packagePath === hardwareGerber.packagePath &&
+              (t.hardwareGerber?.entry ?? '') === (hardwareGerber.entry ?? ''),
+          )
+          if (existing) {
+            return { activeTabId: existing.id }
+          }
         }
         // browser / 未命名 editor 不去重 → 可开多个
       }
@@ -308,7 +326,9 @@ export const useTabStore = create<TabState>((set, get) => ({
         conversation,
         settingsSection,
         remoteFile,
+        hardwareGerber,
         terminal,
+        terminalRecord,
       }
       return {
         tabs: [...state.tabs, newTab],
@@ -389,7 +409,7 @@ export const useTabStore = create<TabState>((set, get) => ({
         initialContent: content,
       })
     }
-    // settings / preview / android / conversation / cclink / terminal：菜单层已禁用，此处不处理
+    // settings / preview / android / conversation / cclink / hardware-gerber / terminal：菜单层已禁用，此处不处理
   },
 
   getActiveTab: () => {

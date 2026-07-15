@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { ChatccFileContent } from '@shared/chatcc'
-import type { CclinkRemoteError } from '@shared/ipc/cclink'
+import type { RemoteError } from '@shared/remote-error'
+import { remoteWorkspaceRef } from '@shared/workspace-ref'
 import { RemoteErrorNotice } from '../common/RemoteErrorNotice'
 
 interface RemoteFileViewerProps {
@@ -18,7 +19,7 @@ function fileName(path: string): string {
 export function RemoteFileViewer({ remoteFile }: RemoteFileViewerProps): React.ReactElement {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [remoteError, setRemoteError] = useState<CclinkRemoteError | null>(null)
+  const [remoteError, setRemoteError] = useState<RemoteError | null>(null)
   const [file, setFile] = useState<ChatccFileContent | null>(null)
 
   useEffect(() => {
@@ -28,8 +29,15 @@ export function RemoteFileViewer({ remoteFile }: RemoteFileViewerProps): React.R
     setRemoteError(null)
     setFile(null)
 
-    window.deepink.cclink
-      .readFile(remoteFile)
+    window.deepink.remote
+      .readFile({
+        ref: remoteWorkspaceRef({
+          endpointId: remoteFile.serverId,
+          workspaceId: remoteFile.workspaceId,
+          path: remoteFile.path,
+        }),
+        path: remoteFile.path,
+      })
       .then((result) => {
         if (cancelled) return
         if (!result.success || !result.file) {
@@ -51,7 +59,7 @@ export function RemoteFileViewer({ remoteFile }: RemoteFileViewerProps): React.R
     return () => {
       cancelled = true
     }
-  }, [remoteFile])
+  }, [remoteFile.path, remoteFile.serverId, remoteFile.workspaceId])
 
   return (
     <div className="remote-file-viewer">

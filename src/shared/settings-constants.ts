@@ -8,6 +8,9 @@
 /** Agent 后端类型 */
 export type BackendType = 'claude-code' | 'http-api'
 
+/** Agent 引擎。M9 开源底座优先支持本机 Claude Code 完整工具模式。 */
+export type AgentEngine = 'local-claude-code'
+
 /** 权限模式 */
 export type PermissionMode = 'auto' | 'categorized' | 'strict'
 
@@ -37,12 +40,16 @@ export interface ProviderPreset {
 
 /** 所有持久化的应用设置 */
 export interface AppSettings {
+  /** Agent 引擎 */
+  agentEngine: AgentEngine
   /** Agent 后端类型（内部使用，由 apiFormat 决定） */
   backendType: BackendType
   /** Agent 权限模式 */
   permissionMode: PermissionMode
   /** 单次对话最大 AI 调用费用（USD） */
   maxBudgetUsd: number
+  /** Claude Code CLI 路径；空串表示自动检测 / PATH 解析 */
+  claudeCodePath: string
   /** 新浏览器 Tab 默认缩放模式 */
   defaultZoomMode: ZoomMode
   /** 新浏览器 Tab 默认设备模式 */
@@ -113,9 +120,11 @@ export const PROVIDER_PRESETS: Record<Provider, ProviderPreset> = {
 
 /** 默认设置值（唯一权威来源） */
 export const DEFAULT_SETTINGS: AppSettings = {
+  agentEngine: 'local-claude-code',
   backendType: 'claude-code',
   permissionMode: 'auto',
   maxBudgetUsd: 1.0,
+  claudeCodePath: '',
   defaultZoomMode: 'fit',
   defaultDeviceMode: 'desktop',
 

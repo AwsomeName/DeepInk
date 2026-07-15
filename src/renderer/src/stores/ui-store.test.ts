@@ -4,7 +4,7 @@ import { useUIStore } from './ui-store'
 beforeEach(() => {
   // 重置到默认状态
   useUIStore.setState({
-    activePanel: 'files',
+    activePanel: 'projects',
     sidebarVisible: true,
     agentPanelVisible: true,
     sidebarWidth: 250,
@@ -20,15 +20,15 @@ describe('useUIStore', () => {
       const { setActivePanel } = useUIStore.getState()
       expect(useUIStore.getState().sidebarVisible).toBe(true)
 
-      setActivePanel('files') // 初始 activePanel 是 'files'
+      setActivePanel('projects') // 初始 activePanel 是 'projects'
       expect(useUIStore.getState().sidebarVisible).toBe(false)
-      expect(useUIStore.getState().activePanel).toBe('files')
+      expect(useUIStore.getState().activePanel).toBe('projects')
     })
 
     it('再次点击同一面板 → 展开侧栏', () => {
       const { setActivePanel } = useUIStore.getState()
-      setActivePanel('files') // 折叠
-      setActivePanel('files') // 再点 → 展开
+      setActivePanel('projects') // 折叠
+      setActivePanel('projects') // 再点 → 展开
       expect(useUIStore.getState().sidebarVisible).toBe(true)
     })
 
@@ -39,9 +39,23 @@ describe('useUIStore', () => {
       expect(useUIStore.getState().sidebarVisible).toBe(true)
     })
 
+    it('Terminal 是可见 Activity 面板', () => {
+      const { setActivePanel } = useUIStore.getState()
+      setActivePanel('terminal')
+      expect(useUIStore.getState().activePanel).toBe('terminal')
+      expect(useUIStore.getState().sidebarVisible).toBe(true)
+    })
+
+    it('生产是可见 Activity 面板', () => {
+      const { setActivePanel } = useUIStore.getState()
+      setActivePanel('production')
+      expect(useUIStore.getState().activePanel).toBe('production')
+      expect(useUIStore.getState().sidebarVisible).toBe(true)
+    })
+
     it('侧栏折叠时点击不同面板 → 展开侧栏', () => {
       const { setActivePanel } = useUIStore.getState()
-      setActivePanel('files') // 折叠
+      setActivePanel('projects') // 折叠
       expect(useUIStore.getState().sidebarVisible).toBe(false)
 
       setActivePanel('browser') // 切换面板 → 展开
@@ -152,7 +166,7 @@ describe('useUIStore', () => {
   })
 
   describe('hydrateFromWorkspaceState', () => {
-    it('从工作台快照恢复布局状态，并把旧 Activity 入口迁移回工作空间', () => {
+    it('从工作台快照恢复布局状态，并把旧 Activity 入口迁移回项目', () => {
       useUIStore.getState().hydrateFromWorkspaceState({
         activePanel: 'android',
         sidebarVisible: false,
@@ -164,7 +178,7 @@ describe('useUIStore', () => {
       })
 
       const state = useUIStore.getState()
-      expect(state.activePanel).toBe('files')
+      expect(state.activePanel).toBe('projects')
       expect(state.sidebarVisible).toBe(false)
       expect(state.agentPanelVisible).toBe(false)
       expect(state.sidebarWidth).toBe(320)
@@ -173,9 +187,19 @@ describe('useUIStore', () => {
       expect(state.agentPanelModeSource).toBe('user')
     })
 
-    it('非法面板回退到默认 files，避免恢复到不存在的 Activity', () => {
+    it('非法面板回退到默认 projects，避免恢复到不存在的 Activity', () => {
       useUIStore.getState().hydrateFromWorkspaceState({ activePanel: 'missing' })
-      expect(useUIStore.getState().activePanel).toBe('files')
+      expect(useUIStore.getState().activePanel).toBe('projects')
+    })
+
+    it('从工作台快照恢复 Terminal Activity', () => {
+      useUIStore.getState().hydrateFromWorkspaceState({ activePanel: 'terminal' })
+      expect(useUIStore.getState().activePanel).toBe('terminal')
+    })
+
+    it('从工作台快照恢复生产 Activity', () => {
+      useUIStore.getState().hydrateFromWorkspaceState({ activePanel: 'production' })
+      expect(useUIStore.getState().activePanel).toBe('production')
     })
   })
 })

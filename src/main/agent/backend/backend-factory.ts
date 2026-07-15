@@ -1,1 +1,1 @@
-export * from 'core-agent/backends/backend-factory'
+export * from '../../agent-core/backends/backend-factory'

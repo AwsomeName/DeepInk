@@ -58,7 +58,13 @@ export function createWindowRuntime(runtime: DeepInkRuntimeState, options: Creat
   )
   void runtime.browserDownloadStore.load()
   runtime.browserManager.onViewDestroyed((tabId) => runtime.browserTaskRuntime?.cancelTasksForTab(tabId, 'tab_closed'))
-  registerBrowserIpc(runtime.browserManager, runtime.browserInstanceStore, runtime.browserTaskRuntime, runtime.browserDownloadStore)
+  registerBrowserIpc(
+    runtime.browserManager,
+    runtime.browserInstanceStore,
+    runtime.browserTaskRuntime,
+    runtime.browserDownloadStore,
+    () => runtime.playwrightBridge,
+  )
 
   runtime.cclinkStore = new CclinkStore()
   void runtime.cclinkStore.load()

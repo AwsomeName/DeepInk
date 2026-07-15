@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { ChatccIdentity, ChatccMessage, ChatccServer, ChatccSession } from '@shared/chatcc'
 import type { CclinkLegacyImportPreflight, CclinkRealtimeStatus, CclinkRemoteError } from '@shared/ipc/cclink'
+import { remoteWorkspaceRef, type RemoteWorkspaceRef } from '../../../shared/workspace-ref'
 
 const CCLINK_ARCHIVE_STORAGE_KEY = 'deepink-cclink-archived-sessions'
 
@@ -38,6 +39,32 @@ function saveArchivedSessionIds(value: Record<string, number>): void {
   } catch {
     // localStorage 可能不可用，忽略本地视图归档失败。
   }
+}
+
+function resolveSessionWorkspaceRef(
+  sessionId: string,
+  sessions: ChatccSession[],
+  servers: ChatccServer[],
+): RemoteWorkspaceRef {
+  const session = sessions.find((item) => item.id === sessionId)
+  if (!session) {
+    throw new Error('远程会话不存在或尚未同步')
+  }
+  const server = servers.find((item) => item.id === session.serverId)
+  if (!server) {
+    throw new Error('远程设备不存在或尚未同步')
+  }
+  const workspace = server.workspaces.find((item) => item.path === session.workspacePath)
+  if (!workspace) {
+    throw new Error('远程工作空间不存在或尚未同步')
+  }
+  return remoteWorkspaceRef({
+    endpointId: server.id,
+    endpointName: server.name,
+    workspaceId: workspace.id,
+    path: workspace.path,
+    label: workspace.name,
+  })
 }
 
 interface CclinkState {
@@ -215,7 +242,8 @@ export const useCclinkStore = create<CclinkState>((set, get) => ({
 
   sendLocalMessage: async (sessionId, content) => {
     try {
-      const result = await window.deepink.cclink.sendLocalMessage(sessionId, content)
+      const ref = resolveSessionWorkspaceRef(sessionId, get().sessions, get().servers)
+      const result = await window.deepink.remote.sendAgentMessage({ ref, sessionId, content })
       if (!result.success) {
         const message = result.error || '远程会话发送失败'
         set({ error: message, remoteError: result.remoteError ?? null })

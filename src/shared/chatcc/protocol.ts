@@ -1,8 +1,8 @@
 import type { ChatccDiffLine, ChatccTreeNode } from './models'
 import type { RemoteErrorLayer } from '../remote-error'
 
-export const CHATCC_PROTOCOL_VERSION = 1
-export const CHATCC_MIN_PROTOCOL_VERSION = 1
+export const CHATCC_PROTOCOL_VERSION = 2
+export const CHATCC_MIN_PROTOCOL_VERSION = 2
 
 export const CHATCC_MESSAGE_TYPES = [
   'user_text',
@@ -24,6 +24,8 @@ export const CHATCC_MESSAGE_TYPES = [
   'clear_request',
   'compact_request',
   'ping',
+  'capability_probe_request',
+  'capability_probe_response',
   'upgrade_agent',
   'client_list',
   'client_remove',
@@ -163,8 +165,37 @@ export interface ChatccServerMetaMessage extends ChatccEnvelope {
   hostname: string
   os: string
   agent_version: string
+  protocol_version?: string | number
+  min_protocol_version?: string | number
   claude_version?: string
+  capabilities?: Record<string, boolean>
+  capability_list?: string[]
   workspaces?: Array<{ path: string; name: string; session_count?: number }>
+}
+
+export interface ChatccCapabilityProbeRequestMessage extends ChatccEnvelope {
+  cc_type: 'capability_probe_request'
+}
+
+export interface ChatccCapabilityProbeResponseMessage extends ChatccEnvelope {
+  cc_type: 'capability_probe_response'
+  agent_id?: string
+  agentVersion?: string
+  agent_version?: string
+  protocolVersion?: string | number
+  protocol_version?: string | number
+  minProtocolVersion?: string | number
+  min_protocol_version?: string | number
+  traceId?: string
+  capabilities?: {
+    file?: Record<string, boolean>
+    shell?: Record<string, boolean>
+    agent?: Record<string, boolean>
+    session?: Record<string, boolean>
+  }
+  capability_map?: Record<string, boolean>
+  capability_list?: string[]
+  runtime_probe?: unknown
 }
 
 export interface ChatccSessionCreateMessage extends ChatccEnvelope {
@@ -257,6 +288,8 @@ export type ChatccProtocolMessage =
   | ChatccTerminalCommandMessage
   | ChatccTerminalOutputMessage
   | ChatccServerMetaMessage
+  | ChatccCapabilityProbeRequestMessage
+  | ChatccCapabilityProbeResponseMessage
   | ChatccSessionCreateMessage
   | ChatccSessionResponseMessage
   | ChatccSessionSyncRequestMessage

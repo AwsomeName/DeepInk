@@ -19,6 +19,7 @@ const VALID_VALUES: Record<string, Set<string>> = {
   permissionMode: new Set<string>(['auto', 'categorized', 'strict']),
   defaultZoomMode: new Set<string>(['fit', 'manual']),
   defaultDeviceMode: new Set<string>(['desktop', 'mobile']),
+  agentEngine: new Set<string>(['local-claude-code']),
   provider: new Set<string>(['anthropic', 'deepseek', 'glm', 'qwen', 'moonshot', 'siliconflow', 'openai', 'custom']),
   apiFormat: new Set<string>(['anthropic', 'openai']),
 }

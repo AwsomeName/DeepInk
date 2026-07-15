@@ -395,6 +395,17 @@ describe('useAgentStore', () => {
       expect(useAgentStore.getState().conversationOrder).not.toContain(id)
     })
 
+    it('删除已归档历史会话时不切走当前活跃会话', () => {
+      const activeId = useAgentStore.getState().activeConversationId
+      const archivedId = useAgentStore.getState().createConversation({ activate: false })
+      useAgentStore.getState().archiveConversation(archivedId)
+
+      useAgentStore.getState().deleteConversation(archivedId)
+
+      expect(useAgentStore.getState().activeConversationId).toBe(activeId)
+      expect(useAgentStore.getState().conversations[archivedId]).toBeUndefined()
+    })
+
     it('挂载资源时按会话去重并支持移除', () => {
       const id = useAgentStore.getState().createConversation()
 
@@ -476,12 +487,14 @@ describe('useAgentStore', () => {
     it('addPendingConfirmation / removePendingConfirmation', () => {
       const req = {
         id: 'conf-1',
+        conversationId: 'conv-1',
         toolName: 'browser_click',
         params: { selector: '.btn' },
         riskLevel: 'write' as const,
       }
       useAgentStore.getState().addPendingConfirmation(req)
       expect(useAgentStore.getState().pendingConfirmations).toHaveLength(1)
+      expect(useAgentStore.getState().pendingConfirmations[0].conversationId).toBe('conv-1')
 
       useAgentStore.getState().removePendingConfirmation('conf-1')
       expect(useAgentStore.getState().pendingConfirmations).toHaveLength(0)

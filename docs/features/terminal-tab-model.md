@@ -1,12 +1,12 @@
 # Terminal Tab 模型与权限审计
 
-> 状态：M6 第一版可测试闭环；已接本地 shell、CCLink 单命令远程执行、输出事件、权限确认和审计
-> 最后更新：2026-07-14
+> 状态：M6 第一版可测试闭环；已接本地 shell、CCLink 单命令远程执行、Activity Bar 入口、输出事件、权限确认和审计
+> 最后更新：2026-07-15
 > 关联文档：`docs/features/product-milestones.md`、`docs/features/product-experience-pages.md`、`docs/features/remote-error-model.md`
 
 ## 结论
 
-Terminal 不是 Activity Bar 入口，也不是“顺手加一个 shell”。它是工作空间下的高风险 Tab 类型：
+Terminal 是 Activity Bar 的一级工作区入口，但真实执行现场仍然是工作空间下的高风险 Tab 类型：
 
 ```text
 Terminal Tab
@@ -17,7 +17,7 @@ Terminal Tab
 └─ auditLogId：命令、审批、输出、退出和错误的审计线索
 ```
 
-第一版已开放受控执行：本地 Terminal 通过 Node shell 进程执行；CCLink 远程 Terminal 通过 `terminal_command/terminal_output` 做单命令执行。它仍不是完整 PTY，交互式全屏程序和 Direct Remote 尚未完成。
+第一版已开放受控执行：左侧 Activity Bar 提供 Terminal 面板，面板展示当前项目的 Terminal Tab、可恢复 session 和只读 Terminal 记录，并从“新建 Terminal”创建新的 Terminal Tab。本地 Terminal 已升级为 `node-pty + xterm.js` 的 PTY 链路；CCLink 远程 Terminal 仍通过 `terminal_command/terminal_output` 做单命令执行。远程 PTY、Direct Remote 和更完整的跨重启进程恢复能力尚未完成。
 
 ## 产品定位
 
@@ -27,11 +27,14 @@ Terminal 的用户心智：
 - 远程工作空间打开的是远端 Terminal。
 - 本地和远程只差 `runtime`，不差入口模型。
 - Terminal 跟 Markdown、Browser、Android、Conversation 一样，是当前工作空间的工作现场。
-- 当前新建菜单可以创建 Terminal 受控 Tab；它展示 runtime / 权限 / 关闭策略，并允许命令进入权限、确认、审计和执行链路。
+- Activity Bar 的 Terminal 面板是主入口：先看到当前项目的 Terminal 列表、活跃进程和历史记录，再按需新建 Terminal Tab。
+- 当前 Activity Bar 的 Terminal 面板和 Workbench 新建菜单可以创建 Terminal 受控 Tab；Tab 展示 runtime / 权限 / 关闭策略，并允许命令进入权限、确认、审计和执行链路。
+- 本地 Terminal 是“一站式工作站”的基础入口：用户不需要另开系统 bash 才能在当前项目路径执行维护命令。
+- 活进程才叫“恢复”；进程已退出或 DeepInk 已重启后，只能打开只读 Terminal 记录，并从同目录新建 Terminal。
 
 它不应该成为：
 
-- 全局终端入口。
+- 脱离工作空间的全局黑箱终端入口。
 - CCLink 专属面板。
 - Agent 隐式执行命令的黑箱。
 - 没有审计的远程 root shell。
@@ -163,9 +166,11 @@ Terminal 的 UI Tab、审计事件、真实进程不能混成一个概念：
 
 - `src/main/terminal/terminal-session-state.ts`：创建 session 快照，校验状态迁移。
 - `src/main/terminal/terminal-session-registry.ts`：登记、查询、迁移、移除内存 session。
+- `src/main/terminal/terminal-session-store.ts`：持久保存 session 快照、attachable 状态、命令记录和输出 buffer；应用重启后把旧活跃进程降级为不可 attach 的只读记录。
 - `src/main/terminal/terminal-command-orchestrator.ts`：串起权限判定、确认请求、审计写入、session 状态迁移和真实/远程执行 adapter 派发。
 - `src/main/terminal/terminal-execution-adapter.ts`：定义未来本地 shell、远程 shell、Codex/custom backend 的执行适配器接口。
-- `src/main/terminal/terminal-local-shell-adapter.ts`：本地 shell adapter，使用 `child_process.spawn` 启动本地 shell，转发 stdout/stderr/exit/error 事件。
+- `src/main/terminal/terminal-pty-execution-adapter.ts`：本地 PTY adapter，使用 `node-pty` 启动本机 shell，支持 raw input、resize、ANSI 输出和交互式程序。
+- `src/main/terminal/terminal-local-shell-adapter.ts`：旧本地 shell adapter，保留为测试和非 PTY 降级参考。
 - `src/main/terminal/terminal-cclink-execution-adapter.ts`：CCLink 远程 adapter，发送 `terminal_command`，等待 `terminal_output`，用于单命令远程维护。
 - `src/main/terminal/terminal-composite-execution-adapter.ts`：按 runtime 路由到 local / cclink adapter。
 - `src/main/terminal/terminal-noop-execution-adapter.ts`：保留为测试和未来后端未接入时的结构化错误适配器。
@@ -203,7 +208,7 @@ idle
 - `idle -> blocked -> idle` 只用于“shell 进程尚未启动前先请求命令确认”的路径。
 - 关闭 Tab 写 `closed / terminated` 审计；`terminated` 会调用执行 adapter 的 `terminate`。
 - 本地 shell 终止会杀掉本机子进程；CCLink 单命令远程 session 当前只清理 DeepInk 侧运行态，不代表远端有持久 PTY 被杀掉。
-- 执行适配器接口定义 `start / write / resize / terminate / onEvent`；本地 shell 和 CCLink 单命令远程已接，Direct Remote 和完整 PTY 尚未接。
+- 执行适配器接口定义 `start / write / resize / terminate / onEvent`；本地 PTY 和 CCLink 单命令远程已接，Direct Remote 和远程 PTY 尚未接。
 
 ### 执行编排器
 
@@ -240,7 +245,7 @@ submitCommand
 - preload 已暴露 `window.deepink.terminal.submitCommand`，Workbench Terminal Tab 已接入受控命令输入入口。
 - preload 已暴露 `window.deepink.terminal.onExecutionEvent`，renderer 会持久保存当前 session 输出并更新 Tab 运行态。
 
-拷问：当前仍不是完整 PTY。`vim/top/ssh` 这类交互式全屏命令不应作为验收标准；第一版验收应看 `pwd/ls/git status/pnpm build` 这类维护命令、权限确认、输出和关闭终止。
+拷问：本地已经是 PTY，但这不等于所有 Terminal 产品能力都完成。第一轮验收先看 `pwd/ls/git status/pnpm build`、`top` 这类基础交互、resize、关闭终止；`ssh`、多 session 恢复、远程 PTY 和 Agent 注入命令权限仍要单独验收。
 
 拷问：如果没有这层状态机，未来“关闭 Tab”“断开远程连接”“命令等待确认”“进程退出”会全部挤在一个布尔值里，最后又会出现看起来在线、实际无进程，或者 UI 关了但远端命令还在跑的混乱。
 
@@ -298,7 +303,7 @@ error
 - 展示最近 30 条 Terminal 审计事件。
 - 支持手动刷新。
 - 支持清空全部 Terminal 审计。
-- 当前展示生命周期、确认、审批、拒绝、超时、输出、退出和错误事件；完整 PTY 输出历史仍需继续增强。
+- 当前展示生命周期、确认、审批、拒绝、超时、输出、退出和错误事件；本地 PTY 输出会进入同一事件流，输出历史和 buffer 恢复仍需继续增强。
 - 当前 session 快照是只读诊断信息，不提供终止、恢复、重启等操作入口。
 
 已支持：
@@ -356,7 +361,7 @@ Terminal 错误复用 `RemoteError`：
 - 设置页 `Agent` 分组新增 `Terminal 审计`，可查看当前 session 快照、最近审计事件、刷新和清空全部审计。
 - `TabType` 新增 `terminal`。
 - `Tab` 新增 `terminal?: TerminalTabRef`。
-- Workbench 新建菜单已提供 `Terminal` 项；`terminal` Tab 已从纯占位升级为受控命令入口和输出面板。
+- Activity Bar 的 Terminal 面板和 Workbench 新建菜单已提供 `Terminal` 入口；`terminal` Tab 已从纯占位升级为受控命令入口和输出面板。
 - Tab store 能保存和恢复 Terminal Tab 快照。
 - 已补 `terminal-audit-store.test.ts`，覆盖审计写入、重载、过滤、limit 和清理。
 - 已补 `terminal-permission.test.ts`，覆盖读、写、网络、破坏、提权、unknown、allowlist、denylist 和四种策略模式。
@@ -372,7 +377,7 @@ Terminal 错误复用 `RemoteError`：
 
 未落地：
 
-- 没有完整 PTY；本地 shell 基于 `child_process.spawn`，不支持 resize 和全屏交互式程序。
+- 本地 PTY 已接入 `node-pty + @xterm/xterm + @xterm/addon-fit`，支持 raw input、resize、基础交互式程序、关闭视图后恢复活进程，以及已退出 session 的只读记录；远程 PTY 尚未接入。
 - CCLink 远程执行是单命令请求/响应，不是持久远程 PTY。
 - Direct Remote 尚未接入。
 - 没有完整诊断页或按工作空间/session 深筛的审计页面。

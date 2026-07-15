@@ -4,6 +4,7 @@ import type { WebContents } from 'electron'
 import { BROWSER_STEALTH_INIT_SCRIPT } from '../browser/browser-stealth'
 import type { BrowserDownloadStore } from '../browser/browser-download-store'
 import type { BrowserTaskRuntime } from '../browser/browser-task-runtime'
+import type { BrowserPageDiagnosticSummary } from '../../shared/ipc/browser'
 
 /**
  * 控制台日志条目
@@ -24,6 +25,8 @@ export interface NetworkLogEntry {
   status?: number
   resourceType?: string
   timestamp: number
+  failed?: boolean
+  errorText?: string
 }
 
 /**
@@ -192,6 +195,21 @@ export class PlaywrightBridge {
         timestamp: Date.now(),
       })
       // 限制缓冲区大小
+      if (this.networkLog.length > 500) {
+        this.networkLog = this.networkLog.slice(-250)
+      }
+    })
+
+    page.on('requestfailed', (req) => {
+      this.networkLog.push({
+        requestId: req.url() + '::failed::' + Date.now(),
+        method: req.method(),
+        url: req.url(),
+        resourceType: req.resourceType(),
+        timestamp: Date.now(),
+        failed: true,
+        errorText: req.failure()?.errorText,
+      })
       if (this.networkLog.length > 500) {
         this.networkLog = this.networkLog.slice(-250)
       }
@@ -532,6 +550,50 @@ export class PlaywrightBridge {
     return [...this.networkLog]
   }
 
+  async getPageDiagnostics(tabId?: string | null): Promise<BrowserPageDiagnosticSummary | null> {
+    const page = tabId ? this.pages.get(tabId) : this.getActivePage()
+    if (!page || page.isClosed()) return null
+
+    const url = page.url()
+    const title = await page.title().catch(() => '')
+    const host = safeHost(url)
+    const recentConsole = this.consoleLogs
+      .filter((entry) => entry.type === 'error' || entry.type === 'warn')
+      .slice(-20)
+      .map((entry) => ({
+        type: entry.type,
+        text: truncate(entry.text, 500),
+        timestamp: entry.timestamp,
+      }))
+    const recentNetwork = this.networkLog
+      .filter((entry) => {
+        const statusIssue = typeof entry.status === 'number' && (entry.status >= 400 || entry.status === 0)
+        return Boolean(entry.failed || statusIssue)
+      })
+      .filter((entry) => !host || safeHost(entry.url) === host)
+      .slice(-20)
+      .map((entry) => ({
+        method: entry.method,
+        url: stripUrlQuery(entry.url),
+        status: entry.status,
+        resourceType: entry.resourceType,
+        timestamp: entry.timestamp,
+        failed: entry.failed,
+        errorText: entry.errorText,
+      }))
+
+    const textSample = await page.evaluate(() => document.body?.innerText?.slice(0, 3000) ?? '').catch(() => '')
+    return {
+      tabId: this.getTabIdForPage(page) ?? tabId ?? this.activeTabId ?? 'browser',
+      url,
+      title,
+      consoleErrors: recentConsole,
+      networkIssues: recentNetwork,
+      suspectedChallenges: detectPageChallenges(`${title}\n${url}\n${textSample}`),
+      pageTextSample: truncate(textSample.replace(/\s+/g, ' ').trim(), 600),
+    }
+  }
+
   /**
    * 清空网络日志缓冲
    */
@@ -628,4 +690,40 @@ export class PlaywrightBridge {
     this.context = null
     this.page = null
   }
+}
+
+function safeHost(url: string): string | null {
+  try {
+    return new URL(url).host
+  } catch {
+    return null
+  }
+}
+
+function stripUrlQuery(url: string): string {
+  try {
+    const parsed = new URL(url)
+    return `${parsed.origin}${parsed.pathname}`
+  } catch {
+    return url.split('?')[0] ?? url
+  }
+}
+
+function truncate(value: string, maxLength: number): string {
+  if (value.length <= maxLength) return value
+  return `${value.slice(0, maxLength - 3)}...`
+}
+
+function detectPageChallenges(text: string): string[] {
+  const normalized = text.toLowerCase()
+  const signals: Array<[string, RegExp]> = [
+    [
+      'auth_required',
+      /\/(?:login|signin)\b|登录页|账号登录|密码登录|手机号登录|请输入(?:账号|密码|手机号|验证码)|sign\s*in|log\s*in|扫码登录/iu,
+    ],
+    ['captcha_or_bot_check', /验证码|安全验证|人机验证|滑块|captcha|verify you are human|robot|bot check/iu],
+    ['qr_login', /二维码|扫码登录|微信扫码|scan qr/iu],
+    ['rate_limited_or_blocked', /访问受限|操作频繁|请求过于频繁|429|too many requests|forbidden|403|风控/iu],
+  ]
+  return signals.flatMap(([label, pattern]) => (pattern.test(normalized) ? [label] : []))
 }

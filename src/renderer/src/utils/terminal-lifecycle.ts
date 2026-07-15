@@ -16,6 +16,8 @@ export async function recordTerminalLifecycleEvent(
       kind,
       message,
       runtime: terminal.runtime,
+      permissionPolicy: terminal.permissionPolicy,
+      closePolicy: terminal.closePolicy,
     })
     if (!result.success) {
       console.warn('[TerminalLifecycle] 审计记录失败:', result.error)

@@ -111,6 +111,32 @@ export interface BrowserDownloadChangedPayload {
   download: BrowserDownloadRecord
 }
 
+export interface BrowserConsoleDiagnosticEntry {
+  type: 'log' | 'warn' | 'error' | 'info'
+  text: string
+  timestamp: number
+}
+
+export interface BrowserNetworkDiagnosticEntry {
+  method: string
+  url: string
+  status?: number
+  resourceType?: string
+  timestamp: number
+  failed?: boolean
+  errorText?: string
+}
+
+export interface BrowserPageDiagnosticSummary {
+  tabId: string
+  url: string
+  title: string
+  consoleErrors: BrowserConsoleDiagnosticEntry[]
+  networkIssues: BrowserNetworkDiagnosticEntry[]
+  suspectedChallenges: string[]
+  pageTextSample?: string
+}
+
 export interface BrowserUrlChangedPayload {
   tabId: string
   url: string
@@ -130,6 +156,7 @@ export interface BrowserApiContract {
   goForward: (tabId: string) => Promise<void>
   reload: (tabId: string) => Promise<void>
   getCurrentURL: (tabId: string) => Promise<string>
+  getDiagnostics: (tabId: string) => Promise<BrowserPageDiagnosticSummary | null>
   onUrlChanged: (callback: (payload: BrowserUrlChangedPayload) => void) => () => void
 
   zoomIn: (tabId: string) => Promise<void>

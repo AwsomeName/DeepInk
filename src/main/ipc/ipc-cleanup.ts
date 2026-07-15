@@ -4,7 +4,7 @@ import { ipcMain } from 'electron'
 const IPC_HANDLE_CHANNELS = [
   // browser-ipc
   'browser:navigate', 'browser:goBack', 'browser:goForward', 'browser:reload',
-  'browser:getCurrentURL', 'browser:createView', 'browser:destroyView', 'browser:setActive',
+  'browser:getCurrentURL', 'browser:getDiagnostics', 'browser:createView', 'browser:destroyView', 'browser:setActive',
   'browser:setZoom', 'browser:zoomIn', 'browser:zoomOut', 'browser:resetZoom',
   'browser:fitWidth', 'browser:setDeviceMode', 'browser:getViewState',
   'browser:listSnapshots', 'browser:removeSnapshot', 'browser:clearSnapshots',
@@ -40,6 +40,7 @@ const IPC_HANDLE_CHANNELS = [
   'terminal:resolveCommandConfirmation',
   'terminal:recordLifecycleEvent',
   'terminal:submitCommand',
+  'terminal:startPty', 'terminal:writePty', 'terminal:resizePty', 'terminal:terminatePty',
   'terminal:listSessions',
   'terminal:listAuditEvents', 'terminal:clearAuditSession', 'terminal:clearAuditEvents',
   // mcp-ipc
@@ -78,6 +79,10 @@ const IPC_HANDLE_CHANNELS = [
   'cclink:sendLocalMessage', 'cclink:listFileTree', 'cclink:readFile',
   'cclink:getRealtimeStatus', 'cclink:connectRealtime', 'cclink:disconnectRealtime',
   'cclink:clearLocalData', 'cclink:seedDemoData',
+  // remote-ipc
+  'remote:getStatus', 'remote:getDiagnostics', 'remote:listFileTree', 'remote:readFile',
+  'remote:writeFile', 'remote:createFile', 'remote:renameFile', 'remote:deleteFile',
+  'remote:sendAgentMessage',
 ] as const
 
 /** 清理所有 IPC handler/listener，防止 activate 时重复注册。 */

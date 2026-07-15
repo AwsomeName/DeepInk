@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react'
 import { useContextMenuStore } from '../../stores/context-menu-store'
 import { useTabStore } from '../../stores/tab-store'
 import { useFsStore } from '../../stores/fs-store'
+import { useAgentStore } from '../../stores/agent-store'
 import { useToastStore } from './Toast'
 
 export function ContextMenu(): React.ReactElement | null {
@@ -21,7 +22,9 @@ export function ContextMenu(): React.ReactElement | null {
   const openTab = useTabStore((s) => s.openTab)
   const showToast = useToastStore((s) => s.show)
   const startEditing = useFsStore((s) => s.startEditing)
-  const workspacePath = useFsStore((s) => s.workspacePath)
+  const toggleDir = useFsStore((s) => s.toggleDir)
+  const activeConversationId = useAgentStore((s) => s.activeConversationId)
+  const addMountedResource = useAgentStore((s) => s.addMountedResource)
   const ref = useRef<HTMLDivElement>(null)
 
   // 点击外部或 Escape 关闭
@@ -55,7 +58,17 @@ export function ContextMenu(): React.ReactElement | null {
   const handleNewFolder = (): void => {
     if (!node) return
     const parentPath = node.type === 'directory' ? node.path : (node.path.lastIndexOf('/') > 0 ? node.path.slice(0, node.path.lastIndexOf('/')) : '/')
+    if (node.type === 'directory' && !node.expanded) void toggleDir(node.path)
     startEditing('new-folder', parentPath)
+    hide()
+  }
+
+  /** 新建文件 */
+  const handleNewFile = (): void => {
+    if (!node) return
+    const parentPath = node.type === 'directory' ? node.path : (node.path.lastIndexOf('/') > 0 ? node.path.slice(0, node.path.lastIndexOf('/')) : '/')
+    if (node.type === 'directory' && !node.expanded) void toggleDir(node.path)
+    startEditing('new-file', parentPath)
     hide()
   }
 
@@ -63,6 +76,26 @@ export function ContextMenu(): React.ReactElement | null {
   const handleRename = (): void => {
     if (!node) return
     startEditing(node.path)
+    hide()
+  }
+
+  /** 挂载文件到当前会话 */
+  const handleSendToSession = (): void => {
+    if (!node || node.type !== 'file') return
+    addMountedResource(
+      {
+        id: `file:${node.path}`,
+        kind: 'file',
+        label: node.name,
+        detail: node.path,
+        ref: {
+          type: 'file',
+          path: node.path,
+        },
+      },
+      activeConversationId,
+    )
+    showToast('已发送到当前会话资源栏', 'success')
     hide()
   }
   const handlePreview = (): void => {
@@ -119,9 +152,21 @@ export function ContextMenu(): React.ReactElement | null {
       <div className="context-menu-items">
         {/* 通用操作 */}
         {isDir && (
-          <div className="context-menu-item" onClick={handleNewFolder}>
-            <span className="context-menu-icon">📁</span>
-            <span>新建文件夹</span>
+          <>
+            <div className="context-menu-item" onClick={handleNewFile}>
+              <span className="context-menu-icon">📄</span>
+              <span>新建文件</span>
+            </div>
+            <div className="context-menu-item" onClick={handleNewFolder}>
+              <span className="context-menu-icon">📁</span>
+              <span>新建文件夹</span>
+            </div>
+          </>
+        )}
+        {!isDir && (
+          <div className="context-menu-item" onClick={handleSendToSession}>
+            <span className="context-menu-icon">↗</span>
+            <span>发送到当前会话</span>
           </div>
         )}
         <div className="context-menu-item" onClick={handleRename}>

@@ -1,9 +1,9 @@
-export * from 'core-agent/protocol/agent'
+export * from '../agent-protocol'
 
 import type {
   AgentApiContract as CoreAgentApiContract,
   AgentCommandResult,
-} from 'core-agent/protocol/agent'
+} from '../agent-protocol'
 
 export type AgentSendResourceKind =
   | 'file'

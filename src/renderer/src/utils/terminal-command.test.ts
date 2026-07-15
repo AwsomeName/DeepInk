@@ -97,6 +97,8 @@ describe('submitTerminalCommand', () => {
       kind: 'created',
       message: 'Terminal Tab 已重新登记',
       runtime: terminal.runtime,
+      permissionPolicy: terminal.permissionPolicy,
+      closePolicy: terminal.closePolicy,
     })
     expect(window.deepink.terminal.submitCommand).toHaveBeenCalledTimes(2)
   })

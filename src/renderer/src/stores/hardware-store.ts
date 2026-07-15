@@ -1,0 +1,126 @@
+import { create } from 'zustand'
+import type {
+  HardwareProjectSummary,
+  HardwareReportMarkdownResult,
+  ProductionPackageReport,
+} from '@shared/ipc/hardware'
+
+interface HardwareState {
+  workspacePath: string | null
+  summary: HardwareProjectSummary | null
+  report: ProductionPackageReport | null
+  lastReportFilePath: string | null
+  loading: boolean
+  inspecting: boolean
+  savingReport: boolean
+  error: string | null
+  scanWorkspace: (workspacePath: string) => Promise<void>
+  inspectProductionPackage: (workspacePath: string) => Promise<void>
+  writeProductionReportMarkdown: (workspacePath: string) => Promise<HardwareReportMarkdownResult | null>
+  clear: () => void
+}
+
+function describeError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+export const useHardwareStore = create<HardwareState>((set) => ({
+  workspacePath: null,
+  summary: null,
+  report: null,
+  lastReportFilePath: null,
+  loading: false,
+  inspecting: false,
+  savingReport: false,
+  error: null,
+
+  scanWorkspace: async (workspacePath) => {
+    set({ workspacePath, loading: true, error: null })
+    try {
+      const summary = await window.deepink.hardware.scanWorkspace(workspacePath)
+      set({ summary, loading: false, report: null, lastReportFilePath: null })
+    } catch (error) {
+      set({ error: describeError(error), loading: false })
+    }
+  },
+
+  inspectProductionPackage: async (workspacePath) => {
+    set({ workspacePath, inspecting: true, error: null })
+    try {
+      const report = await window.deepink.hardware.inspectProductionPackage(workspacePath)
+      set({ report, summary: { ...reportToSummaryFallback(workspacePath, report) }, inspecting: false })
+    } catch (error) {
+      set({ error: describeError(error), inspecting: false })
+    }
+  },
+
+  writeProductionReportMarkdown: async (workspacePath) => {
+    set({ workspacePath, savingReport: true, error: null })
+    try {
+      const result = await window.deepink.hardware.writeProductionReportMarkdown(workspacePath)
+      set({
+        report: result.report,
+        summary: { ...reportToSummaryFallback(workspacePath, result.report) },
+        lastReportFilePath: result.filePath,
+        savingReport: false,
+      })
+      return result
+    } catch (error) {
+      set({ error: describeError(error), savingReport: false })
+      return null
+    }
+  },
+
+  clear: () =>
+    set({
+      workspacePath: null,
+      summary: null,
+      report: null,
+      lastReportFilePath: null,
+      loading: false,
+      inspecting: false,
+      savingReport: false,
+      error: null,
+    }),
+}))
+
+function reportToSummaryFallback(
+  workspacePath: string,
+  report: ProductionPackageReport,
+): HardwareProjectSummary {
+  const existing = useHardwareStore.getState().summary
+  if (existing?.workspacePath === workspacePath) {
+    return {
+      ...existing,
+      artifacts: report.artifacts,
+      risks: report.risks,
+    }
+  }
+  return {
+    workspacePath,
+    projectName: workspacePath.split('/').filter(Boolean).pop() ?? workspacePath,
+    artifacts: report.artifacts,
+    counts: report.artifacts.reduce(
+      (acc, artifact) => ({ ...acc, [artifact.type]: (acc[artifact.type] ?? 0) + 1 }),
+      {
+        schematic: 0,
+        'pcb-source': 0,
+        'gerber-package': 0,
+        bom: 0,
+        centroid: 0,
+        drill: 0,
+        'assembly-drawing': 0,
+        enclosure: 0,
+        firmware: 0,
+        datasheet: 0,
+        unknown: 0,
+      } as HardwareProjectSummary['counts'],
+    ),
+    hasHardwareSignals: report.artifacts.length > 0,
+    sourceEditable: report.artifacts.some((artifact) => artifact.type === 'pcb-source'),
+    primaryGerberPackage: report.artifacts.find((artifact) => artifact.type === 'gerber-package'),
+    primaryBom: report.artifacts.find((artifact) => artifact.type === 'bom'),
+    primaryCentroid: report.artifacts.find((artifact) => artifact.type === 'centroid'),
+    risks: report.risks,
+  }
+}

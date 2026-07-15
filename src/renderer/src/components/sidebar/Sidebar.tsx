@@ -6,8 +6,11 @@ import {
   useAgentStore,
   useCclinkStore,
   useWorkspaceStore,
+  useTabContextMenuStore,
 } from '../../stores'
 import type { ChatccSession } from '@shared/chatcc'
+import type { TerminalAuditEvent, TerminalStatus } from '@shared/terminal'
+import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
 import {
   localWorkspaceRef,
@@ -15,6 +18,11 @@ import {
   workspaceRefLabel,
   workspaceRefSourceLabel,
 } from '../../../../shared/workspace-ref'
+import {
+  getWorkspaceConversationGroups,
+  LocalSessionsList,
+} from '../../features/agent-conversations/local-session-sidebar'
+import { RemoteSessionsList } from '../../features/agent-conversations/remote-session-sidebar'
 import type { RemoteWorkspaceItem } from '../../utils/remote-workspaces'
 import {
   getArchivedCclinkRemoteWorkspaceSessions,
@@ -22,22 +30,31 @@ import {
   getCclinkRemoteWorkspaceSessions,
 } from '../../utils/remote-workspaces'
 import {
-  IconFolder,
   IconFitWidth,
   IconGlobe,
-  IconHistory,
+  IconBookmark,
+  IconCloud,
   IconMobile,
   IconMonitor,
+  IconProjects,
   IconRefresh,
   IconChevronDown,
   IconRobot,
   IconPlus,
+  IconTerminal,
 } from '../common/Icons'
 import type { ActivityPanel } from '../../types'
 import { FileTree } from './FileTree'
 import { RemoteFileTree } from './RemoteFileTree'
 import { ProjectOperationsSection } from './ProjectOperationsSection'
-import { useState, useEffect } from 'react'
+import { HardwareProductionSection } from './HardwareProductionSection'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  buildTerminalRecordTabDraft,
+  buildTerminalTabDraft,
+  buildTerminalTabDraftFromSession,
+} from '../../utils/terminal-tab'
+import { recordTerminalLifecycleEvent } from '../../utils/terminal-lifecycle'
 
 function getProjectName(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path
@@ -49,48 +66,46 @@ function getWorkspaceTitle(workspaceRef: WorkspaceRef, workspacePath: string | n
   return workspaceRefLabel(workspaceRef)
 }
 
+function getSidebarTitle(
+  activePanel: ActivityPanel,
+  workspaceRef: WorkspaceRef,
+  workspacePath: string | null,
+): string {
+  switch (activePanel) {
+    case 'projects':
+      return '项目'
+    case 'browser':
+      return '浏览器'
+    case 'production':
+      return '生产'
+    case 'terminal':
+      return 'Terminal'
+    case 'operations':
+      return '运营'
+    case 'sessions':
+      return '会话'
+    case 'files':
+      return getWorkspaceTitle(workspaceRef, workspacePath)
+  }
+}
+
 export function Sidebar(): React.ReactElement {
   const activePanel = useUIStore((s) => s.activePanel)
   const sidebarWidth = useUIStore((s) => s.sidebarWidth)
   const workspacePath = useFsStore((s) => s.workspacePath)
-  const openWorkspacePicker = useFsStore((s) => s.openWorkspacePicker)
-  const loading = useFsStore((s) => s.loading)
-  const picking = useFsStore((s) => s.picking)
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
-  const [showProjectSwitcher, setShowProjectSwitcher] = useState(false)
-  const workspaceTitle = getWorkspaceTitle(activeWorkspaceRef, workspacePath)
+  const sidebarTitle = getSidebarTitle(activePanel, activeWorkspaceRef, workspacePath)
 
   return (
     <div className="sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
       <div className="sidebar-header">
-        <span className="sidebar-header-title" title={workspacePath ?? workspaceTitle}>
-          {workspaceTitle}
+        <span className="sidebar-header-title" title={workspacePath ?? sidebarTitle}>
+          {sidebarTitle}
         </span>
-        <div className="sidebar-header-actions">
-          <button
-            className={`sidebar-header-action ${showProjectSwitcher ? 'active' : ''}`}
-            onClick={() => setShowProjectSwitcher((value) => !value)}
-            title="最近项目和未归档"
-          >
-            <IconHistory size={14} />
-          </button>
-          <button
-            className="sidebar-header-action"
-            onClick={() => openWorkspacePicker()}
-            disabled={loading || picking}
-            title={workspacePath ? `打开新项目（当前：${workspacePath}）` : '打开新项目'}
-          >
-            <IconFolder size={14} />
-          </button>
-        </div>
       </div>
 
       <div className="sidebar-content">
-        <ProjectSidebarContent
-          activePanel={activePanel}
-          showProjectSwitcher={showProjectSwitcher}
-          onCloseProjectSwitcher={() => setShowProjectSwitcher(false)}
-        />
+        <ProjectSidebarContent activePanel={activePanel} />
       </div>
     </div>
   )
@@ -98,12 +113,8 @@ export function Sidebar(): React.ReactElement {
 
 function ProjectSidebarContent({
   activePanel,
-  showProjectSwitcher,
-  onCloseProjectSwitcher,
 }: {
   activePanel: ActivityPanel
-  showProjectSwitcher: boolean
-  onCloseProjectSwitcher: () => void
 }): React.ReactElement {
   const workspacePath = useFsStore((s) => s.workspacePath)
   const openWorkspacePicker = useFsStore((s) => s.openWorkspacePicker)
@@ -114,10 +125,15 @@ function ProjectSidebarContent({
   const picking = useFsStore((s) => s.picking)
   const tabs = useTabStore((s) => s.tabs)
   const openTab = useTabStore((s) => s.openTab)
+  const closeTab = useTabStore((s) => s.closeTab)
   const conversationOrder = useAgentStore((s) => s.conversationOrder)
   const conversations = useAgentStore((s) => s.conversations)
   const activeConversationId = useAgentStore((s) => s.activeConversationId)
+  const createConversation = useAgentStore((s) => s.createConversation)
   const switchConversation = useAgentStore((s) => s.switchConversation)
+  const archiveConversation = useAgentStore((s) => s.archiveConversation)
+  const restoreArchivedConversation = useAgentStore((s) => s.restoreArchivedConversation)
+  const deleteConversation = useAgentStore((s) => s.deleteConversation)
   const cclinkServers = useCclinkStore((s) => s.servers)
   const cclinkSessions = useCclinkStore((s) => s.sessions)
   const archivedCclinkSessionIds = useCclinkStore((s) => s.archivedSessionIds)
@@ -130,7 +146,7 @@ function ProjectSidebarContent({
   const switchToGlobalWorkspace = useWorkspaceStore((s) => s.switchToGlobalWorkspace)
   const activatingWorkspace = useWorkspaceStore((s) => s.activating)
   const projectTabs = tabs.filter((tab) => tab.type !== 'settings')
-  const workConversations = getWorkspaceWorkConversations(
+  const sessionGroups = getWorkspaceConversationGroups(
     conversationOrder,
     conversations,
     activeWorkspaceRef,
@@ -159,8 +175,8 @@ function ProjectSidebarContent({
 
   return (
     <>
-      {showProjectSwitcher && (
-        <ProjectSwitcherSection
+      {activePanel === 'projects' && (
+        <ProjectsSidebarView
           workspacePath={workspacePath}
           recentWorkspacePaths={recentWorkspacePaths}
           loading={loading}
@@ -175,7 +191,6 @@ function ProjectSidebarContent({
           closeWorkspace={closeWorkspace}
           switchToGlobalWorkspace={switchToGlobalWorkspace}
           activateRemoteWorkspace={activateRemoteWorkspace}
-          onPicked={onCloseProjectSwitcher}
         />
       )}
 
@@ -185,6 +200,14 @@ function ProjectSidebarContent({
         <FilesSidebarView workspaceRef={activeWorkspaceRef} workspacePath={workspacePath} />
       )}
 
+      {activePanel === 'production' && (
+        <ProductionSidebarView workspaceRef={activeWorkspaceRef} workspacePath={workspacePath} />
+      )}
+
+      {activePanel === 'terminal' && (
+        <TerminalSidebarView workspaceRef={activeWorkspaceRef} workspacePath={workspacePath} />
+      )}
+
       {activePanel === 'operations' && (
         <OperationsSidebarView workspaceRef={activeWorkspaceRef} workspacePath={workspacePath} />
       )}
@@ -192,17 +215,111 @@ function ProjectSidebarContent({
       {activePanel === 'sessions' && (
         <SessionsSidebarView
           workspaceRef={activeWorkspaceRef}
-          conversations={workConversations}
+          sessionGroups={sessionGroups}
           activeConversationId={activeConversationId}
+          createConversation={createConversation}
           switchConversation={switchConversation}
+          archiveConversation={archiveConversation}
+          restoreArchivedConversation={restoreArchivedConversation}
+          deleteConversation={deleteConversation}
+          tabs={tabs}
           remoteSessions={activeRemoteSessions}
           archivedRemoteSessions={activeArchivedRemoteSessions}
           openTab={openTab}
+          closeTab={closeTab}
           loadMessages={loadCclinkMessages}
           archiveSession={archiveCclinkSession}
           restoreArchivedSession={restoreArchivedCclinkSession}
         />
       )}
+    </>
+  )
+}
+
+function ProjectsSidebarView({
+  workspacePath,
+  recentWorkspacePaths,
+  loading,
+  picking,
+  projectTabsCount,
+  remoteWorkspaces,
+  activeWorkspaceKey,
+  activeWorkspaceKind,
+  activatingWorkspace,
+  openWorkspacePicker,
+  openRecentWorkspace,
+  closeWorkspace,
+  switchToGlobalWorkspace,
+  activateRemoteWorkspace,
+}: {
+  workspacePath: string | null
+  recentWorkspacePaths: string[]
+  loading: boolean
+  picking: boolean
+  projectTabsCount: number
+  remoteWorkspaces: RemoteWorkspaceItem[]
+  activeWorkspaceKey: string | null
+  activeWorkspaceKind: 'local' | 'remote' | 'global'
+  activatingWorkspace: boolean
+  openWorkspacePicker: () => Promise<void>
+  openRecentWorkspace: (path: string) => Promise<void>
+  closeWorkspace: () => Promise<void>
+  switchToGlobalWorkspace: () => Promise<void>
+  activateRemoteWorkspace: ReturnType<typeof useWorkspaceStore.getState>['activateRemoteWorkspace']
+}): React.ReactElement {
+  const setActivePanel = useUIStore((s) => s.setActivePanel)
+  const activateFilesPanel = (): void => {
+    if (useUIStore.getState().activePanel !== 'files') {
+      setActivePanel('files')
+    }
+  }
+
+  return (
+    <>
+      <div className="sidebar-section project-panel-section-primary">
+        <button
+          className="project-panel-row project-panel-row-compact"
+          onClick={() => {
+            void openWorkspacePicker().then(() => {
+              if (useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local') {
+                activateFilesPanel()
+              }
+            })
+          }}
+          disabled={loading || picking}
+          title="打开项目"
+        >
+          <IconPlus size={14} />
+          <span className="project-panel-row-main">
+            <span className="project-panel-row-title">打开项目</span>
+            <span className="project-panel-row-meta">选择一个本地项目文件夹</span>
+          </span>
+        </button>
+      </div>
+      <div className="sidebar-section project-panel-section-primary">
+        <div className="sidebar-section-header expanded">
+          <IconChevronDown size={10} />
+          历史项目
+        </div>
+        <ProjectListSection
+          workspacePath={workspacePath}
+          recentWorkspacePaths={recentWorkspacePaths}
+          loading={loading}
+          picking={picking}
+          projectTabsCount={projectTabsCount}
+          remoteWorkspaces={remoteWorkspaces}
+          activeWorkspaceKey={activeWorkspaceKey}
+          activeWorkspaceKind={activeWorkspaceKind}
+          activatingWorkspace={activatingWorkspace}
+          openWorkspacePicker={openWorkspacePicker}
+          openRecentWorkspace={openRecentWorkspace}
+          closeWorkspace={closeWorkspace}
+          switchToGlobalWorkspace={switchToGlobalWorkspace}
+          activateRemoteWorkspace={activateRemoteWorkspace}
+          onPicked={activateFilesPanel}
+          showAddButton={false}
+        />
+      </div>
     </>
   )
 }
@@ -367,6 +484,319 @@ function FilesSidebarView({
   )
 }
 
+function ProductionSidebarView({
+  workspaceRef,
+  workspacePath,
+}: {
+  workspaceRef: WorkspaceRef
+  workspacePath: string | null
+}): React.ReactElement {
+  if (workspaceRef.kind === 'local' && workspacePath) {
+    return (
+      <HardwareProductionSection
+        workspacePath={workspacePath}
+        workspaceRef={workspaceRef}
+        alwaysVisible
+        defaultExpanded
+      />
+    )
+  }
+
+  if (workspaceRef.kind === 'remote') {
+    return (
+      <div className="project-panel-empty project-files-empty">
+        远程项目暂不支持本机硬件生产包扫描。请在本地项目中使用生产检测。
+      </div>
+    )
+  }
+
+  return (
+    <div className="project-panel-empty project-files-empty">
+      未归档不启用生产检测。请选择或打开一个本地项目。
+    </div>
+  )
+}
+
+const TERMINAL_STATUS_LABEL: Record<TerminalStatus, string> = {
+  idle: '未启动',
+  starting: '启动中',
+  running: '运行中',
+  blocked: '等待确认',
+  exited: '已退出',
+  error: '异常',
+}
+
+const TERMINAL_AUDIT_LABEL: Partial<Record<TerminalAuditEvent['kind'], string>> = {
+  created: '已创建',
+  closed: '已关闭',
+  terminated: '已终止',
+  'command-submitted': '执行命令',
+  'command-approved': '命令已允许',
+  'command-denied': '命令已拒绝',
+  'command-confirmation-requested': '等待确认',
+  'command-confirmation-timeout': '确认超时',
+  output: '有输出',
+  exit: '已退出',
+  error: '异常',
+}
+
+function formatTerminalTime(timestamp: number): string {
+  if (!Number.isFinite(timestamp)) return '未知时间'
+  return new Date(timestamp).toLocaleString('zh-CN', {
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function getTerminalRuntimeLabel(workspaceRef: WorkspaceRef): string {
+  if (workspaceRef.kind === 'local') return '本地 shell'
+  if (workspaceRef.kind === 'remote') return `远程 · ${workspaceRefSourceLabel(workspaceRef)}`
+  return '本地临时 shell'
+}
+
+function getTerminalTabWorkspaceKey(
+  tab: ReturnType<typeof useTabStore.getState>['tabs'][number],
+): string | null {
+  return workspaceRefKey(tab.terminal?.runtime.workspaceRef ?? { kind: 'global' })
+}
+
+function TerminalSidebarView({
+  workspaceRef,
+  workspacePath,
+}: {
+  workspaceRef: WorkspaceRef
+  workspacePath: string | null
+}): React.ReactElement {
+  const tabs = useTabStore((s) => s.tabs)
+  const activeTabId = useTabStore((s) => s.activeTabId)
+  const openTab = useTabStore((s) => s.openTab)
+  const activateTab = useTabStore((s) => s.activateTab)
+  const showTabMenu = useTabContextMenuStore((s) => s.show)
+  const [sessions, setSessions] = useState<TerminalSessionSnapshot[]>([])
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const workspaceKey = workspaceRefKey(workspaceRef)
+
+  const terminalTabs = useMemo(
+    () =>
+      tabs.filter(
+        (tab) =>
+          tab.type === 'terminal' &&
+          tab.terminal &&
+          getTerminalTabWorkspaceKey(tab) === workspaceKey,
+      ),
+    [tabs, workspaceKey],
+  )
+
+  const terminalSessionIds = useMemo(
+    () => new Set(terminalTabs.map((tab) => tab.terminal?.sessionId).filter(Boolean)),
+    [terminalTabs],
+  )
+
+  const sessionsById = useMemo(() => {
+    const map = new Map<string, TerminalSessionSnapshot>()
+    sessions.forEach((session) => map.set(session.sessionId, session))
+    return map
+  }, [sessions])
+
+  const recoverableSessions = useMemo(
+    () =>
+      sessions.filter(
+        (session) =>
+          workspaceRefKey(session.runtime.workspaceRef) === workspaceKey &&
+          session.attachable &&
+          !terminalSessionIds.has(session.sessionId),
+      ),
+    [sessions, terminalSessionIds, workspaceKey],
+  )
+
+  const recordSessions = useMemo(
+    () =>
+      sessions
+        .filter(
+          (session) =>
+            workspaceRefKey(session.runtime.workspaceRef) === workspaceKey &&
+            !session.attachable &&
+            !terminalSessionIds.has(session.sessionId),
+        )
+        .slice(0, 12),
+    [sessions, terminalSessionIds, workspaceKey],
+  )
+
+  const refreshTerminalInfo = useCallback(async (): Promise<void> => {
+    setLoading(true)
+    setError(null)
+    try {
+      const nextSessions = await window.deepink.terminal.listSessions()
+      setSessions(nextSessions)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载 Terminal 信息失败')
+    } finally {
+      setLoading(false)
+    }
+  }, [workspaceKey])
+
+  useEffect(() => {
+    void refreshTerminalInfo()
+  }, [refreshTerminalInfo, terminalTabs.length])
+
+  const openNewTerminal = (): void => {
+    const draft = buildTerminalTabDraft(workspaceRef)
+    openTab(draft)
+    void recordTerminalLifecycleEvent(draft.terminal, 'created', 'Terminal Tab 已创建').finally(
+      () => {
+        void refreshTerminalInfo()
+      },
+    )
+  }
+
+  const openRecoverableSession = (session: TerminalSessionSnapshot): void => {
+    const existing = tabs.find((tab) => tab.terminal?.sessionId === session.sessionId)
+    if (existing) {
+      activateTab(existing.id)
+      return
+    }
+    openTab(buildTerminalTabDraftFromSession(session))
+  }
+
+  const openRecordSession = (session: TerminalSessionSnapshot): void => {
+    openTab(buildTerminalRecordTabDraft(session))
+  }
+
+  return (
+    <>
+      <div className="sidebar-section project-panel-section-primary terminal-sidebar-summary">
+        <button
+          className="project-panel-row project-panel-row-compact"
+          onClick={openNewTerminal}
+          title="新建 Terminal Tab"
+        >
+          <IconPlus size={14} />
+          <span className="project-panel-row-main">
+            <span className="project-panel-row-title">新建 Terminal</span>
+            <span className="project-panel-row-meta">
+              {workspacePath ?? workspaceRefLabel(workspaceRef)} ·{' '}
+              {getTerminalRuntimeLabel(workspaceRef)}
+            </span>
+          </span>
+        </button>
+        <div className="project-panel-quick-actions project-panel-quick-actions-single">
+          <button
+            className="project-panel-quick-action"
+            onClick={() => void refreshTerminalInfo()}
+            disabled={loading}
+            title="刷新 Terminal 列表"
+          >
+            <IconRefresh size={14} />
+            刷新
+          </button>
+        </div>
+        {error && <div className="project-panel-empty terminal-sidebar-error">{error}</div>}
+      </div>
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-header expanded">
+          <IconChevronDown size={10} />
+          当前 Terminal
+        </div>
+        {terminalTabs.length === 0 ? (
+          <div className="project-panel-empty">
+            当前项目还没有 Terminal Tab，点击“新建 Terminal”开始。
+          </div>
+        ) : (
+          terminalTabs.map((tab) => {
+            const sessionId = tab.terminal?.sessionId
+            const session = sessionId ? sessionsById.get(sessionId) : undefined
+            const status = session?.status ?? tab.terminal?.status ?? 'idle'
+            return (
+              <button
+                key={tab.id}
+                className={`project-panel-row ${tab.id === activeTabId ? 'active' : ''}`}
+                onClick={() => activateTab(tab.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  showTabMenu(tab.id, event.clientX, event.clientY)
+                }}
+                title={sessionId ?? tab.title}
+              >
+                <IconTerminal size={14} />
+                <span className="project-panel-row-main">
+                  <span className="project-panel-row-title">{tab.title}</span>
+                  <span className="project-panel-row-meta">
+                    {TERMINAL_STATUS_LABEL[status]} · {tab.terminal?.runtime.cwd ?? '默认目录'}
+                  </span>
+                </span>
+              </button>
+            )
+          })
+        )}
+      </div>
+
+      {recoverableSessions.length > 0 && (
+        <div className="sidebar-section">
+          <div className="sidebar-section-header expanded">
+            <IconChevronDown size={10} />
+            可恢复 Session
+          </div>
+          {recoverableSessions.map((session) => (
+            <button
+              key={session.sessionId}
+              className={`project-panel-row terminal-sidebar-session status-${session.status}`}
+              onClick={() => openRecoverableSession(session)}
+              title="恢复这个 Terminal session"
+            >
+              <IconTerminal size={14} />
+              <span className="project-panel-row-main">
+                <span className="project-panel-row-title">
+                  恢复 · {TERMINAL_STATUS_LABEL[session.status]}
+                </span>
+                <span className="project-panel-row-meta">
+                  {session.runtime.cwd ?? '默认目录'} · {formatTerminalTime(session.updatedAt)}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="sidebar-section">
+        <div className="sidebar-section-header expanded">
+          <IconChevronDown size={10} />
+          Terminal 记录
+        </div>
+        {loading && sessions.length === 0 ? (
+          <div className="project-panel-empty">正在加载 Terminal 记录…</div>
+        ) : recordSessions.length === 0 ? (
+          <div className="project-panel-empty">暂无历史 Terminal 记录</div>
+        ) : (
+          recordSessions.map((session) => (
+            <button
+              key={session.sessionId}
+              className="project-panel-row muted terminal-sidebar-history"
+              onClick={() => openRecordSession(session)}
+              title="查看 Terminal 只读记录"
+            >
+              <IconTerminal size={14} />
+              <span className="project-panel-row-main">
+                <span className="project-panel-row-title">
+                  {TERMINAL_STATUS_LABEL[session.status]} · 查看记录
+                </span>
+                <span className="project-panel-row-meta">
+                  {session.lastCommand ?? session.errorMessage ?? session.runtime.cwd ?? session.sessionId} ·{' '}
+                  {formatTerminalTime(session.updatedAt)}
+                </span>
+              </span>
+            </button>
+          ))
+        )}
+      </div>
+    </>
+  )
+}
+
 function OperationsSidebarView({
   workspaceRef,
   workspacePath,
@@ -418,23 +848,37 @@ function OperationsSidebarView({
 
 function SessionsSidebarView({
   workspaceRef,
-  conversations,
+  sessionGroups,
   activeConversationId,
+  createConversation,
   switchConversation,
+  archiveConversation,
+  restoreArchivedConversation,
+  deleteConversation,
+  tabs,
   remoteSessions,
   archivedRemoteSessions,
   openTab,
+  closeTab,
   loadMessages,
   archiveSession,
   restoreArchivedSession,
 }: {
   workspaceRef: WorkspaceRef
-  conversations: ReturnType<typeof getWorkspaceWorkConversations>
+  sessionGroups: ReturnType<typeof getWorkspaceConversationGroups>
   activeConversationId: string
+  createConversation: ReturnType<typeof useAgentStore.getState>['createConversation']
   switchConversation: (id: string) => void
+  archiveConversation: ReturnType<typeof useAgentStore.getState>['archiveConversation']
+  restoreArchivedConversation: ReturnType<
+    typeof useAgentStore.getState
+  >['restoreArchivedConversation']
+  deleteConversation: ReturnType<typeof useAgentStore.getState>['deleteConversation']
+  tabs: ReturnType<typeof useTabStore.getState>['tabs']
   remoteSessions: ChatccSession[]
   archivedRemoteSessions: ChatccSession[]
   openTab: ReturnType<typeof useTabStore.getState>['openTab']
+  closeTab: ReturnType<typeof useTabStore.getState>['closeTab']
   loadMessages: (sessionId: string) => Promise<void>
   archiveSession: (sessionId: string) => void
   restoreArchivedSession: (sessionId: string) => void
@@ -453,102 +897,19 @@ function SessionsSidebarView({
     )
   }
 
-  const openWorkConversation = (conversation: (typeof conversations)[number]): void => {
-    switchConversation(conversation.id)
-    openTab({
-      type: 'conversation',
-      title: conversation.title === '新会话' ? '新工作会话' : conversation.title,
-      icon: '🤖',
-      conversation: {
-        surface: 'workbench-tab',
-        runtime: conversation.runtime,
-        sessionId: conversation.id,
-      },
-    })
-  }
-
   return (
-    <div className="sidebar-section">
-      <div className="sidebar-section-header expanded">
-        <IconChevronDown size={10} />
-        会话
-      </div>
-      {conversations.length > 0 ? (
-        conversations.map((conversation) => (
-          <button
-            key={conversation.id}
-            className={`project-panel-row ${conversation.id === activeConversationId ? 'active' : ''}`}
-            onClick={() => openWorkConversation(conversation)}
-            title={conversation.title}
-          >
-            <IconRobot size={14} />
-            <span className="project-panel-row-main">
-              <span className="project-panel-row-title">{conversation.title}</span>
-              <span className="project-panel-row-meta">
-                {conversation.id === activeConversationId ? '已激活' : '未激活'} ·{' '}
-                {conversation.messages.length} 条消息
-                {conversation.loading ? ' · 执行中' : ''}
-              </span>
-            </span>
-          </button>
-        ))
-      ) : (
-        <div className="project-panel-empty">当前工作空间暂无会话</div>
-      )}
-    </div>
-  )
-}
-
-function ProjectSwitcherSection({
-  workspacePath,
-  recentWorkspacePaths,
-  loading,
-  picking,
-  projectTabsCount,
-  remoteWorkspaces,
-  activeWorkspaceKey,
-  activeWorkspaceKind,
-  activatingWorkspace,
-  openWorkspacePicker,
-  openRecentWorkspace,
-  closeWorkspace,
-  switchToGlobalWorkspace,
-  activateRemoteWorkspace,
-  onPicked,
-}: {
-  workspacePath: string | null
-  recentWorkspacePaths: string[]
-  loading: boolean
-  picking: boolean
-  projectTabsCount?: number
-  remoteWorkspaces: RemoteWorkspaceItem[]
-  activeWorkspaceKey: string | null
-  activeWorkspaceKind: 'local' | 'remote' | 'global'
-  activatingWorkspace: boolean
-  openWorkspacePicker: () => Promise<void>
-  openRecentWorkspace: (path: string) => Promise<void>
-  closeWorkspace: () => Promise<void>
-  switchToGlobalWorkspace: () => Promise<void>
-  activateRemoteWorkspace: ReturnType<typeof useWorkspaceStore.getState>['activateRemoteWorkspace']
-  onPicked: () => void
-}): React.ReactElement {
-  return (
-    <ProjectListSection
-      workspacePath={workspacePath}
-      recentWorkspacePaths={recentWorkspacePaths}
-      loading={loading}
-      picking={picking}
-      projectTabsCount={projectTabsCount}
-      remoteWorkspaces={remoteWorkspaces}
-      activeWorkspaceKey={activeWorkspaceKey}
-      activeWorkspaceKind={activeWorkspaceKind}
-      activatingWorkspace={activatingWorkspace}
-      openWorkspacePicker={openWorkspacePicker}
-      openRecentWorkspace={openRecentWorkspace}
-      closeWorkspace={closeWorkspace}
-      switchToGlobalWorkspace={switchToGlobalWorkspace}
-      activateRemoteWorkspace={activateRemoteWorkspace}
-      onPicked={onPicked}
+    <LocalSessionsList
+      workspaceRef={workspaceRef}
+      sessionGroups={sessionGroups}
+      activeConversationId={activeConversationId}
+      createConversation={createConversation}
+      switchConversation={switchConversation}
+      archiveConversation={archiveConversation}
+      restoreArchivedConversation={restoreArchivedConversation}
+      deleteConversation={deleteConversation}
+      tabs={tabs}
+      openTab={openTab}
+      closeTab={closeTab}
     />
   )
 }
@@ -569,6 +930,7 @@ function ProjectListSection({
   switchToGlobalWorkspace,
   activateRemoteWorkspace,
   onPicked,
+  showAddButton = true,
 }: {
   workspacePath: string | null
   recentWorkspacePaths: string[]
@@ -585,6 +947,7 @@ function ProjectListSection({
   switchToGlobalWorkspace: () => Promise<void>
   activateRemoteWorkspace: ReturnType<typeof useWorkspaceStore.getState>['activateRemoteWorkspace']
   onPicked: () => void
+  showAddButton?: boolean
 }): React.ReactElement {
   const recentProjects =
     workspacePath && !recentWorkspacePaths.includes(workspacePath)
@@ -593,11 +956,7 @@ function ProjectListSection({
   const hasWorkspaces = recentProjects.length > 0 || remoteWorkspaces.length > 0
 
   return (
-    <div className="sidebar-section project-panel-section-primary project-switcher-section">
-      <div className="sidebar-section-header expanded">
-        <IconChevronDown size={10} />
-        切换项目
-      </div>
+    <div className="project-switcher-list">
       {hasWorkspaces ? (
         <>
           {recentProjects.map((path) => {
@@ -608,13 +967,23 @@ function ProjectListSection({
                 key={path}
                 className={`project-panel-project-item ${active ? 'active' : ''}`}
                 onClick={() => {
-                  if (active) return
-                  void openRecentWorkspace(path).then(onPicked)
+                  if (active) {
+                    onPicked()
+                    return
+                  }
+                  void openRecentWorkspace(path).then(() => {
+                    if (
+                      workspaceRefKey(useWorkspaceStore.getState().activeWorkspaceRef) ===
+                      workspaceRefKey(ref)
+                    ) {
+                      onPicked()
+                    }
+                  })
                 }}
-                disabled={loading || picking || active}
+                disabled={loading || picking}
                 title={active ? '当前工作空间' : path}
               >
-                <IconFolder size={14} />
+                <IconProjects size={14} />
                 <span className="project-panel-recent-main">
                   <span className="project-panel-recent-title">{getProjectName(path)}</span>
                   <span className="project-panel-recent-meta">
@@ -634,17 +1003,27 @@ function ProjectListSection({
                 key={`${server.id}:${workspace.id}`}
                 className={`project-panel-project-item ${active ? 'active' : ''}`}
                 onClick={() => {
-                  if (active) return
-                  void activateRemoteWorkspace(ref).then(onPicked)
+                  if (active) {
+                    onPicked()
+                    return
+                  }
+                  void activateRemoteWorkspace(ref).then(() => {
+                    if (
+                      workspaceRefKey(useWorkspaceStore.getState().activeWorkspaceRef) ===
+                      workspaceRefKey(ref)
+                    ) {
+                      onPicked()
+                    }
+                  })
                 }}
-                disabled={activatingWorkspace || active}
+                disabled={activatingWorkspace}
                 title={
                   active
                     ? '当前远程工作空间'
                     : `${workspaceRefSourceLabel(ref)} · ${workspace.path}`
                 }
               >
-                <IconFolder size={14} />
+                <IconCloud size={14} />
                 <span className="project-panel-recent-main">
                   <span className="project-panel-recent-title">{workspaceRefLabel(ref)}</span>
                   <span className="project-panel-recent-meta">
@@ -662,171 +1041,47 @@ function ProjectListSection({
       <button
         className={`project-panel-project-item system ${activeWorkspaceKind === 'global' ? 'active' : ''}`}
         onClick={() => {
-          if (activeWorkspaceKind === 'global') return
+          if (activeWorkspaceKind === 'global') {
+            onPicked()
+            return
+          }
           const action =
             activeWorkspaceKind === 'local' ? closeWorkspace() : switchToGlobalWorkspace()
-          void action.then(onPicked)
+          void action.then(() => {
+            if (useWorkspaceStore.getState().activeWorkspaceRef.kind === 'global') {
+              onPicked()
+            }
+          })
         }}
-        disabled={loading || picking || activeWorkspaceKind === 'global'}
+        disabled={loading || picking}
         title={activeWorkspaceKind === 'global' ? '当前为未归档' : '切换到未归档'}
       >
-        <IconFolder size={14} />
+        <IconBookmark size={14} />
         <span className="project-panel-recent-main">
           <span className="project-panel-recent-title">未归档</span>
           <span className="project-panel-recent-meta">临时草稿与全局会话</span>
         </span>
       </button>
-      <button
-        className="project-panel-project-item add"
-        onClick={() => void openWorkspacePicker().then(onPicked)}
-        disabled={loading || picking}
-        title="打开新项目"
-      >
-        <IconPlus size={14} />
-        <span className="project-panel-row-main">
-          <span className="project-panel-row-title">打开新项目</span>
-          <span className="project-panel-row-meta">添加到工作空间列表</span>
-        </span>
-      </button>
-    </div>
-  )
-}
-
-function RemoteSessionsList({
-  workspaceRef,
-  sessions,
-  archivedSessions,
-  openTab,
-  loadMessages,
-  archiveSession,
-  restoreArchivedSession,
-}: {
-  workspaceRef: Extract<WorkspaceRef, { kind: 'remote' }>
-  sessions: ChatccSession[]
-  archivedSessions: ChatccSession[]
-  openTab: ReturnType<typeof useTabStore.getState>['openTab']
-  loadMessages: (sessionId: string) => Promise<void>
-  archiveSession: (sessionId: string) => void
-  restoreArchivedSession: (sessionId: string) => void
-}): React.ReactElement {
-  const openRemoteSession = (session: ChatccSession): void => {
-    void loadMessages(session.id)
-    openTab({
-      type: 'conversation',
-      title: session.name,
-      icon: '🤖',
-      conversation: {
-        surface: 'workbench-tab',
-        runtime: {
-          location: 'remote',
-          transport: 'cclink',
-          backend: 'deepink-agent',
-          workspaceRef,
-        },
-        sessionId: session.id,
-      },
-    })
-  }
-
-  return (
-    <div className="sidebar-section">
-      <div className="sidebar-section-header expanded">
-        <IconChevronDown size={10} />
-        会话
-      </div>
-      {sessions.length > 0 ? (
-        sessions.map((session) => (
-          <button
-            key={session.id}
-            className="project-panel-row"
-            onClick={() => openRemoteSession(session)}
-            title={session.workspacePath}
-          >
-            <IconRobot size={14} />
-            <span className="project-panel-row-main">
-              <span className="project-panel-row-title">{session.name}</span>
-              <span className="project-panel-row-meta">
-                {session.messageCount} 条消息 · {formatRelativeSessionTime(session.updatedAt)}
-              </span>
-            </span>
-            <span
-              className="project-panel-row-action"
-              role="button"
-              tabIndex={0}
-              title="在 DeepInk 中归档这个远程会话；不会删除远端历史"
-              onClick={(event) => {
-                event.stopPropagation()
-                archiveSession(session.id)
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  event.stopPropagation()
-                  archiveSession(session.id)
-                }
-              }}
-            >
-              归档
-            </span>
-          </button>
-        ))
-      ) : (
-        <div className="project-panel-empty">当前工作空间暂无会话</div>
-      )}
-      {archivedSessions.length > 0 && (
-        <div className="project-panel-archived-group">
-          <div className="project-panel-archived-title">已归档远程会话</div>
-          {archivedSessions.map((session) => (
-            <button
-              key={session.id}
-              className="project-panel-row muted"
-              onClick={() => {
-                restoreArchivedSession(session.id)
-                openRemoteSession(session)
-              }}
-              title="恢复并打开远程会话"
-            >
-              <IconRobot size={14} />
-              <span className="project-panel-row-main">
-                <span className="project-panel-row-title">{session.name}</span>
-                <span className="project-panel-row-meta">本地归档 · 点击恢复</span>
-              </span>
-            </button>
-          ))}
-        </div>
+      {showAddButton && (
+        <button
+          className="project-panel-project-item add"
+          onClick={() => {
+            void openWorkspacePicker().then(() => {
+              if (useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local') {
+                onPicked()
+              }
+            })
+          }}
+          disabled={loading || picking}
+          title="打开项目"
+        >
+          <IconPlus size={14} />
+          <span className="project-panel-row-main">
+            <span className="project-panel-row-title">打开项目</span>
+            <span className="project-panel-row-meta">选择一个本地项目文件夹</span>
+          </span>
+        </button>
       )}
     </div>
   )
-}
-
-function formatRelativeSessionTime(timestamp: number): string {
-  if (!timestamp) return '未知'
-  const normalized = timestamp < 10_000_000_000 ? timestamp * 1000 : timestamp
-  const diff = Date.now() - normalized
-  if (diff < 60_000) return '刚刚'
-  if (diff < 3_600_000) return `${Math.max(1, Math.floor(diff / 60_000))} 分钟前`
-  if (diff < 86_400_000) return `${Math.max(1, Math.floor(diff / 3_600_000))} 小时前`
-  return `${Math.max(1, Math.floor(diff / 86_400_000))} 天前`
-}
-
-function getWorkspaceWorkConversations(
-  conversationOrder: ReturnType<typeof useAgentStore.getState>['conversationOrder'],
-  conversations: ReturnType<typeof useAgentStore.getState>['conversations'],
-  workspaceRef: WorkspaceRef,
-) {
-  const activeWorkspaceKey = workspaceRefKey(workspaceRef)
-  return conversationOrder
-    .flatMap((id) => {
-      const conversation = conversations[id]
-      return conversation ? [conversation] : []
-    })
-    .filter((conversation) => {
-      if (conversation.archivedAt) return false
-      if (conversation.surface !== 'workbench-tab') return false
-      const conversationWorkspaceKey = conversation.runtime.workspaceRef
-        ? workspaceRefKey(conversation.runtime.workspaceRef)
-        : null
-      return conversationWorkspaceKey === activeWorkspaceKey
-    })
-    .sort((a, b) => b.updatedAt - a.updatedAt)
 }

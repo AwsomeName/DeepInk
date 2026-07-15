@@ -6,6 +6,8 @@
  */
 
 import type {
+  Entitlement,
+  EntitlementGrant,
   SubscriptionPlan,
   UserSubscription,
   CreateOrderResult,
@@ -60,7 +62,7 @@ export class SubscriptionService {
    */
   async getStatus(accessToken: string): Promise<UserSubscription> {
     const res = await this.request('GET', '/subscription/status', undefined, accessToken)
-    return res.subscription || { tier: 'free', plan: null, periodStart: null, periodEnd: null, status: 'inactive' }
+    return this.normalizeSubscription(res.subscription)
   }
 
   // ─── 订单 ─────────────────────────────────────
@@ -172,5 +174,46 @@ export class SubscriptionService {
       )
     }
     return data
+  }
+
+  private normalizeSubscription(raw: any): UserSubscription {
+    const subscription = raw && typeof raw === 'object' ? raw : {}
+    const entitlements = this.normalizeEntitlements(subscription.entitlements)
+    return {
+      tier: subscription.tier || 'free',
+      plan: subscription.plan || null,
+      periodStart: subscription.periodStart ?? subscription.period_start ?? null,
+      periodEnd: subscription.periodEnd ?? subscription.period_end ?? null,
+      status: subscription.status || 'inactive',
+      entitlements: entitlements.length > 0 ? entitlements : undefined,
+    }
+  }
+
+  private normalizeEntitlements(raw: unknown): EntitlementGrant[] {
+    if (!raw) return []
+    if (Array.isArray(raw)) {
+      return raw
+        .map((item): EntitlementGrant | null => {
+          if (typeof item === 'string') return { code: item as Entitlement, enabled: true }
+          if (!item || typeof item !== 'object') return null
+          const src = item as Record<string, unknown>
+          const code = src.code || src.entitlement || src.name
+          if (typeof code !== 'string') return null
+          return {
+            code: code as Entitlement,
+            enabled: src.enabled !== false,
+            expiresAt: typeof src.expiresAt === 'string' ? src.expiresAt : null,
+            reason: typeof src.reason === 'string' ? src.reason : undefined,
+          }
+        })
+        .filter((item): item is EntitlementGrant => Boolean(item))
+    }
+    if (typeof raw === 'object') {
+      return Object.entries(raw as Record<string, unknown>).map(([code, enabled]) => ({
+        code: code as Entitlement,
+        enabled: enabled === true,
+      }))
+    }
+    return []
   }
 }

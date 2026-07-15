@@ -111,6 +111,11 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
       kind: 'closed',
       message: 'Terminal 视图已关闭',
       runtime,
+      permissionPolicy: {
+        mode: 'ask-risky-command',
+        requireConfirmationFor: ['write', 'destructive', 'privileged', 'unknown'],
+      },
+      closePolicy: 'terminate-process',
     })
     expect(useTabStore.getState().tabs.some((tab) => tab.id === tabId)).toBe(false)
   })
@@ -153,21 +158,26 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
       expect.objectContaining({
         type: 'warning',
         title: '结束 Terminal',
-        buttons: ['结束并关闭', '取消'],
+        buttons: ['关闭视图', '结束并关闭', '取消'],
       }),
     )
     expect(window.deepink.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-running',
       workspaceKey: 'cclink://agent-1/agent-1%3A%2Fworkspace',
-      kind: 'terminated',
-      message: 'Terminal 关闭时请求结束进程',
+      kind: 'closed',
+      message: 'Terminal 视图已关闭，进程保留',
       runtime,
+      permissionPolicy: {
+        mode: 'ask-every-command',
+        requireConfirmationFor: ['read', 'write', 'network', 'destructive', 'privileged', 'unknown'],
+      },
+      closePolicy: 'terminate-process',
     })
     expect(useTabStore.getState().tabs.some((tab) => tab.id === tabId)).toBe(false)
   })
 
   it('取消关闭 running Terminal Tab 会保留 Tab', async () => {
-    vi.mocked(window.deepink.dialog.showMessageBox).mockResolvedValueOnce({ response: 1 })
+    vi.mocked(window.deepink.dialog.showMessageBox).mockResolvedValueOnce({ response: 2 })
     useTabStore.getState().openTab({
       type: 'terminal',
       title: 'Terminal',

@@ -4,6 +4,7 @@ import type { BrowserInstanceStore } from '../persistence/browser-instance-store
 import type { BrowserCreateViewOptions } from '../../shared/ipc/browser'
 import type { BrowserTaskRuntime } from '../browser/browser-task-runtime'
 import type { BrowserDownloadStore } from '../browser/browser-download-store'
+import type { PlaywrightBridge } from '../playwright/playwright-bridge'
 
 /**
  * 注册浏览器相关的 IPC 处理器
@@ -16,6 +17,7 @@ export function registerBrowserIpc(
   instanceStore?: BrowserInstanceStore,
   taskRuntime?: BrowserTaskRuntime,
   downloadStore?: BrowserDownloadStore,
+  getPlaywrightBridge?: () => PlaywrightBridge | null | undefined,
 ): void {
   // 渲染进程上报 Workbench 区域坐标（作用于当前活跃视图）
   ipcMain.on('workbench:bounds', (_event, bounds) => {
@@ -64,6 +66,10 @@ export function registerBrowserIpc(
 
   ipcMain.handle('browser:getCurrentURL', (_event, tabId: string) => {
     return browserManager.getCurrentURL(tabId)
+  })
+
+  ipcMain.handle('browser:getDiagnostics', async (_event, tabId: string) => {
+    return getPlaywrightBridge?.()?.getPageDiagnostics(tabId) ?? null
   })
 
   // ─── 缩放控制 ───

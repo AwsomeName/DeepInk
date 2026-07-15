@@ -139,35 +139,22 @@ async function closeTerminalView(tab: Tab): Promise<void> {
     return
   }
 
-  if (terminal.closePolicy === 'keep-running') {
-    const { response } = await window.deepink.dialog.showMessageBox({
-      type: 'question',
-      title: '关闭 Terminal 视图',
-      message: '这个 Terminal 仍在运行。要只关闭视图并保留后台进程吗？',
-      detail:
-        '当前版本还没有完整进程恢复列表；只关闭视图后，后台进程仍可能继续运行。',
-      buttons: ['关闭视图', '取消'],
-      defaultId: 0,
-      cancelId: 1,
-    })
-    if (response === 0) {
-      await recordTerminalLifecycleEvent(terminal, 'closed', 'Terminal 视图已关闭，后台进程保留')
-      useTabStore.getState().closeTab(tab.id)
-    }
-    return
-  }
-
   const { response } = await window.deepink.dialog.showMessageBox({
     type: 'warning',
     title: '结束 Terminal',
-    message: '这个 Terminal 仍在运行。关闭 Tab 将结束进程。',
-    detail: '本地 shell 会收到终止请求；远程 shell 后端接入后也会复用同一关闭语义。',
-    buttons: ['结束并关闭', '取消'],
-    defaultId: 1,
-    cancelId: 1,
+    message: '这个 Terminal 仍在运行。要关闭视图还是结束进程？',
+    detail: '关闭视图会保留本次 Terminal session，可从 Terminal 面板恢复；结束并关闭会终止进程。',
+    buttons: ['关闭视图', '结束并关闭', '取消'],
+    defaultId: 0,
+    cancelId: 2,
   })
 
   if (response === 0) {
+    await recordTerminalLifecycleEvent(terminal, 'closed', 'Terminal 视图已关闭，进程保留')
+    useTabStore.getState().closeTab(tab.id)
+  }
+
+  if (response === 1) {
     await recordTerminalLifecycleEvent(terminal, 'terminated', 'Terminal 关闭时请求结束进程')
     useTabStore.getState().closeTab(tab.id)
   }

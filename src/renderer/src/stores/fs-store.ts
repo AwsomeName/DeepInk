@@ -1,5 +1,10 @@
 import { create } from 'zustand'
-import { getWorkspaceStateKey, persistWorkspaceSection, setWorkspaceStatePath } from '../utils/workspace-state'
+import {
+  getWorkspaceStateKey,
+  getWorkspaceStateOwnerKey,
+  persistWorkspaceSection,
+  setWorkspaceStatePath,
+} from '../utils/workspace-state'
 import { hydrateRuntimeSections, persistRuntimeSections } from '../utils/workspace-runtime'
 import { useEditorStore } from './editor-store'
 import { useWorkspaceStore } from './workspace-store'
@@ -117,9 +122,9 @@ interface FsState {
   picking: boolean
   /** 错误信息 */
   error: string | null
-  /** 内联编辑状态：null = 未编辑，'new-folder' = 正在新建，path = 正在重命名该节点 */
+  /** 内联编辑状态：null = 未编辑，'new-folder'/'new-file' = 正在新建，path = 正在重命名该节点 */
   editingPath: string | null
-  /** 新建文件夹的目标父目录（仅在 editingPath === 'new-folder' 时有效） */
+  /** 新建文件/文件夹的目标父目录 */
   newFolderParent: string | null
   /** 已展开目录路径（用于重启后恢复文件树展开状态） */
   expandedPaths: string[]
@@ -147,14 +152,16 @@ interface FsState {
   setSelectedPath: (path: string | null) => void
   /** 搜索文件 */
   searchFiles: (query: string) => Promise<FileTreeNode[]>
-  /** 进入内联编辑模式（新建文件夹 或 重命名节点） */
-  startEditing: (editPath: string | 'new-folder', parentForNewFolder?: string | null) => void
+  /** 进入内联编辑模式（新建文件/文件夹 或 重命名节点） */
+  startEditing: (editPath: string | 'new-folder' | 'new-file', parentForNewFolder?: string | null) => void
   /** 退出内联编辑模式 */
   cancelEditing: () => void
   /** 确认重命名 */
   confirmRename: (oldPath: string, newName: string) => Promise<void>
   /** 确认新建文件夹（从 state.newFolderParent 读取父目录） */
   confirmNewFolder: (name: string) => Promise<void>
+  /** 确认新建文件（从 state.newFolderParent 读取父目录） */
+  confirmNewFile: (name: string) => Promise<void>
   /** 从主进程 WorkspaceState 恢复文件树展开/选中状态 */
   hydrateFromWorkspaceState: (value: unknown) => void
 }
@@ -223,7 +230,9 @@ export const useFsStore = create<FsState>((set, get) => ({
       set({ recentWorkspacePaths: Array.isArray(settings.recentWorkspacePaths) ? settings.recentWorkspacePaths.filter(Boolean) : [] })
       const last = settings.lastWorkspacePath
       if (!last) return
-      const snapshot = await window.deepink.workspaceState.get(last).catch(() => null)
+      const snapshot = await window.deepink.workspaceState
+        .get(last, getWorkspaceStateOwnerKey())
+        .catch(() => null)
       if (snapshot) get().hydrateFromWorkspaceState(snapshot.sections.fileTree)
       // 静默恢复：目录失效不报错（silent），仅清掉失效的持久化记录
       const ok = await get().setWorkspace(last, { silent: true })
@@ -248,7 +257,9 @@ export const useFsStore = create<FsState>((set, get) => ({
       if (result.canceled || result.filePaths.length === 0) return
       const path = result.filePaths[0]!
       persistRuntimeSections(getWorkspaceStateKey())
-      const snapshot = await window.deepink.workspaceState.get(path).catch(() => null)
+      const snapshot = await window.deepink.workspaceState
+        .get(path, getWorkspaceStateOwnerKey())
+        .catch(() => null)
       if (snapshot) get().hydrateFromWorkspaceState(snapshot.sections.fileTree)
       const ok = await get().setWorkspace(path)
       if (ok) {
@@ -273,7 +284,9 @@ export const useFsStore = create<FsState>((set, get) => ({
     if (path === get().workspacePath && useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local') return
     if (!confirmProjectSwitch(get().workspacePath, path)) return
     persistRuntimeSections(getWorkspaceStateKey())
-    const snapshot = await window.deepink.workspaceState.get(path).catch(() => null)
+    const snapshot = await window.deepink.workspaceState
+      .get(path, getWorkspaceStateOwnerKey())
+      .catch(() => null)
     if (snapshot) get().hydrateFromWorkspaceState(snapshot.sections.fileTree)
     const ok = await get().setWorkspace(path)
     if (ok) {
@@ -292,7 +305,9 @@ export const useFsStore = create<FsState>((set, get) => ({
     saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: get().selectedPath }, currentPath)
 
     try {
-      const snapshot = await window.deepink.workspaceState.get(null).catch(() => null)
+      const snapshot = await window.deepink.workspaceState
+        .get(null, getWorkspaceStateOwnerKey())
+        .catch(() => null)
       setWorkspaceStatePath(null)
       useWorkspaceStore.getState().activateGlobalWorkspace()
       get().hydrateFromWorkspaceState(snapshot?.sections.fileTree ?? { expandedPaths: [], selectedPath: null })
@@ -448,6 +463,22 @@ export const useFsStore = create<FsState>((set, get) => ({
       await get().refreshDir(parentPath)
     } catch (err) {
       set({ error: '新建文件夹失败: ' + describeError(err) })
+    }
+  },
+
+  confirmNewFile: async (name) => {
+    if (!name.trim()) return
+    const parentPath = get().newFolderParent
+    if (!parentPath) return
+    const newPath = parentPath + '/' + name.trim()
+    set({ editingPath: null, newFolderParent: null })
+    try {
+      await window.deepink.fs.writeFile(newPath, '')
+      await get().refreshDir(parentPath)
+      set({ selectedPath: newPath })
+      saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: newPath }, get().workspacePath)
+    } catch (err) {
+      set({ error: '新建文件失败: ' + describeError(err) })
     }
   },
 

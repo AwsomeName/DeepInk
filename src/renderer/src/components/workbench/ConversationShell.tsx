@@ -17,6 +17,7 @@ interface ConversationShellProps {
   badgeKind?: ConversationShellBadgeKind
   variant?: 'local' | 'remote'
   error?: ReactNode | null
+  context?: ReactNode
   listRef?: React.RefObject<HTMLDivElement | null>
   empty?: ReactNode
   children: ReactNode
@@ -31,6 +32,7 @@ export function ConversationShell({
   badgeKind = 'idle',
   variant = 'local',
   error,
+  context,
   listRef,
   empty,
   children,
@@ -59,6 +61,7 @@ export function ConversationShell({
       </div>
 
       {error && <div className="conversation-shell-error">{error}</div>}
+      {context}
 
       <div className="conversation-shell-list" ref={listRef}>
         {empty}

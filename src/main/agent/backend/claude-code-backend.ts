@@ -1,1 +1,1 @@
-export * from 'core-agent/backends/claude-code-backend'
+export * from '../../agent-core/backends/local-claude-code-backend'

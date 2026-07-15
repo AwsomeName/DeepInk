@@ -12,12 +12,22 @@ import type { SettingsService } from './settings-service'
 import type { PermissionManager } from '../mcp/permission'
 import type { AgentBridge } from '../agent/agent-bridge'
 import type { AppSettings, PermissionMode } from './types'
+import { detectClaudeCode } from '../agent/claude-code-detector'
 
 /** 合法的 permissionMode 值 */
 const VALID_PERMISSION_MODES = new Set<string>(['auto', 'categorized', 'strict'])
 
 /** 影响 Agent 后端的设置字段 */
-const API_SETTING_KEYS = new Set(['provider', 'apiFormat', 'apiBaseUrl', 'apiKey', 'modelName'])
+const AGENT_SETTING_KEYS = new Set([
+  'agentEngine',
+  'claudeCodePath',
+  'maxBudgetUsd',
+  'provider',
+  'apiFormat',
+  'apiBaseUrl',
+  'apiKey',
+  'modelName',
+])
 
 export function registerSettingsIpc(
   settingsService: SettingsService,
@@ -52,7 +62,7 @@ export function registerSettingsIpc(
 
       // API 配置变更：热重载后端
       const agentBridge = getAgentBridge()
-      if (agentBridge && Object.keys(partial).some(k => API_SETTING_KEYS.has(k))) {
+      if (agentBridge && Object.keys(partial).some(k => AGENT_SETTING_KEYS.has(k))) {
         try {
           agentBridge.reconfigure(updated)
         } catch (err) {
@@ -103,7 +113,7 @@ export function registerSettingsIpc(
 
       // API 配置重置 → 热重载后端
       const agentBridge = getAgentBridge()
-      if (API_SETTING_KEYS.has(key) && agentBridge) {
+      if (AGENT_SETTING_KEYS.has(key) && agentBridge) {
         try {
           agentBridge.reconfigure(updated)
         } catch (err) {
@@ -115,6 +125,16 @@ export function registerSettingsIpc(
     } catch (err) {
       console.error('[SettingsIPC] 单项重置失败:', err)
       return { success: false, error: String(err) }
+    }
+  })
+
+  /** 检测本机 Claude Code CLI 路径 */
+  ipcMain.handle('settings:detectClaudeCode', async () => {
+    try {
+      const settings = settingsService.getAll()
+      return { success: true, status: await detectClaudeCode(settings.claudeCodePath) }
+    } catch (err) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) }
     }
   })
 

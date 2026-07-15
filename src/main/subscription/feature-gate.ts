@@ -12,12 +12,75 @@
 import { app } from 'electron'
 import type { TokenManager } from '../auth/token-manager'
 import type { SubscriptionService } from './subscription-service'
+import type { Entitlement, UserSubscription } from '../../shared/ipc/subscription'
 
 export interface GateResult {
   /** 是否允许使用 */
   allowed: boolean
   /** 拒绝原因（中文，可直接显示给用户） */
   reason?: string
+}
+
+const PRO_COMPAT_ENTITLEMENTS: Entitlement[] = [
+  'cloud_sync',
+  'remote_workspace',
+  'remote_pairing',
+  'remote_file_read',
+  'remote_file_write',
+  'remote_terminal',
+  'remote_agent_session',
+  'remote_audit',
+]
+
+function parseMockEntitlements(): Set<Entitlement> | null {
+  const raw = process.env.DEEPINK_MOCK_ENTITLEMENTS
+  if (!raw) return null
+  return new Set(
+    raw
+      .split(',')
+      .map((item) => item.trim())
+      .filter(Boolean) as Entitlement[],
+  )
+}
+
+export function hasEntitlement(subscription: UserSubscription, entitlement: Entitlement): boolean {
+  const explicit = subscription.entitlements?.find((item) => item.code === entitlement)
+  if (explicit) return explicit.enabled
+  if (subscription.tier === 'pro' && subscription.status === 'active') {
+    return PRO_COMPAT_ENTITLEMENTS.includes(entitlement)
+  }
+  return false
+}
+
+export async function checkEntitlement(
+  featureName: string,
+  entitlement: Entitlement,
+  tokenManager: TokenManager,
+  subscriptionService: SubscriptionService,
+): Promise<GateResult> {
+  const mockEntitlements = parseMockEntitlements()
+  if (!app.isPackaged) {
+    if (!mockEntitlements) return { allowed: true }
+    return mockEntitlements.has(entitlement)
+      ? { allowed: true }
+      : { allowed: false, reason: `${featureName}需要 ${entitlement} entitlement` }
+  }
+
+  const accessToken = await tokenManager.getValidAccessToken()
+  if (!accessToken) {
+    return { allowed: false, reason: `请先登录以使用${featureName}` }
+  }
+
+  try {
+    const subscription = await subscriptionService.getStatus(accessToken)
+    if (hasEntitlement(subscription, entitlement)) {
+      return { allowed: true }
+    }
+    return { allowed: false, reason: `${featureName}为付费功能，请升级` }
+  } catch {
+    console.warn(`[FeatureGate] 检查 ${featureName} entitlement 失败，允许降级使用`)
+    return { allowed: true }
+  }
 }
 
 /**

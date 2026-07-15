@@ -2,11 +2,11 @@
 
 > 状态：里程碑验收稿
 > 最后更新：2026-07-14
-> 关联文档：`docs/features/product-experience-pages.md`、`docs/features/ui-entry-migration-audit.md`、`docs/features/remote-error-model.md`、`docs/features/founder-operations-workbench.md`、`docs/features/local-first-identity.md`、`docs/features/project-operations-assistant.md`
+> 关联文档：`docs/features/product-experience-pages.md`、`docs/features/ui-entry-migration-audit.md`、`docs/features/remote-error-model.md`、`docs/features/remote-codex-workspace-plan.md`、`docs/features/founder-operations-workbench.md`、`docs/features/local-first-identity.md`、`docs/features/project-operations-assistant.md`、`docs/features/agent-diagnostic-log.md`、`docs/features/hardware-workspace.md`
 
 ## 结论
 
-当前迁移不再用“继续优化”描述，而拆成 8 个可验收里程碑：
+当前迁移不再用“继续优化”描述，而拆成可验收里程碑：
 
 ```text
 M0 产品骨架定稿
@@ -18,6 +18,7 @@ M4 会话模型统一
 M5 远程能力闭环
 M6 Terminal 与执行权限
 M7 项目内运营助手
+M8 硬件工作区与生产助手
 ```
 
 当前判断：
@@ -29,8 +30,9 @@ M7 项目内运营助手
 - **M3 部分完成**：Markdown、Browser、Android、Conversation、Remote File 和 Terminal 已进入 Tab 体系；Terminal 已有受控命令入口，但真实执行未接入。
 - **M4 第一段完成**：会话已有即时助手会话 / 工作会话两类 surface，但生命周期还没收口。
 - **M5 只完成 CCLink 设备发现链路**：能同步服务器不等于远程工作空间闭环完成。
-- **M6 第一版受控执行已可测**：Terminal 已有 Tab、受控命令入口、权限、审计、本地 shell、CCLink 单命令远程执行和输出面板；完整 PTY、Direct Remote 尚未完成。
-- **M7 已实现到 M7.5，待人工验收**：项目内运营助手以“项目文档 + `deepink-accounts.json` + 文案会话 + 平台操作会话 + 发布记录”为第一版，不做独立运营平台。
+- **M6 第一版受控执行已可测，M6.1 本地 PTY 链路已打通**：Terminal 已有 Tab、权限、审计、本地 `node-pty + xterm.js`、CCLink 单命令远程执行和输出事件；远程 PTY、Direct Remote 尚未完成。
+- **M7 已实现到 M7.6 第一版，待人工验收**：项目内运营助手以“项目文档 + `deepink-accounts.json` + 文案会话 + 平台操作会话 + 发布记录 + 一键复制诊断日志”为第一版，不做独立运营平台。真实知乎/公众号测试前，还需要跑真实失败样本验收。
+- **M8 规划完成，部分底座已实现**：硬件工作区以 AI 眼镜 FPC 外形改版为核心真实需求，主线调整为“读取/渲染相关文件 → 按用户要求修改副本 → 对比检查”；生产包检查底座已实现，嘉立创报价后移为后续生产闭环。
 
 ## 2026-07-14 优先级重排：先服务真实项目运营
 
@@ -48,6 +50,7 @@ M7 项目内运营助手
 | ------------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
 | 远程项目支持                    | P0       | 这是当前最急的真实需求；需要远程工作空间、远程文件、远程 Terminal / Agent 执行闭环                  |
 | 项目内运营助手                  | P0       | 直接服务 CCLink 上线、内测、宣发和平台维护；第一版只做项目文件、Markdown、浏览器 profile 和确认提交 |
+| 硬件工作区与生产助手            | P0/P1    | 直接服务 AI 眼镜 FPC 外形改版；先做 Gerber/FPC 渲染、标注、低风险外形修改副本和对比检查             |
 | 本地优先身份                    | P0 前置  | 不登录也必须进入工作台并恢复本机工作现场；登录只解锁云能力                                          |
 | 平台浏览器 Profile              | P0/P1    | 平台登录态要能按项目配置复用；不做密码库和全自动登录                                                |
 | Android 真机连接                | P2       | 只保留用户自有手机 USB / Wi-Fi 连接，不再推进模拟器或云手机                                         |
@@ -316,13 +319,14 @@ conversation
 └─ sessionId / messages / artifacts / status
 ```
 
-右侧 Agent Panel 内部布局：
+会话入口布局：
 
 ```text
-主对话区 | 会话列表窄列
+左侧 Activity Bar「会话」视图：当前项目会话 / 未归档 / 已归档历史
+右侧 Agent Panel：当前对话 / 待确认操作 / 资源挂载 / 输入区
 ```
 
-会话列表窄列必须在主对话区右边，只展示当前项目的激活会话；底部展开已关闭历史。
+会话列表不再放在右侧 Agent Panel 内部。右侧只服务当前对话；历史和会话切换统一进入左侧侧栏。
 
 输入增强规则：
 
@@ -335,11 +339,10 @@ conversation
 
 ### 验收标准
 
-- 有激活项目时，右侧“新会话”创建当前项目即时助手会话，不自动占用主工作区 Tab。
-- 无激活项目时，右侧“新会话”创建默认项目 / 未归档即时助手会话。
-- 右侧 Agent Panel 的会话列表窄列在主对话区右边。
-- 会话列表窄列只展示当前项目激活会话。
-- 会话列表底部能展开当前项目已关闭历史并恢复会话。
+- 有激活项目时，新会话创建当前项目即时助手会话，不自动占用主工作区 Tab。
+- 无激活项目时，新会话创建默认项目 / 未归档即时助手会话。
+- 左侧“会话”视图能展示当前项目激活会话、未归档会话和已归档历史。
+- 右侧 Agent Panel 不再出现会话历史列表。
 - 会话顶端展示已挂载资源横列。
 - 输入框 `/` 能挂 Skill。
 - 输入框 `@` 能挂资源。
@@ -363,6 +366,8 @@ conversation
 ### 解决什么问题
 
 当前远程主要靠 CCLink，且刚跑通账号同步和服务器发现。产品上还没有形成完整远程工作空间能力。
+
+M5 的详细拆解以 `docs/features/remote-codex-workspace-plan.md` 为准：Remote 是 DeepInk 付费工作空间能力，DeepInk 主项目负责 Remote 工作台，private-serv 控制账号和 entitlement，chatcc-agent 作为唯一远端 runtime，CCLink 是首发 transport，Direct 是后续 transport。
 
 ### 方案
 
@@ -621,13 +626,14 @@ Terminal Tab
 - Terminal IPC / 前端状态测试已覆盖确认结果回传、受限命令提交、session 快照查询、审计查询/清理、生命周期事件同步 registry、未命中 pending、队列添加、去重和移除。
 - Terminal UI 辅助测试已覆盖风险/来源标签、运行位置和超时显示。
 - Terminal 命令提交辅助测试已覆盖正常提交、空命令拦截、恢复后 session 缺失时重新登记并重试。
-- Terminal 本地 shell adapter 测试已覆盖启动、stdout/stderr、写入和终止。
+- Terminal 本地 PTY adapter 测试已覆盖启动、输出事件、写入、resize、终止和远程 runtime 拒绝。
+- Terminal 本地 shell adapter 仍保留测试覆盖，作为非 PTY 降级参考。
 - Terminal CCLink 远程 adapter 测试已覆盖 `terminal_command`、`terminal_output` 和远端离线结构化错误。
 - Terminal session 状态测试已覆盖创建、`idle -> starting -> running -> blocked -> running -> exited` 生命周期、终态拦截、重复登记、未知 session 和移除清理。
 - Terminal 执行编排测试已覆盖低风险命令直通、风险命令确认、确认拒绝、只读策略拒绝、缺失/忙碌 session 拒绝、adapter start/write 派发失败审计；adapter 成功时返回 `execution: started`，失败时返回 `execution: not-started`。
 - Terminal no-op 执行适配器测试已覆盖 start/write/resize/terminate 的结构化错误、事件派发和监听取消。
 
-仍未接入完整 PTY 和 Direct Remote。当前能创建受控 Terminal Tab、从 Tab 内提交命令到权限/确认/审计/执行链路、显示本地 shell 输出、通过 CCLink 发送远程单命令、查看只读 session 诊断与最小审计入口、确认活跃 Terminal 关闭语义，并在主进程内用状态机、Registry、执行编排器和 adapter 约束 session/命令生命周期。
+本地 PTY 已接入，Direct Remote 和远程 PTY 仍未接。当前能创建受控 Terminal Tab、用 xterm.js 操作本地 shell、从现有命令提交链路进入权限/确认/审计/执行、通过 CCLink 发送远程单命令、查看只读 session 诊断与最小审计入口、确认活跃 Terminal 关闭语义，并在主进程内用状态机、Registry、执行编排器和 adapter 约束 session/命令生命周期。
 
 ### 拷问
 
@@ -696,6 +702,7 @@ DeepInk 需要先服务真实项目的宣发、上线、内测和账号运营，
 3. `M7.3 平台浏览器 Profile`
 4. `M7.4 平台操作会话`
 5. `M7.5 发布记录`
+6. `M7.6 Agent 诊断日志与一键复制调试包`（D0-D3 已落地，D4/D5 后续）
 
 ### M7.1：项目账号配置文件
 
@@ -784,6 +791,27 @@ DeepInk 需要先服务真实项目的宣发、上线、内测和账号运营，
 - 发布失败或取消不会丢失上下文。
 - 后续打开项目能看到历史发布记录。
 
+### M7.6：Agent 诊断日志与一键复制调试包
+
+目标：让真实平台登录、投稿、上传失败时可以快速排障。
+
+方案：
+
+- 右侧 Agent 面板增加“复制诊断日志”按钮。
+- 诊断包汇总当前会话、浏览器 tab、URL/title、browserProfile、Agent 工具调用、浏览器任务状态、动作日志、下载记录和最近页面错误。
+- 诊断包默认输出 Markdown，方便用户直接粘贴给开发者或 Agent。
+- password、token、cookie、验证码、手机号、邮箱等敏感内容必须脱敏。
+- 第一版只复制当前任务，不做云端日志上传。
+
+验收：
+
+- 知乎登录失败后，一键复制的诊断包能判断当前停在哪个 URL、用了哪个 profile、最近失败工具是什么。
+- 微信公众号投稿失败后，诊断包能判断是否卡在 iframe/contenteditable/上传/权限确认。
+- 无浏览器 tab、无任务、无下载时也能生成可读诊断包，而不是报错。
+- 诊断包不能包含完整 cookie、token、密码、验证码。
+
+详见 `docs/features/agent-diagnostic-log.md`。
+
 ### 当前状态
 
 M7.1-M7.5 已实现，进入人工验收：
@@ -804,6 +832,7 @@ M7.1-M7.5 已实现，进入人工验收：
 - 平台操作会话第一版是“创建会话并预填明确任务”，不是全自动发布流水线。
 - 发布确认依赖 Agent 执行过程中的权限/确认语义和用户人工判断；尚未做平台级专用确认卡片。
 - 还没有评论定时维护，只支持打开页面后由会话读取、总结和写回。
+- 一键复制诊断日志已落地第一版，已包含 console/network/page summary；真实知乎/公众号验收还需要收集失败样本，确认诊断包是否足够定位。
 
 ### 拷问
 
@@ -813,14 +842,220 @@ M7.1-M7.5 已实现，进入人工验收：
 
 第一版只验收一件事：能不能在一个真实项目里写一篇文案、打开一个真实平台、填好内容、确认提交、把结果写回项目文档。
 
+## M8：硬件工作区与生产助手
+
+### 解决什么问题
+
+DeepInk 需要支持 AI 眼镜这类真实硬件项目：项目目录里同时存在原理图、PCB/FPC 生产文件、BOM、坐标文件、结构件、固件、datasheet 和打样记录。
+
+FPC 外形改版是 M8 的核心真实需求。用户当前没有其他硬件工程师支持，因此第一闭环不是“写说明书给别人”，也不是“先去嘉立创下单”，而是：
+
+```text
+打开硬件项目目录
+→ 识别生产文件
+→ 渲染 FPC/Gerber 外形和关键区域
+→ 用户用自然语言或图上标注表达改形状需求
+→ AI 修改文件副本或新版本目录
+→ 展示修改前后对比和风险
+→ 重新检查新版生产包
+```
+
+### 方案
+
+硬件能力作为工作空间内的能力视图出现，不新增 Activity Bar 顶层入口。
+
+第一版新增 `docs/features/hardware-workspace.md` 中定义的硬件领域模块：
+
+```text
+src/main/hardware/
+├─ hardware-project-detector.ts
+├─ hardware-artifact-index.ts
+├─ production-package-service.ts
+├─ bom-parser.ts
+├─ centroid-parser.ts
+├─ gerber-package-inspector.ts
+├─ hardware-order-record-service.ts
+└─ types.ts
+```
+
+配套新增：
+
+- `src/main/ipc/hardware-ipc.ts`
+- `src/shared/ipc/hardware.ts`
+- `src/main/mcp/modules/hardware/index.ts`
+- `src/renderer/src/features/hardware/`
+- `src/renderer/src/components/hardware/`
+- `src/renderer/src/stores/hardware-store.ts`
+
+职责边界：
+
+- `hardware/` 负责本地文件识别、解析、生产检查和订单记录。
+- 浏览器自动化仍由 browser MCP 执行。
+- 嘉立创提交订单、付款、修改地址、接受高风险 DFM 必须确认。
+- 没有 PCB 源工程时，不把 Gerber 编辑伪装成可靠改板。
+
+### 阶段拆分
+
+1. `M8.0 生产包理解底座`
+2. `M8.1 Gerber 层识别与文件预览`
+3. `M8.2 FPC 外形渲染`
+4. `M8.3 关键区域识别与保护`
+5. `M8.4 用户标注与自然语言意图`
+6. `M8.5 低风险外形修改副本`
+7. `M8.6 修改前后对比与生产检查`
+8. `M8.7 源工程路径与更高风险修改`
+
+详见 `docs/features/fpc-shape-change-assistant.md`。
+
+### M8.0：生产包理解底座
+
+目标：打开 AI 眼镜项目目录后，DeepInk 能识别 Gerber、BOM、坐标、结构件、datasheet 和源工程。
+
+验收：
+
+- 能识别常见硬件产物类型。
+- 能生成“硬件项目摘要”。
+- 能明确标记“缺少源工程，不能可靠改板”。
+- 扫描失败不影响普通文件树。
+
+### M8.1：Gerber 层识别与文件预览
+
+目标：让用户和 AI 知道 Gerber zip 内有哪些层，哪些可能是外形层、铜层、钻孔层。
+
+验收：
+
+- 能列出 Gerber zip 内所有文件。
+- 能给出外形层、铜层、钻孔层候选和置信度。
+- 无法识别外形层时，提示用户人工选择，不盲改。
+
+### M8.2：FPC 外形渲染
+
+目标：让用户能看见 FPC 外形、关键层和边界尺寸。
+
+验收：
+
+- 能渲染真实 FPC 项目的外形层。
+- 能开关外形、铜层、钻孔层。
+- 能显示边界盒和尺寸线索。
+- 渲染失败时说明不支持的 Gerber 命令或层文件。
+
+### M8.3：关键区域识别与保护
+
+目标：识别连接器、焊盘、钻孔等不能随便动的区域，为 AI 修改提供安全底线。
+
+验收：
+
+- 能在图上标出连接器/焊盘/钻孔候选。
+- 用户能手动标记固定区域。
+- 触碰固定区域的修改会升级为高风险。
+
+### M8.4：用户标注与自然语言意图
+
+目标：把“这里缩短 5mm”“尾巴往右伸”转成结构化修改意图。
+
+验收：
+
+- 用户能在图上框选/点选/画箭头。
+- AI 能生成 `FpcShapeEditIntent`。
+- 缺尺寸时 AI 会追问，不会瞎填。
+
+### M8.5：低风险外形修改副本
+
+目标：AI 能真的生成修改后的文件副本，而不是只写说明书。
+
+验收：
+
+- 能修改机械外形层或 DXF 副本。
+- 输出到 `hardware/edits/`。
+- 原始文件不被覆盖。
+- 修改后能重新渲染和重新检查。
+
+### M8.6：修改前后对比与生产检查
+
+目标：让用户看到 AI 改了哪里，以及新版文件是否还完整。
+
+验收：
+
+- 能叠加显示旧版/新版外形差异。
+- 能列出改动文件。
+- 能检查 BOM/坐标/位号数量是否异常。
+- 能生成 `hardware/edits/.../edit-report.md`。
+
+### M8.7：源工程路径与更高风险修改
+
+目标：支持更复杂修改，例如源工程外形修改、移动连接器或改走线，但必须进入更严格风险模式。
+
+验收：
+
+- KiCad 源工程优先支持读取和副本修改。
+- 修改前后有 diff。
+- 没有源工程时，不把高风险电气修改伪装成安全执行。
+
+### 后续：生产包检查报告
+
+目标：对下单前最关键的 Gerber/BOM/坐标文件做结构化检查。
+
+验收：
+
+- 能解析 csv、tsv、xlsx 形式的 BOM 和坐标文件。
+- 能检查 BOM 与坐标位号一致性。
+- 能检查 Gerber zip 是否包含基础层文件和钻孔文件。
+- 报告能区分 `ready`、`quote-only`、`blocked`。
+- 风险项能定位到文件、位号和下一步动作。
+
+### 后续：硬件报告 UI 与 Agent 工具
+
+目标：用户和 Agent 都能看懂同一份报告。
+
+验收：
+
+- 工作空间中出现硬件摘要入口。
+- 主工作区能打开生产包报告 Tab。
+- 能预览 BOM 和坐标文件。
+- Agent 能调用 `hardware_scan_project` 和 `hardware_inspect_production_package`。
+- 报告可保存为项目 Markdown。
+
+### 后续：嘉立创报价助手
+
+目标：把检查通过或可报价的生产包带到嘉立创报价页。
+
+验收：
+
+- 支持 `deepink-hardware.json` 声明嘉立创入口和浏览器 profile。
+- 能打开嘉立创并保持项目级登录态。
+- 能上传 Gerber zip、BOM、坐标文件。
+- 能根据报告预填草稿参数。
+- 能截图报价并写入 `hardware/orders/*.md`。
+- 提交订单、付款、地址确认前必须确认。
+
+### 后续：调试助手
+
+目标：基于故障现象、测量值、照片和项目文件生成排查树。
+
+验收：
+
+- 能记录“不开机 / USB 不识别 / 摄像头无图 / FPC 接触不良”等调试问题。
+- 输出包含假设、测量点、期望值、异常解释和下一步。
+- 没有测量数据时明确标记为假设。
+- 涉及电池、高压、激光、射频和佩戴安全时提示人工专业确认。
+
+### 拷问
+
+如果 M8 只能生成说明书或报价记录，它就没有打中 FPC 改形状这个真实需求。
+
+如果 M8 一上来盲改 Gerber，风险会先于价值爆炸。正确路径是先渲染、再标注、再改副本、再对比检查。
+
+如果硬件能力新增顶层入口，而不是作为工作空间视图出现，DeepInk 的产品骨架会重新变乱。
+
 ## 推进顺序
 
 当前最合理顺序：
 
 1. **先验收 M0.5**：确认未登录工作台、本机身份、工作现场恢复没有阻塞。
-2. **并行推进 M7 与 M5/M6**：M7 服务宣发运营；M5/M6 服务远程项目维护。
+2. **并行推进 M7、M8 与 M5/M6**：M7 服务宣发运营；M8 服务 AI 眼镜硬件生产；M5/M6 服务远程项目维护。
 3. **M7 先打真实任务闭环**：项目配置、Markdown 文案、浏览器 profile、提交确认、发布记录。
-4. **M5/M6 继续补远程闭环**：Direct Remote、完整 PTY、远程错误和执行体验。
+4. **M8 先打 FPC 改形状闭环**：Gerber 层识别、FPC 外形渲染、图上标注、低风险外形修改副本、修改前后对比。
+5. **M5/M6 继续补远程闭环**：Direct Remote、完整 PTY、远程错误和执行体验。
 
 暂时不做：
 
@@ -832,6 +1067,8 @@ M7.1-M7.5 已实现，进入人工验收：
 - 不先做 Terminal 真 shell。
 - 不把 Word/PPT 做成无闭环假 Tab。
 - 不把项目运营做成独立社媒管理平台。
+- 不把硬件工作区做成 EDA 替代品。
+- 不自动改板、自动提交订单或自动付款。
 - 不做密码库和全自动登录。
 
 ## 2026-07-11 代码级验收记录
@@ -896,27 +1133,54 @@ M7.1-M7.5 已实现，进入人工验收：
 - `AgentConversationState` 新增 `archivedAt`，会话从“只有存在/不存在”升级为“可见 / 已归档 / 已删除”三态。
 - 新增 `archiveConversation`、`restoreArchivedConversation`、`deleteConversation`；关闭 Tab 仍只关闭视图，删除才真正移除历史数据。
 - 归档当前活跃会话时，会自动切到其他未归档会话；如果没有可见会话，会创建一个新的即时助手会话兜底，避免主状态悬空。
-- 右侧 Agent Panel 和工作空间侧栏默认过滤已归档会话，防止归档会话继续混入当前工作列表。
+- 左侧会话视图和工作空间侧栏默认过滤已归档会话，防止归档会话继续混入当前工作列表。
 - 工作空间快照恢复时会跳过已归档 active 会话；如果历史快照全是归档会话，会创建新的默认会话承接入口。
-- 右侧 Agent Panel 的会话 `×` 已改为“归档会话”，并新增“已归档 N”最小恢复入口；归档列表内的删除才会真正清除本地会话。
+- 左侧会话视图的会话关闭语义是“归档会话”，已归档列表内的删除才会真正清除本地会话。
 - 已归档的本地工作会话即使仍有 Workbench Tab 打开，也会进入只读状态；必须先恢复，才能继续发送消息。
 - 已补启动恢复组合测试，证明工作会话 Tab 与对应本地会话数据可从同一工作空间快照中一起恢复。
-- 右侧 Agent Panel 后续口径已调整为“当前项目会话工作区”：会话列表窄列在主对话区右边，只展示当前项目激活会话；新建工作会话不会抢占右侧 active。
-- 右侧会话栏不再作为全局历史中心；已关闭历史从会话列表底部展开。
+- 会话历史口径已调整为左侧 Activity Bar 的“会话”视图：展示当前项目激活会话、未归档会话和已归档历史。
+- 右侧 Agent Panel 不再作为全局历史中心，只承载当前对话和确认操作。
 - CCLink 远程会话新增 DeepInk 本地归档覆盖层：归档只影响当前桌面端侧栏显示，不删除远端历史；恢复后可重新显示和打开。
 - Agent 流式事件写入已从 `AgentPanel` 挂载状态中解耦；即使右侧面板隐藏，后端 stream / complete / error 事件仍会写入对应会话。
 
 ### 仍未完成
 
-- 归档、恢复、删除已有右侧 Agent Panel 最小入口，但尚未设计成完整历史管理页；不能把“能点恢复”当作“用户能稳定管理历史”。
+- 归档、恢复、删除已有左侧会话视图最小入口，但尚未设计成完整历史管理页；不能把“能点恢复”当作“用户能稳定管理历史”。
 - `closeConversation` 仍作为旧的移除语义保留，用于兼容旧调用和测试；后续要评估是否改名或彻底迁移到 `deleteConversation`。
 - CCLink 远程会话已有本地视图归档，但仍没有统一到 `AgentConversationState`；它还依赖 ChatCC session 数据源。
-- 重启后“已归档历史在哪里恢复”目前只在右侧 Agent Panel 最小入口里出现，工作空间级历史页还没有。
+- 重启后“已归档历史在哪里恢复”目前只在左侧会话视图里出现，工作空间级历史页还没有。
 - 当前只读归档态只覆盖本地 Agent 工作会话；远程会话只是侧栏本地归档，还没有会话 Tab 只读恢复态。
 
 ### 拷问
 
 归档不是垃圾桶，删除也不是关闭。下一步必须明确：用户在哪里看到已归档会话、工作空间会话删除是否需要二次确认、远程会话归档到底是 DeepInk 本地行为还是远程 Agent 行为。
+
+## 2026-07-14 M4 左侧会话视图增强记录
+
+### 已确认
+
+- 左侧 Activity Bar 的“会话”视图已作为会话历史主入口，右侧 Agent Panel 不再展示会话列表。
+- 本地工作会话列表新增摘要行，显示当前工作空间打开会话、运行中会话和已关闭历史数量。
+- 本地工作会话新增筛选：全部、当前项目、未绑定、运行中、已关闭。
+- 已关闭历史默认折叠，避免历史会话继续挤占当前工作空间列表。
+- 已关闭本地会话提供显式删除入口；删除前二次确认，删除才真正移除本地历史。
+- 本地会话侧栏组件和工作空间会话分组逻辑已抽离到 `src/renderer/src/features/agent-conversations/local-session-sidebar.tsx`，`Sidebar.tsx` 只保留面板路由职责。
+- 远程会话侧栏组件已抽离到 `src/renderer/src/features/agent-conversations/remote-session-sidebar.tsx`，并补上搜索、摘要和已归档历史折叠。
+- 本地与远程会话侧栏共用 `src/renderer/src/features/agent-conversations/session-sidebar-primitives.tsx`，统一分组、行、操作按钮和相对时间展示。
+- 已补 store 测试，覆盖删除已归档历史会话不切走当前活跃会话。
+- 已补会话分组测试，覆盖当前项目、未绑定、已关闭工作会话的左侧侧栏分组规则。
+- 已补远程会话搜索测试，覆盖按名称、路径、状态和服务器过滤。
+- 已补会话侧栏 primitive 测试，覆盖相对时间格式，避免本地/远程时间展示漂移。
+
+### 仍未完成
+
+- 远程会话列表已有搜索、摘要和归档折叠，但没有删除语义；远端历史是否可删必须由远端协议明确后再做。
+- 左侧会话视图还没有键盘快捷键、右键菜单、批量清理、重命名入口。
+- 当前 UI 已能表达“当前项目 / 未绑定 / 已关闭”，但仍需要真实窗口走查文字密度和 hover 操作可见性。
+
+### 拷问
+
+这一步不是“会话管理完成”，只是把最右侧历史列表撤掉后，补上左侧入口的最小管理能力。下一步如果继续堆按钮，会再次变乱；应该先人工验收：新建、打开、关闭、恢复、删除五步是否不用解释也能完成。
 
 ## 2026-07-12 M1-M3 基础验收记录
 
@@ -960,7 +1224,7 @@ M7.1-M7.5 已实现，进入人工验收：
 - [x] “打开为工作会话”不会让用户误以为右侧原会话丢失。
 - [x] 关闭工作会话 Tab 不删除会话。
 - [x] 本地会话 store 已区分归档、恢复和删除语义。
-- [x] 右侧即时助手会话 `×` 归档而不是删除，并提供已归档恢复入口。
+- [x] 左侧会话视图的关闭语义是归档而不是删除，并提供已归档恢复入口。
 - [x] 已归档本地工作会话 Tab 只读展示，恢复后才能继续发送。
 - [x] 重启后本地工作会话 Tab 与会话数据仍可恢复。
 - [x] CCLink 远程会话支持 DeepInk 本地归档/恢复，不误删远端历史。
@@ -972,17 +1236,21 @@ M7.1-M7.5 已实现，进入人工验收：
 - [x] 远程文件树、远程文件 Tab、远程会话 Tab 都能解释错误来源。
 - [ ] Direct Remote 接入不改变工作空间主结构。
 - [x] Terminal Tab 有明确权限、审计和关闭语义。
-- [x] Terminal 接入真实 shell 前有本地审计持久化内核。
-- [x] Terminal 接入真实 shell 前有命令风险分类和权限判定器。
-- [x] Terminal 接入真实 shell 前有权限确认 UI 和审计可视化入口。
-- [x] Terminal 接入真实 shell 前能从工作区 Tab 菜单创建受控占位 Tab。
-- [x] Terminal 接入真实 shell 前能从 Tab 内提交命令到权限、确认和审计链路。
-- [x] Terminal 接入真实 shell 前活跃 Tab 关闭会按 `closePolicy` 二次确认。
-- [x] Terminal 接入真实 shell 前创建/关闭/终止语义能写入审计链路。
-- [x] Terminal 接入真实 shell 前有 no-op 执行适配器和结构化“未接入 backend”错误。
+- [x] Terminal 有本地审计持久化内核。
+- [x] Terminal 有命令风险分类和权限判定器。
+- [x] Terminal 有权限确认 UI 和审计可视化入口。
+- [x] Terminal 能从 Activity Bar Terminal 面板和工作区 Tab 菜单创建受控 Tab。
+- [x] Terminal 能从 Tab 内提交命令到权限、确认和审计链路。
+- [x] Terminal 活跃 Tab 关闭会按 `closePolicy` 二次确认，并支持关闭视图保留进程。
+- [x] Terminal 创建/关闭/终止语义能写入审计链路。
+- [x] Terminal 有 no-op 执行适配器和结构化“未接入 backend”错误。
 - [x] Terminal 本地工作空间可执行受控本地 shell 命令并显示输出。
 - [x] Terminal CCLink 远程工作空间可通过 `terminal_command/terminal_output` 执行单命令并显示输出。
-- [ ] Terminal 完整 PTY、resize、交互式程序支持。
+- [x] 本地 Terminal PTY、resize、基础交互式程序支持。
+- [x] 本地 Terminal session 可持久记录 workspace/cwd/status/命令/output buffer。
+- [x] 本地 Terminal 关闭视图保留进程后，可从 Terminal 面板恢复活 session。
+- [x] 已退出或重启降级的 Terminal session 可打开只读记录，并从同目录新建 Terminal。
+- [ ] 远程 Terminal PTY、持久 session 和跨端恢复。
 - [ ] Direct Remote Terminal provider。
 
 ### M7 验收
@@ -998,3 +1266,39 @@ M7.1-M7.5 已实现，进入人工验收：
 - [x] 发布、提交、删除、修改账号资料前必须确认。
 - [x] 发布成功、失败、取消都能追加到 `docs/发布记录.md`。
 - [x] 第一版不存密码，不做全自动登录，不做独立社媒管理后台。
+- [x] Agent 面板可一键复制当前会话诊断日志。
+- [x] 诊断日志包含会话、浏览器、任务、工具调用、页面错误和下载摘要。
+- [x] 诊断日志默认脱敏 password/token/cookie/验证码/API key。
+- [ ] 知乎登录和微信公众号投稿失败样本能通过诊断日志定位下一步排查方向。
+
+### M8 验收：硬件工作区与生产助手
+
+- [ ] 当前 AI 眼镜项目目录能被识别为硬件项目。
+- [ ] 能识别 Gerber zip、BOM、坐标文件、结构件、datasheet 和源工程。
+- [ ] 缺少源工程时能明确提示“只能做生产检查，不能可靠改板”。
+- [ ] 能生成生产包检查报告。
+- [ ] 报告能检查 BOM 和坐标位号一致性。
+- [ ] 报告能检查 Gerber zip 基础结构和钻孔文件。
+- [ ] 报告能区分 `ready`、`quote-only`、`blocked`。
+- [ ] 工作空间中能打开硬件摘要和生产报告 Tab。
+- [ ] Agent 能调用硬件 MCP 工具读取项目摘要和生产检查报告。
+- [ ] 能识别 Gerber 外形层、铜层和钻孔层候选。
+- [ ] 能渲染 FPC 外形预览。
+- [ ] 能在图上标注修改区域和固定区域。
+- [ ] 能把自然语言改版要求转成结构化 `FpcShapeEditIntent`。
+- [ ] 能对低风险外形区域生成修改文件副本，不覆盖原文件。
+- [ ] 能展示旧版/新版外形差异和修改报告。
+- [ ] 调试助手能基于故障现象、测量值和项目文件生成排查树。
+- [ ] KiCad 改板试点必须写入新版本目录，并在用户确认前不改源文件。
+
+### M9 验收：本机 Claude Code Agent 开源底座
+
+- [x] DeepInk 运行代码不再依赖 `core-agent` 或 `../coreAgent`。
+- [x] `package.json` 和 `pnpm-lock.yaml` 已移除 `file:../coreAgent`。
+- [x] `tsconfig.node.json` 和 `electron.vite.config.ts` 已移除 `../coreAgent/dist` alias。
+- [x] Agent runtime、scope、MCP ToolHost、LocalClaudeCodeBackend 已回收到本仓库。
+- [x] 第一版 Agent 后端收敛为 `local-claude-code`，HTTP API 不再伪装成完整工具 Agent。
+- [x] 设置页 Agent 区显示本机 Claude Code 引擎、CLI 路径、检测按钮、状态、权限模式和预算。
+- [x] 主进程支持检测常见 Claude Code 路径和 shell PATH，并允许手动配置路径。
+- [x] Claude Code 检测有确定性单测覆盖。
+- [ ] 仍需人工验收：从 Finder 启动 App 后检测 PATH、手动填写路径、真实 Claude Code 登录状态和浏览器工具调用。

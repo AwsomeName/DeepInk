@@ -9,6 +9,8 @@ import { FileService } from '../fs/file-service'
 import { registerFsIpc } from '../fs/fs-ipc'
 import { ProjectOpsService } from '../project-ops/project-ops-service'
 import { registerProjectOpsIpc } from '../project-ops/project-ops-ipc'
+import { HardwareService } from '../hardware/hardware-service'
+import { registerHardwareIpc } from '../hardware/hardware-ipc'
 import { MeshyService } from '../meshy/meshy-service'
 import { registerMeshyIpc } from '../meshy/meshy-ipc'
 import { registerWechatIPC } from '../ipc/wechat-ipc'
@@ -26,11 +28,17 @@ import { registerWorkspaceStateIpc } from '../workspace/workspace-state-ipc'
 import { TerminalAuditStore } from '../terminal/terminal-audit-store'
 import { TerminalConfirmationService } from '../terminal/terminal-confirmation-service'
 import { TerminalSessionRegistry } from '../terminal/terminal-session-registry'
+import { TerminalSessionStore } from '../terminal/terminal-session-store'
 import { TerminalCommandOrchestrator } from '../terminal/terminal-command-orchestrator'
-import { LocalShellExecutionAdapter } from '../terminal/terminal-local-shell-adapter'
+import { PtyExecutionAdapter } from '../terminal/terminal-pty-execution-adapter'
 import { CclinkTerminalExecutionAdapter } from '../terminal/terminal-cclink-execution-adapter'
+import { EntitledTerminalExecutionAdapter } from '../terminal/terminal-entitled-execution-adapter'
 import { CompositeTerminalExecutionAdapter } from '../terminal/terminal-composite-execution-adapter'
 import { registerTerminalIpc } from '../ipc/terminal-ipc'
+import { registerRemoteIpc } from '../ipc/remote-ipc'
+import { RemoteProviderRegistry } from '../remote/remote-provider-registry'
+import { CclinkRemoteProvider } from '../remote/cclink-remote-provider'
+import { checkEntitlement } from '../subscription/feature-gate'
 import { getAgentCapabilities } from './agent-capabilities'
 import type { DeepInkRuntimeState } from './app-runtime'
 
@@ -64,6 +72,19 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
   registerSubscriptionIpc(runtime.mainWindow, runtime.tokenManager, runtime.subscriptionService)
   console.log('[DeepInk] 订阅系统已初始化')
 
+  if (runtime.cclinkStore) {
+    runtime.remoteProviderRegistry = new RemoteProviderRegistry()
+    runtime.remoteProviderRegistry.register(
+      new CclinkRemoteProvider(
+        runtime.cclinkStore,
+        runtime.cclinkFileService ?? undefined,
+        runtime.cclinkRequestRouter ?? undefined,
+      ),
+    )
+    registerRemoteIpc(runtime.remoteProviderRegistry, runtime.tokenManager, runtime.subscriptionService)
+    console.log('[DeepInk] Remote Provider IPC 已注册')
+  }
+
   const fileService = new FileService()
   registerFsIpc(fileService, runtime.settingsService)
   console.log('[DeepInk] 文件系统 IPC 已注册')
@@ -71,6 +92,10 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
   runtime.projectOpsService = new ProjectOpsService()
   registerProjectOpsIpc(runtime.projectOpsService)
   console.log('[DeepInk] 项目运营 IPC 已注册')
+
+  runtime.hardwareService = new HardwareService()
+  registerHardwareIpc(runtime.hardwareService)
+  console.log('[DeepInk] 硬件工作区 IPC 已注册')
 
   runtime.meshyService = new MeshyService(() => runtime.settingsService!.getAll())
   registerMeshyIpc(runtime.meshyService)
@@ -91,19 +116,30 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
 
   runtime.terminalAuditStore = new TerminalAuditStore()
   await runtime.terminalAuditStore.load()
+  runtime.terminalSessionStore = new TerminalSessionStore()
+  await runtime.terminalSessionStore.load()
   runtime.terminalConfirmationService = new TerminalConfirmationService(runtime.mainWindow, {
     auditStore: runtime.terminalAuditStore,
   })
   runtime.terminalSessionRegistry = new TerminalSessionRegistry()
-  const localTerminalExecutionAdapter = new LocalShellExecutionAdapter()
+  const localTerminalExecutionAdapter = new PtyExecutionAdapter()
   const cclinkTerminalExecutionAdapter =
     runtime.cclinkStore && runtime.cclinkRequestRouter
-      ? new CclinkTerminalExecutionAdapter(runtime.cclinkStore, runtime.cclinkRequestRouter)
+      ? new EntitledTerminalExecutionAdapter(
+          new CclinkTerminalExecutionAdapter(runtime.cclinkStore, runtime.cclinkRequestRouter),
+          {
+            featureName: '远程 Terminal',
+            entitlement: 'remote_terminal',
+            checkAccess: () =>
+              checkEntitlement('远程 Terminal', 'remote_terminal', runtime.tokenManager!, runtime.subscriptionService!),
+          },
+        )
       : undefined
   const terminalExecutionAdapter = new CompositeTerminalExecutionAdapter({
     local: localTerminalExecutionAdapter,
     cclink: cclinkTerminalExecutionAdapter,
   })
+  runtime.terminalExecutionAdapter = terminalExecutionAdapter
   runtime.terminalCommandOrchestrator = new TerminalCommandOrchestrator({
     sessionRegistry: runtime.terminalSessionRegistry,
     confirmationService: runtime.terminalConfirmationService,
@@ -117,6 +153,7 @@ export async function bootstrapMainProcessServices(runtime: DeepInkRuntimeState)
     runtime.terminalCommandOrchestrator,
     terminalExecutionAdapter,
     runtime.mainWindow.webContents,
+    runtime.terminalSessionStore,
   )
   console.log('[DeepInk] Terminal 确认 IPC 已注册')
 

@@ -84,7 +84,7 @@ export class AdbBridge {
     }
 
     throw new Error(
-      '未找到 adb 二进制。请在 DeepInk 中一键安装 Android 环境，或设置 ANDROID_HOME 环境变量。',
+      '未找到 adb 二进制。请连接本机已有 Android SDK/adb，或设置 ANDROID_HOME 环境变量。',
     )
   }
 

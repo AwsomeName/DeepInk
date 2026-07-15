@@ -1,1 +1,1 @@
-export * from 'core-agent/runtime/scope'
+export * from '../agent-core/runtime/scope'

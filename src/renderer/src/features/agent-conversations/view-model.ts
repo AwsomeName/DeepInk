@@ -74,7 +74,7 @@ export interface ProjectAssistantSessions {
 }
 
 export type AgentResourceCandidate = AgentMountedResource & {
-  source: 'selected-file' | 'open-tab' | 'draft'
+  source: 'workspace' | 'selected-file' | 'open-tab' | 'draft'
   searchText: string
 }
 
@@ -458,17 +458,33 @@ export function buildSessionDetail(summary: AgentSessionSummary | null): AgentSe
 }
 
 export function buildResourceCandidates({
+  activeWorkspaceRef,
   tabs,
   editorFiles,
   selectedPath,
   query = '',
 }: {
+  activeWorkspaceRef?: WorkspaceRef | null
   tabs: Tab[]
   editorFiles?: Record<string, { dirty: boolean; loading?: boolean }>
   selectedPath?: string | null
   query?: string
 }): AgentResourceCandidate[] {
   const candidates: AgentResourceCandidate[] = []
+
+  if (activeWorkspaceRef) {
+    const workspaceKey = workspaceRefKey(activeWorkspaceRef)
+    candidates.push(
+      createResourceCandidate({
+        id: `project:${workspaceKey ?? 'global'}`,
+        kind: 'project',
+        label: workspaceRefLabel(activeWorkspaceRef),
+        detail: workspaceRefSourceLabel(activeWorkspaceRef),
+        source: 'workspace',
+        ref: { type: 'project', workspaceKey },
+      }),
+    )
+  }
 
   if (selectedPath) {
     candidates.push(
@@ -749,5 +765,7 @@ function tabTypeLabel(tab: Tab): string {
       return '预览'
     case 'cclink':
       return '远程会话'
+    default:
+      return '工作区 Tab'
   }
 }

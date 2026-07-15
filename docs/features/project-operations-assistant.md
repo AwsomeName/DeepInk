@@ -2,7 +2,7 @@
 
 > 状态：M7.1-M7.5 已实现，待人工验收
 > 最后更新：2026-07-14
-> 关联文档：`docs/features/founder-operations-workbench.md`、`docs/features/product-milestones.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`
+> 关联文档：`docs/features/founder-operations-workbench.md`、`docs/features/product-milestones.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/agent-diagnostic-log.md`
 
 ## 结论
 
@@ -42,6 +42,7 @@ DeepInk 需要：
 - 让 Agent 可见地填写页面。
 - 真正点击发布、提交、删除、修改资料前必须用户确认。
 - 将发布结果写回项目 Markdown，例如 `docs/发布记录.md`。
+- 登录、投稿、上传失败时，一键复制诊断日志用于排障。
 
 ## 项目文件约定
 

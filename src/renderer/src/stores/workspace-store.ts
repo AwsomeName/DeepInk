@@ -7,7 +7,11 @@ import {
   workspaceRefLabel,
   workspaceRefSourceLabel,
 } from '../../../shared/workspace-ref'
-import { getWorkspaceStateKey, setWorkspaceStateRef } from '../utils/workspace-state'
+import {
+  getWorkspaceStateKey,
+  getWorkspaceStateOwnerKey,
+  setWorkspaceStateRef,
+} from '../utils/workspace-state'
 import { hydrateRuntimeSections, persistRuntimeSections } from '../utils/workspace-runtime'
 
 interface WorkspaceState {
@@ -48,7 +52,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 
     try {
       const ref = globalWorkspaceRef()
-      const snapshot = await window.deepink.workspaceState.get(null).catch(() => null)
+      const snapshot = await window.deepink.workspaceState
+        .get(null, getWorkspaceStateOwnerKey())
+        .catch(() => null)
       setWorkspaceStateRef(ref)
       hydrateRuntimeSections(snapshot)
       set({ activeWorkspaceRef: ref, activating: false, error: null })
@@ -69,7 +75,9 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
     set({ activating: true, error: null })
 
     try {
-      const snapshot = await window.deepink.workspaceState.get(nextKey).catch(() => null)
+      const snapshot = await window.deepink.workspaceState
+        .get(nextKey, getWorkspaceStateOwnerKey())
+        .catch(() => null)
       setWorkspaceStateRef(ref)
       hydrateRuntimeSections(snapshot)
       set({ activeWorkspaceRef: ref, activating: false, error: null })

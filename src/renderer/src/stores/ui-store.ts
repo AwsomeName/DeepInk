@@ -38,7 +38,7 @@ interface UIState {
 
 /** UI 状态默认值 */
 const UI_DEFAULTS = {
-  activePanel: 'files' as ActivityPanel,
+  activePanel: 'projects' as ActivityPanel,
   sidebarVisible: true,
   agentPanelVisible: true,
   sidebarWidth: 250,
@@ -49,8 +49,11 @@ const UI_DEFAULTS = {
 
 const UI_STORAGE_KEY = 'deepink-ui-state'
 const VISIBLE_ACTIVITY_PANELS = new Set<ActivityPanel>([
+  'projects',
   'browser',
   'files',
+  'production',
+  'terminal',
   'operations',
   'sessions',
 ])

@@ -5,16 +5,24 @@ import {
   useBrowserTaskStore,
   useEditorStore,
   useFsStore,
+  useSettingsStore,
   useTabStore,
   useWorkspaceStore,
 } from '../../stores'
-import {
-  workspaceRefKey,
-  workspaceRefLabel,
-  workspaceRefSourceLabel,
-} from '../../../../shared/workspace-ref'
+import { workspaceRefLabel } from '../../../../shared/workspace-ref'
 import { MountedResourceBar } from '../../features/agent-conversations/mounted-resource-bar'
 import { MountedSkillStrip } from '../../features/agent-conversations/mounted-skill-strip'
+import {
+  ResourceCandidateMenu,
+  SkillCandidateMenu,
+} from '../../features/agent-conversations/context-candidate-menu'
+import {
+  stripTrailingMentionToken,
+  toMountedResource,
+  toMountedSkill,
+  toSendResources,
+  toSendSkills,
+} from '../../features/agent-conversations/payload'
 import {
   buildResourceCandidates,
   buildSkillCandidates,
@@ -23,17 +31,13 @@ import {
   type AgentResourceCandidate,
   type AgentSkillCandidate,
 } from '../../features/agent-conversations/view-model'
-import type {
-  AgentMountedResource,
-  AgentMountedResourceKind,
-  AgentMountedSkill,
-  PermissionMode,
-  AgentScope,
-} from '../../types'
+import type { PermissionMode } from '../../types'
 import type { BrowserActionLog, BrowserDownloadRecord, BrowserTaskRun } from '@shared/ipc/browser'
-import type { AgentSendResource, AgentSendSkill } from '@shared/ipc/agent'
 import { ConversationMessageRenderer } from '../common/ConversationMessageRenderer'
+import { AgentComposerToolbar } from '../../features/agent-composer/AgentComposerToolbar'
 import { TerminalConfirmationCards } from './TerminalConfirmationCards'
+import { buildAgentDiagnosticMarkdown } from '../../features/diagnostics/agent-diagnostic-report'
+import { useToastStore } from '../common/Toast'
 import {
   IconSparkle,
   IconCircle,
@@ -43,14 +47,9 @@ import {
   IconTool,
   IconCheck,
   IconError,
-  IconChevronDown,
   IconGlobe,
-  IconMobile,
   IconFile,
-  IconRobot,
-  IconPlus,
-  IconSearch,
-  IconTerminal,
+  IconClipboard,
 } from '../common/Icons'
 
 interface AgentPanelProps {
@@ -65,7 +64,6 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const input = useAgentStore((s) => s.input)
   const loading = useAgentStore((s) => s.loading)
   const backendState = useAgentStore((s) => s.backendState)
-  const sessionId = useAgentStore((s) => s.sessionId)
   const lastCost = useAgentStore((s) => s.lastCost)
   const pendingConfirmations = useAgentStore((s) => s.pendingConfirmations)
   const permissionMode = useAgentStore((s) => s.permissionMode)
@@ -80,10 +78,13 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const addMountedSkill = useAgentStore((s) => s.addMountedSkill)
   const removeMountedSkill = useAgentStore((s) => s.removeMountedSkill)
   const scope = useAgentStore((s) => s.scope)
-  const setScopeState = useAgentStore((s) => s.setScope)
   const createConversation = useAgentStore((s) => s.createConversation)
   const switchConversation = useAgentStore((s) => s.switchConversation)
   const tabs = useTabStore((s) => s.tabs)
+  const activeTabId = useTabStore((s) => s.activeTabId)
+  const openTab = useTabStore((s) => s.openTab)
+  const settings = useSettingsStore((s) => s.settings)
+  const loadSettings = useSettingsStore((s) => s.loadSettings)
   const editorFiles = useEditorStore((s) => s.files)
   const selectedPath = useFsStore((s) => s.selectedPath)
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
@@ -95,6 +96,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const browserDownloads = useBrowserDownloadStore((s) => s.downloads)
   const upsertBrowserDownload = useBrowserDownloadStore((s) => s.upsertDownload)
   const refreshBrowserDownloads = useBrowserDownloadStore((s) => s.refresh)
+  const showToast = useToastStore((s) => s.show)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const restoredConversationIdsRef = useRef<Set<string>>(new Set())
   /** 中止重入守卫：防止快速连点产生重复的中止提示 */
@@ -123,6 +125,10 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   useEffect(() => {
     void refreshBrowserDownloads()
   }, [refreshBrowserDownloads])
+
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
 
   // 自动滚动到底部
   useEffect(() => {
@@ -233,34 +239,103 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   )
 
   // 切换权限模式
-  const cyclePermissionMode = useCallback(async () => {
-    const modes: PermissionMode[] = ['auto', 'categorized', 'strict']
-    const currentIdx = modes.indexOf(permissionMode)
-    const nextMode = modes[(currentIdx + 1) % modes.length]
-    await window.deepink.agent.setPermissionMode(nextMode)
-    setPermissionMode(nextMode)
-  }, [permissionMode, setPermissionMode])
-
-  // 切换操作作用域：同步主进程（响应中会被拒绝并回传 error），乐观更新本地
-  const handleChangeScope = useCallback(
-    async (next: AgentScope) => {
-      const conversationId = activeConversationId
-      const ok = await window.deepink.agent.setScope(conversationId, next)
-      // 即使被拒绝也用主进程的权威值回填（拒绝时主进程不变）
-      const authoritative = await window.deepink.agent.getScope(conversationId)
-      setScopeState(authoritative, conversationId)
-      if (!ok) {
-        // isBusy 拒绝：onError 已回传提示，这里不再额外弹
-      }
+  const handlePermissionModeChange = useCallback(
+    async (nextMode: PermissionMode) => {
+      if (nextMode === permissionMode) return
+      await window.deepink.agent.setPermissionMode(nextMode)
+      setPermissionMode(nextMode)
     },
-    [activeConversationId, setScopeState],
+    [permissionMode, setPermissionMode],
   )
 
-  const handleNewConversation = useCallback(() => {
-    createConversation({
-      runtime: createConversationRuntimeForWorkspace(activeWorkspaceRef),
+  const handleOpenAgentSettings = useCallback(() => {
+    openTab({ type: 'settings', title: 'Agent 设置', icon: '⚙️', settingsSection: 'agent' })
+  }, [openTab])
+
+  const handleCopyDiagnostics = useCallback(async () => {
+    const conversation = useAgentStore.getState().conversations[activeConversationId] ?? null
+    const currentMessages = conversation?.messages ?? messages
+    const browserTab =
+      scope.kind === 'browser'
+        ? tabs.find((tab) => tab.id === scope.instanceId && tab.type === 'browser')
+        : tabs.find((tab) => tab.id === activeTabId && tab.type === 'browser')
+    const browserTabId = browserTab?.id ?? (scope.kind === 'browser' ? scope.instanceId : null)
+    let currentUrl = browserTab?.initialUrl ?? null
+    let viewState = null
+    let pageDiagnostics = null
+
+    if (browserTabId) {
+      try {
+        currentUrl = await window.deepink.browser.getCurrentURL(browserTabId)
+      } catch {
+        currentUrl = browserTab?.initialUrl ?? null
+      }
+      try {
+        viewState = await window.deepink.browser.getViewState()
+      } catch {
+        viewState = null
+      }
+      try {
+        pageDiagnostics = await window.deepink.browser.getDiagnostics(browserTabId)
+      } catch {
+        pageDiagnostics = null
+      }
+    }
+
+    const tasksForTab = browserTabId
+      ? Object.values(browserTasks)
+          .filter((task) => task.tabId === browserTabId)
+          .sort((a, b) => b.startedAt - a.startedAt)
+      : []
+    const diagnosticTask =
+      tasksForTab.find((task) => !isFinalBrowserTaskStatus(task.status)) ?? tasksForTab[0] ?? null
+    const diagnosticDownloads = diagnosticTask
+      ? diagnosticTask.downloadIds.map((downloadId) => browserDownloads[downloadId]).filter(Boolean)
+      : []
+    const markdown = buildAgentDiagnosticMarkdown({
+      appVersion: '0.1.1',
+      platform: navigator.platform,
+      workspaceRef: activeWorkspaceRef,
+      conversation,
+      messages: currentMessages,
+      backendState,
+      permissionMode,
+      scope,
+      browser: {
+        tabId: browserTabId,
+        url: pageDiagnostics?.url ?? currentUrl,
+        title: pageDiagnostics?.title || browserTab?.title || null,
+        profile: browserTab?.browserProfile ?? null,
+        viewState,
+      },
+      pageDiagnostics,
+      browserTask: diagnosticTask,
+      browserActionLogs: diagnosticTask ? (browserActionLogs[diagnosticTask.id] ?? []) : [],
+      browserDownloads: diagnosticDownloads,
+      pendingConfirmationCount: pendingConfirmations.length,
     })
-  }, [activeWorkspaceRef, createConversation])
+
+    try {
+      await copyTextToClipboard(markdown)
+      showToast('诊断日志已复制', 'success')
+    } catch (err) {
+      showToast(`复制诊断日志失败: ${String(err)}`, 'error')
+    }
+  }, [
+    activeConversationId,
+    activeTabId,
+    activeWorkspaceRef,
+    backendState,
+    browserActionLogs,
+    browserDownloads,
+    browserTasks,
+    messages,
+    pendingConfirmations.length,
+    permissionMode,
+    scope,
+    showToast,
+    tabs,
+  ])
 
   const orderedConversations = useMemo(
     () =>
@@ -342,18 +417,6 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     error: '连接错误',
   }
 
-  const modeLabel: Record<PermissionMode, string> = {
-    auto: '自动',
-    categorized: '分类',
-    strict: '严格',
-  }
-
-  const modeColor: Record<PermissionMode, string> = {
-    auto: '#22c55e',
-    categorized: '#eab308',
-    strict: '#ef4444',
-  }
-
   const riskLabel: Record<string, string> = {
     read: '只读',
     write: '写入',
@@ -384,14 +447,13 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
         .slice(-3)
     : []
   const workspaceName = useMemo(() => workspaceRefLabel(activeWorkspaceRef), [activeWorkspaceRef])
-  const workspaceTitle = workspaceRefKey(activeWorkspaceRef) ?? '系统工作空间：未归档'
-  const workspaceMeta = workspaceRefSourceLabel(activeWorkspaceRef)
   const activeConversation = conversations[activeConversationId]
   const mountedResources = activeConversation?.mountedResources ?? []
   const mountedSkills = activeConversation?.mountedSkills ?? []
   const resourceCandidates = useMemo(
     () =>
       buildResourceCandidates({
+        activeWorkspaceRef,
         tabs,
         editorFiles,
         selectedPath,
@@ -425,6 +487,13 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
           <h1 className="agent-start-title">我们应该在 {workspaceName} 中构建什么？</h1>
 
           <div className="agent-start-composer">
+            {resourceQuery !== null && (
+              <ResourceCandidateMenu candidates={resourceCandidates} onPick={handleMountResource} />
+            )}
+            {skillQuery !== null && (
+              <SkillCandidateMenu candidates={skillCandidates} onPick={handleMountSkill} />
+            )}
+            <MountedSkillStrip skills={mountedSkills} onRemove={handleRemoveMountedSkill} />
             <textarea
               className="agent-start-input"
               value={input}
@@ -434,30 +503,16 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
               disabled={loading}
               rows={3}
             />
-            <div className="agent-start-toolbar">
-              <div className="agent-start-tools">
-                <button
-                  className="agent-start-icon-btn"
-                  onClick={handleNewConversation}
-                  title="新建会话"
-                >
-                  <IconPlus size={16} />
-                </button>
-                <button
-                  className="agent-start-chip agent-start-chip-button"
-                  onClick={cyclePermissionMode}
-                  title={`权限模式: ${modeLabel[permissionMode]}（点击切换）`}
-                >
-                  <IconCircle size={8} filled color={modeColor[permissionMode]} />
-                  {modeLabel[permissionMode]}
-                </button>
-                <ScopeSelector value={scope} onChange={handleChangeScope} />
-              </div>
-              <div className="agent-start-tools">
-                <span className="agent-start-chip" title={workspaceTitle}>
-                  <IconFile size={13} />
-                  {workspaceMeta} · {workspaceName}
-                </span>
+            <AgentComposerToolbar
+              permissionMode={permissionMode}
+              settings={settings}
+              loading={loading}
+              canSend={Boolean(input.trim())}
+              onPermissionModeChange={handlePermissionModeChange}
+              onOpenResourceMenu={() => setResourceQuery('')}
+              onOpenSkillMenu={() => setSkillQuery('')}
+              onOpenSettings={handleOpenAgentSettings}
+              sendButton={
                 <button
                   className="agent-start-send"
                   onClick={handleSend}
@@ -466,8 +521,8 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
                 >
                   <IconSend size={16} />
                 </button>
-              </div>
-            </div>
+              }
+            />
           </div>
 
           <div className="agent-start-hints">
@@ -483,7 +538,17 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   return (
     <div className={`agent-panel agent-panel-${variant}`}>
       <div className="agent-conversation-main">
-        <MountedResourceBar resources={mountedResources} onRemove={handleRemoveMountedResource} />
+        <div className="agent-resource-diagnostic-row">
+          <MountedResourceBar resources={mountedResources} onRemove={handleRemoveMountedResource} />
+          <button
+            type="button"
+            className="agent-copy-diagnostics-btn"
+            onClick={() => void handleCopyDiagnostics()}
+            title="复制当前会话诊断日志"
+          >
+            <IconClipboard size={13} />
+          </button>
+        </div>
 
         {activeBrowserTask && (
           <BrowserTaskCard
@@ -588,29 +653,17 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
               disabled={loading}
               rows={2}
             />
-            <div className="agent-composer-toolbar">
-              <div className="agent-composer-tools">
-                <button className="agent-composer-icon-btn" title="添加资源或 Skill">
-                  <IconPlus size={16} />
-                </button>
-                <button
-                  className="agent-mode-btn"
-                  onClick={cyclePermissionMode}
-                  title={`权限模式: ${modeLabel[permissionMode]}（点击切换）`}
-                >
-                  <IconCircle size={8} filled color={modeColor[permissionMode]} />
-                  {modeLabel[permissionMode]}
-                  <IconChevronDown size={12} />
-                </button>
-                <ScopeSelector value={scope} onChange={handleChangeScope} />
-              </div>
-              <div className="agent-composer-tools">
-                <button className="agent-model-btn" title="模型与推理模式">
-                  5.5
-                  <span>高</span>
-                  <IconChevronDown size={12} />
-                </button>
-                {loading ? (
+            <AgentComposerToolbar
+              permissionMode={permissionMode}
+              settings={settings}
+              loading={loading}
+              canSend={Boolean(input.trim())}
+              onPermissionModeChange={handlePermissionModeChange}
+              onOpenResourceMenu={() => setResourceQuery('')}
+              onOpenSkillMenu={() => setSkillQuery('')}
+              onOpenSettings={handleOpenAgentSettings}
+              sendButton={
+                loading ? (
                   <button className="agent-abort-btn" onClick={handleAbort} title="中止">
                     <IconStop size={15} />
                   </button>
@@ -623,167 +676,14 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
                   >
                     <IconSend size={17} />
                   </button>
-                )}
-              </div>
-            </div>
+                )
+              }
+            />
           </div>
         </div>
       </div>
     </div>
   )
-}
-
-function ResourceCandidateMenu({
-  candidates,
-  onPick,
-}: {
-  candidates: AgentResourceCandidate[]
-  onPick: (candidate: AgentResourceCandidate) => void
-}): React.ReactElement {
-  return (
-    <div className="agent-resource-menu">
-      {candidates.length === 0 ? (
-        <div className="agent-resource-menu-empty">
-          <IconSearch size={13} />
-          没有匹配资源
-        </div>
-      ) : (
-        candidates.map((candidate) => (
-          <button
-            key={candidate.id}
-            className="agent-resource-menu-row"
-            onMouseDown={(event) => {
-              event.preventDefault()
-              onPick(candidate)
-            }}
-            title={candidate.detail}
-          >
-            {resourceMenuIcon(candidate.kind)}
-            <span>{candidate.label}</span>
-            <em>{resourceSourceLabel(candidate)}</em>
-          </button>
-        ))
-      )}
-    </div>
-  )
-}
-
-function SkillCandidateMenu({
-  candidates,
-  onPick,
-}: {
-  candidates: AgentSkillCandidate[]
-  onPick: (candidate: AgentSkillCandidate) => void
-}): React.ReactElement {
-  return (
-    <div className="agent-resource-menu agent-skill-menu">
-      {candidates.length === 0 ? (
-        <div className="agent-resource-menu-empty">
-          <IconSearch size={13} />
-          没有匹配 Skill
-        </div>
-      ) : (
-        candidates.map((candidate) => (
-          <button
-            key={candidate.id}
-            className="agent-resource-menu-row"
-            onMouseDown={(event) => {
-              event.preventDefault()
-              onPick(candidate)
-            }}
-            title={candidate.description}
-          >
-            <IconSparkle size={13} />
-            <span>/{candidate.label}</span>
-            <em>{skillSourceLabel(candidate)}</em>
-          </button>
-        ))
-      )}
-    </div>
-  )
-}
-
-function resourceMenuIcon(kind: AgentMountedResourceKind): React.ReactElement {
-  switch (kind) {
-    case 'browser':
-      return <IconGlobe size={13} />
-    case 'android':
-      return <IconMobile size={13} />
-    case 'terminal':
-      return <IconTerminal size={13} />
-    case 'file':
-    case 'tab':
-    case 'artifact':
-    case 'project':
-      return <IconFile size={13} />
-  }
-}
-
-function skillSourceLabel(candidate: AgentSkillCandidate): string {
-  switch (candidate.source) {
-    case 'builtin':
-      return '内置'
-    case 'workspace':
-      return '项目'
-    case 'user':
-    default:
-      return '用户 Skill'
-  }
-}
-
-function resourceSourceLabel(candidate: AgentResourceCandidate): string {
-  switch (candidate.source) {
-    case 'selected-file':
-      return '当前文件'
-    case 'open-tab':
-      return candidate.kind === 'browser' ? '浏览器 Tab' : '打开 Tab'
-    case 'draft':
-      return '草稿'
-  }
-}
-
-function toMountedResource(resource: AgentResourceCandidate): AgentMountedResource {
-  return {
-    id: resource.id,
-    kind: resource.kind,
-    label: resource.label,
-    detail: resource.detail,
-    ref: resource.ref,
-  }
-}
-
-function toMountedSkill(skill: AgentSkillCandidate): AgentMountedSkill {
-  return {
-    id: skill.id,
-    name: skill.name,
-    label: skill.label,
-    description: skill.description,
-    source: skill.source,
-  }
-}
-
-function toSendResources(resources: AgentMountedResource[]): AgentSendResource[] {
-  return resources.map((resource) => ({
-    id: resource.id,
-    kind: resource.kind,
-    label: resource.label,
-    detail: resource.detail,
-    ref: resource.ref,
-  }))
-}
-
-function toSendSkills(skills: AgentMountedSkill[]): AgentSendSkill[] {
-  return skills.map((skill) => ({
-    id: skill.id,
-    name: skill.name,
-    label: skill.label,
-    description: skill.description,
-    source: skill.source,
-  }))
-}
-
-function stripTrailingMentionToken(text: string): string {
-  return text.replace(/(^|\s)([@/])([^\s@/]*)$/, '$1').trimEnd()
 }
 
 function BrowserTaskCard({
@@ -948,6 +848,23 @@ function downloadStatusLabel(download: BrowserDownloadRecord): string {
   }
 }
 
+async function copyTextToClipboard(text: string): Promise<void> {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text)
+    return
+  }
+  const textarea = document.createElement('textarea')
+  textarea.value = text
+  textarea.setAttribute('readonly', 'true')
+  textarea.style.position = 'fixed'
+  textarea.style.left = '-9999px'
+  document.body.appendChild(textarea)
+  textarea.select()
+  const ok = document.execCommand('copy')
+  document.body.removeChild(textarea)
+  if (!ok) throw new Error('clipboard unavailable')
+}
+
 function isFinalBrowserTaskStatus(status: BrowserTaskRun['status']): boolean {
   return status === 'completed' || status === 'failed' || status === 'cancelled'
 }
@@ -987,138 +904,4 @@ function formatBrowserTaskDuration(startedAt: number, endedAt?: number): string 
   const durationMs = Math.max(0, (endedAt ?? Date.now()) - startedAt)
   if (durationMs < 1000) return `${durationMs}ms`
   return `${(durationMs / 1000).toFixed(1)}s`
-}
-
-/** 操作作用域选择器：枚举 全部/Android/编辑器 + 当前打开的浏览器实例 */
-function ScopeSelector({
-  value,
-  onChange,
-}: {
-  value: AgentScope
-  onChange: (scope: AgentScope) => void
-}): React.ReactElement {
-  const [open, setOpen] = useState(false)
-  const wrapRef = useRef<HTMLDivElement>(null)
-  // 浏览器实例 = Tab 列表里 type==='browser' 的项（与主进程 BrowserManager.views 同源 tabId）。
-  // 注意：selector 必须返回引用稳定的值——`.filter()` 每次返回新数组会让 Zustand（useSyncExternalStore）
-  // 判定快照变化 → 无限渲染。故先选稳定的 `tabs`，再用 useMemo 派生过滤结果。
-  const allTabs = useTabStore((s) => s.tabs)
-  const browserTabs = useMemo(() => allTabs.filter((t) => t.type === 'browser'), [allTabs])
-
-  // 点外部关闭
-  useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent): void => {
-      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [open])
-
-  // 选中态判定
-  const isSelected = (s: AgentScope): boolean => {
-    if (s.kind !== value.kind) return false
-    if (s.kind === 'browser' && value.kind === 'browser') return s.instanceId === value.instanceId
-    return true
-  }
-
-  // 按钮显示标签
-  const label = (() => {
-    switch (value.kind) {
-      case 'all':
-        return '全部'
-      case 'android':
-        return 'Android'
-      case 'editor':
-        return '编辑器'
-      case 'browser': {
-        const t = browserTabs.find((tb) => tb.id === value.instanceId)
-        return t?.title ?? `浏览器 ${value.instanceId.slice(0, 6)}`
-      }
-    }
-  })()
-
-  const pick = (s: AgentScope): void => {
-    onChange(s)
-    setOpen(false)
-  }
-
-  const leadingIcon = (kind: AgentScope['kind'], size = 11): React.ReactElement => {
-    switch (kind) {
-      case 'all':
-        return <IconRobot size={size} />
-      case 'android':
-        return <IconMobile size={size} />
-      case 'editor':
-        return <IconFile size={size} />
-      case 'browser':
-        return <IconGlobe size={size} />
-    }
-  }
-
-  return (
-    <div className="agent-scope-select" ref={wrapRef}>
-      <button
-        className={`agent-scope-btn ${value.kind !== 'all' ? 'active' : ''}`}
-        onClick={() => setOpen((o) => !o)}
-        title="选择 Agent 操作目标（收窄工具域）"
-      >
-        {leadingIcon(value.kind)}
-        <span>{label}</span>
-        <IconChevronDown size={10} />
-      </button>
-      {open && (
-        <div className="agent-scope-menu">
-          <div className="agent-scope-group">操作目标</div>
-          <button
-            className={`agent-scope-opt ${isSelected({ kind: 'all' }) ? 'selected' : ''}`}
-            onClick={() => pick({ kind: 'all' })}
-          >
-            <IconRobot size={12} />
-            <span className="agent-scope-opt-label">全部（跨域任务）</span>
-            {isSelected({ kind: 'all' }) && <IconCheck size={11} />}
-          </button>
-          <button
-            className={`agent-scope-opt ${isSelected({ kind: 'android' }) ? 'selected' : ''}`}
-            onClick={() => pick({ kind: 'android' })}
-          >
-            <IconMobile size={12} />
-            <span className="agent-scope-opt-label">Android 真机</span>
-            {isSelected({ kind: 'android' }) && <IconCheck size={11} />}
-          </button>
-          <button
-            className={`agent-scope-opt ${isSelected({ kind: 'editor' }) ? 'selected' : ''}`}
-            onClick={() => pick({ kind: 'editor' })}
-          >
-            <IconFile size={12} />
-            <span className="agent-scope-opt-label">文档编辑器</span>
-            {isSelected({ kind: 'editor' }) && <IconCheck size={11} />}
-          </button>
-
-          {browserTabs.length > 0 && (
-            <>
-              <div className="agent-scope-group">浏览器实例</div>
-              {browserTabs.map((tb) => {
-                const s: AgentScope = { kind: 'browser', instanceId: tb.id }
-                const sel = isSelected(s)
-                return (
-                  <button
-                    key={tb.id}
-                    className={`agent-scope-opt ${sel ? 'selected' : ''}`}
-                    onClick={() => pick(s)}
-                  >
-                    <IconGlobe size={12} />
-                    <span className="agent-scope-opt-label" title={tb.title}>
-                      {tb.title || tb.id.slice(0, 8)}
-                    </span>
-                    {sel && <IconCheck size={11} />}
-                  </button>
-                )
-              })}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  )
 }

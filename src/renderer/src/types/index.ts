@@ -3,6 +3,7 @@
  */
 
 import type { RemoteWorkspaceTransport, WorkspaceRef } from '@shared/workspace-ref'
+import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { TerminalCommandConfirmationRequest, TerminalTabRef } from '@shared/terminal'
 
 // ─── 认证类型 ──────────────────────────────────────
@@ -13,7 +14,14 @@ export type { LocalIdentity } from '@shared/ipc/identity'
 // ─── UI 类型 ───────────────────────────────────────
 
 /** Activity Bar 面板类型 */
-export type ActivityPanel = 'browser' | 'files' | 'operations' | 'sessions'
+export type ActivityPanel =
+  | 'projects'
+  | 'browser'
+  | 'files'
+  | 'production'
+  | 'terminal'
+  | 'operations'
+  | 'sessions'
 
 /** Workbench Tab 类型 */
 export type TabType =
@@ -26,7 +34,9 @@ export type TabType =
   | 'conversation'
   | 'cclink'
   | 'remote-file'
+  | 'hardware-gerber'
   | 'terminal'
+  | 'terminal-record'
 
 export type ConversationSurface = 'assistant-panel' | 'workbench-tab'
 
@@ -128,8 +138,16 @@ export interface Tab {
     workspaceId: string
     path: string
   }
+  /** Gerber 生产包层预览 */
+  hardwareGerber?: {
+    workspacePath: string
+    packagePath: string
+    entry?: string
+  }
   /** Terminal 工作现场；M6 先定义模型，不开放真实 shell */
   terminal?: TerminalTabRef
+  /** Terminal 只读历史记录 */
+  terminalRecord?: TerminalSessionSnapshot
 }
 
 // ─── Playwright 类型 ───────────────────────────────
@@ -214,6 +232,8 @@ export type {
   SubscriptionStatus,
   PaymentChannel,
   OrderStatus,
+  Entitlement,
+  EntitlementGrant,
   SubscriptionPlan,
   UserSubscription,
   CreateOrderResult,

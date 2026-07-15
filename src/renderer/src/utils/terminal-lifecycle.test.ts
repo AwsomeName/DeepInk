@@ -41,6 +41,8 @@ describe('recordTerminalLifecycleEvent', () => {
       kind: 'created',
       message: 'created',
       runtime: terminal.runtime,
+      permissionPolicy: terminal.permissionPolicy,
+      closePolicy: terminal.closePolicy,
     })
   })
 

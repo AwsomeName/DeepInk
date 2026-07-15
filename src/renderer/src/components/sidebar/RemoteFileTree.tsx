@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ChatccTreeNode } from '@shared/chatcc'
-import type { CclinkRemoteError } from '@shared/ipc/cclink'
+import type { RemoteStatus } from '@shared/remote-protocol'
+import type { RemoteError } from '@shared/remote-error'
+import { remoteWorkspaceRef } from '@shared/workspace-ref'
 import { IconChevronDown, IconChevronRight, IconFile, IconFolder } from '../common/Icons'
 import { useTabStore } from '../../stores'
 import { RemoteErrorNotice } from '../common/RemoteErrorNotice'
@@ -16,7 +18,7 @@ interface RemoteNodeState {
   loading: boolean
   children: ChatccTreeNode[] | null
   error: string | null
-  remoteError: CclinkRemoteError | null
+  remoteError: RemoteError | null
 }
 
 const MAX_INITIAL_DEPTH = 1
@@ -37,10 +39,42 @@ export function RemoteFileTree({
   const [root, setRoot] = useState<ChatccTreeNode | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [remoteError, setRemoteError] = useState<CclinkRemoteError | null>(null)
+  const [remoteError, setRemoteError] = useState<RemoteError | null>(null)
+  const [status, setStatus] = useState<RemoteStatus | null>(null)
   const [nodeStates, setNodeStates] = useState<Record<string, RemoteNodeState>>({})
 
+  function getWorkspaceRef() {
+    return remoteWorkspaceRef({
+      endpointId: serverId,
+      workspaceId,
+      path: rootPath,
+    })
+  }
+
+  const workspaceRef = getWorkspaceRef()
+
   useEffect(() => {
+    let cancelled = false
+    window.deepink.remote
+      .getStatus(workspaceRef)
+      .then((nextStatus) => {
+        if (!cancelled) setStatus(nextStatus)
+      })
+      .catch(() => {
+        if (!cancelled) setStatus(null)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [rootPath, serverId, workspaceId])
+
+  useEffect(() => {
+    const ref = remoteWorkspaceRef({
+      endpointId: serverId,
+      workspaceId,
+      path: rootPath,
+    })
     let cancelled = false
     setRoot(null)
     setLoading(true)
@@ -48,10 +82,9 @@ export function RemoteFileTree({
     setRemoteError(null)
     setNodeStates({})
 
-    window.deepink.cclink
+    window.deepink.remote
       .listFileTree({
-        serverId,
-        workspaceId,
+        ref,
         path: rootPath,
         depth: MAX_INITIAL_DEPTH,
       })
@@ -111,9 +144,8 @@ export function RemoteFileTree({
       [key]: { expanded: true, loading: true, children: null, error: null, remoteError: null },
     }))
 
-    const result = await window.deepink.cclink.listFileTree({
-      serverId,
-      workspaceId,
+    const result = await window.deepink.remote.listFileTree({
+      ref: getWorkspaceRef(),
       path: node.path,
       depth: MAX_INITIAL_DEPTH,
     })
@@ -142,6 +174,7 @@ export function RemoteFileTree({
 
   return (
     <div className="remote-file-tree">
+      {status && <RemoteCapabilitySummary status={status} />}
       {(nodeStates[nodeKey(root.path)]?.children ?? root.children ?? []).map((node) => (
         <RemoteFileNode
           key={node.path}
@@ -153,6 +186,31 @@ export function RemoteFileTree({
           onToggleDirectory={toggleDirectory}
         />
       ))}
+    </div>
+  )
+}
+
+function RemoteCapabilitySummary({ status }: { status: RemoteStatus }): React.ReactElement {
+  const fileMode = status.capabilities.file.write
+    ? '文件可写'
+    : status.capabilities.file.read
+      ? '文件只读'
+      : '文件不可用'
+  const terminalMode = status.capabilities.shell.command ? 'Terminal 可用' : 'Terminal 不可用'
+  const agentMode =
+    status.capabilities.agent.codex || status.capabilities.agent.claudeCode
+      ? 'Agent 可用'
+      : 'Agent 未就绪'
+
+  return (
+    <div className="remote-file-tree-state" title={status.remoteError?.message}>
+      {status.state === 'online' ? '在线' : status.state === 'connecting' ? '连接中' : '离线'}
+      {' · '}
+      {fileMode}
+      {' · '}
+      {terminalMode}
+      {' · '}
+      {agentMode}
     </div>
   )
 }

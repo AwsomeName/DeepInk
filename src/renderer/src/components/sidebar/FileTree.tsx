@@ -2,8 +2,9 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 import { useFsStore, useTabStore } from '../../stores'
 import { useContextMenuStore } from '../../stores/context-menu-store'
 import type { FileTreeNode } from '../../stores/fs-store'
-import { IconFolder, IconChevronRight, IconChevronDown } from '../common/Icons'
+import { IconFolder, IconFile, IconPlus, IconChevronRight, IconChevronDown } from '../common/Icons'
 import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
+import { isGerberFileExtension } from '../../utils/hardware-files'
 
 const FILE_TREE_SCROLL_KEY = 'deepink-file-tree-scroll'
 
@@ -51,6 +52,7 @@ const FILE_ICONS: Record<string, string> = {
 /** 获取文件图标 */
 function getFileIcon(node: FileTreeNode): string {
   if (node.type === 'directory') return ''
+  if (isGerberFileExtension(node.extension)) return '🧩'
   if (isModelFileExtension(node.extension)) return getModelFileIcon(node.extension)
   return FILE_ICONS[node.extension ?? ''] ?? '📄'
 }
@@ -65,8 +67,10 @@ export function FileTree(): React.ReactElement {
   const toggleDir = useFsStore((s) => s.toggleDir)
   const editingPath = useFsStore((s) => s.editingPath)
   const newFolderParent = useFsStore((s) => s.newFolderParent)
+  const startEditing = useFsStore((s) => s.startEditing)
   const setSelectedPath = useFsStore((s) => s.setSelectedPath)
   const confirmNewFolder = useFsStore((s) => s.confirmNewFolder)
+  const confirmNewFile = useFsStore((s) => s.confirmNewFile)
   const cancelEditing = useFsStore((s) => s.cancelEditing)
   const openTab = useTabStore((s) => s.openTab)
   const treeRef = useRef<HTMLDivElement>(null)
@@ -84,6 +88,20 @@ export function FileTree(): React.ReactElement {
   const handleFileClick = (node: FileTreeNode): void => {
     if (node.type === 'file') {
       setSelectedPath(node.path)
+      if (workspacePath && isGerberFileExtension(node.extension)) {
+        openTab({
+          type: 'hardware-gerber',
+          title: node.name,
+          icon: getFileIcon(node),
+          filePath: node.path,
+          hardwareGerber: {
+            workspacePath,
+            packagePath: node.path,
+            entry: node.name,
+          },
+        })
+        return
+      }
       openTab({
         type: getTabTypeForFile(node.extension),
         title: node.name,
@@ -131,24 +149,54 @@ export function FileTree(): React.ReactElement {
   }
 
   return (
-    <div className="file-tree" ref={treeRef}>
-      {tree.map((node) => (
-        <FileTreeNodeView
-          key={node.path}
-          node={node}
-          depth={0}
-          onDirClick={handleDirClick}
-          onFileClick={handleFileClick}
-        />
-      ))}
-      {/* 根目录新建文件夹输入框 */}
-      {editingPath === 'new-folder' && newFolderParent === workspacePath && (
-        <InlineInput
-          depth={0}
-          onConfirm={confirmNewFolder}
-          onCancel={cancelEditing}
-        />
-      )}
+    <div className="file-tree-shell">
+      <div className="file-tree-toolbar">
+        <button
+          className="file-tree-toolbar-btn"
+          onClick={() => startEditing('new-file', workspacePath)}
+          title="新建文件"
+        >
+          <IconFile size={13} />
+          <IconPlus size={9} className="file-tree-toolbar-plus" />
+        </button>
+        <button
+          className="file-tree-toolbar-btn"
+          onClick={() => startEditing('new-folder', workspacePath)}
+          title="新建文件夹"
+        >
+          <IconFolder size={13} />
+          <IconPlus size={9} className="file-tree-toolbar-plus" />
+        </button>
+      </div>
+      <div className="file-tree" ref={treeRef}>
+        {tree.map((node) => (
+          <FileTreeNodeView
+            key={node.path}
+            node={node}
+            depth={0}
+            onDirClick={handleDirClick}
+            onFileClick={handleFileClick}
+          />
+        ))}
+        {/* 根目录新建输入框 */}
+        {editingPath === 'new-folder' && newFolderParent === workspacePath && (
+          <InlineInput
+            depth={0}
+            icon={<IconFolder size={14} />}
+            onConfirm={confirmNewFolder}
+            onCancel={cancelEditing}
+          />
+        )}
+        {editingPath === 'new-file' && newFolderParent === workspacePath && (
+          <InlineInput
+            depth={0}
+            icon={<IconFile size={14} />}
+            initialValue="未命名.md"
+            onConfirm={confirmNewFile}
+            onCancel={cancelEditing}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -172,6 +220,7 @@ function FileTreeNodeView({
   const newFolderParent = useFsStore((s) => s.newFolderParent)
   const confirmRename = useFsStore((s) => s.confirmRename)
   const confirmNewFolder = useFsStore((s) => s.confirmNewFolder)
+  const confirmNewFile = useFsStore((s) => s.confirmNewFile)
   const cancelEditing = useFsStore((s) => s.cancelEditing)
   const selectedPath = useFsStore((s) => s.selectedPath)
 
@@ -180,43 +229,42 @@ function FileTreeNodeView({
 
   /** 新建文件夹输入框（在此目录的子节点列表中） */
   const isNewFolderHere = editingPath === 'new-folder' && newFolderParent === node.path
+  const isNewFileHere = editingPath === 'new-file' && newFolderParent === node.path
 
   return (
     <div className="file-tree-node">
       {/* 节点行 */}
-      {!isNewFolderHere && (
-        <div
-          className={`file-tree-item ${isDir ? 'directory' : 'file'} ${isRenaming ? 'renaming' : ''} ${selectedPath === node.path ? 'selected' : ''}`}
-          style={{ paddingLeft: `${depth * 16 + 8}px` }}
-          onClick={() => {
-            if (!isRenaming) {
-              isDir ? onDirClick(node) : onFileClick(node)
-            }
-          }}
-          onContextMenu={(e) => { e.preventDefault(); showMenu(node, e.clientX, e.clientY) }}
-        >
-          {/* 展开/折叠箭头（目录才有） */}
-          <span className="file-tree-arrow">
-            {isDir && (node.expanded ? <IconChevronDown size={10} /> : <IconChevronRight size={10} />)}
-          </span>
+      <div
+        className={`file-tree-item ${isDir ? 'directory' : 'file'} ${isRenaming ? 'renaming' : ''} ${selectedPath === node.path ? 'selected' : ''}`}
+        style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        onClick={() => {
+          if (!isRenaming) {
+            isDir ? onDirClick(node) : onFileClick(node)
+          }
+        }}
+        onContextMenu={(e) => { e.preventDefault(); showMenu(node, e.clientX, e.clientY) }}
+      >
+        {/* 展开/折叠箭头（目录才有） */}
+        <span className="file-tree-arrow">
+          {isDir && (node.expanded ? <IconChevronDown size={10} /> : <IconChevronRight size={10} />)}
+        </span>
 
-          {/* 图标 */}
-          <span className="file-tree-icon">
-            {isDir ? <IconFolder size={14} /> : <span style={{ fontSize: 14 }}>{icon}</span>}
-          </span>
+        {/* 图标 */}
+        <span className="file-tree-icon">
+          {isDir ? <IconFolder size={14} /> : <span style={{ fontSize: 14 }}>{icon}</span>}
+        </span>
 
-          {/* 名称 */}
-          {isRenaming ? (
-            <InlineInputBox
-              initialValue={node.name}
-              onConfirm={(name) => confirmRename(node.path, name)}
-              onCancel={cancelEditing}
-            />
-          ) : (
-            <span className="file-tree-name">{node.name}</span>
-          )}
-        </div>
-      )}
+        {/* 名称 */}
+        {isRenaming ? (
+          <InlineInputBox
+            initialValue={node.name}
+            onConfirm={(name) => confirmRename(node.path, name)}
+            onCancel={cancelEditing}
+          />
+        ) : (
+          <span className="file-tree-name">{node.name}</span>
+        )}
+      </div>
 
       {/* 子节点（展开时显示） */}
       {isDir && node.expanded && node.children && (
@@ -234,7 +282,17 @@ function FileTreeNodeView({
           {isNewFolderHere && (
             <InlineInput
               depth={depth + 1}
+              icon={<IconFolder size={14} />}
               onConfirm={confirmNewFolder}
+              onCancel={cancelEditing}
+            />
+          )}
+          {isNewFileHere && (
+            <InlineInput
+              depth={depth + 1}
+              icon={<IconFile size={14} />}
+              initialValue="未命名.md"
+              onConfirm={confirmNewFile}
               onCancel={cancelEditing}
             />
           )}
@@ -250,11 +308,13 @@ function FileTreeNodeView({
  */
 function InlineInput({
   depth,
+  icon,
   initialValue = '',
   onConfirm,
   onCancel,
 }: {
   depth: number
+  icon: React.ReactNode
   initialValue?: string
   onConfirm: (name: string) => void
   onCancel: () => void
@@ -281,7 +341,7 @@ function InlineInput({
       className="file-tree-item inline-editing"
       style={{ paddingLeft: `${depth * 16 + 8}px` }}
     >
-      <IconFolder size={14} />
+      <span className="file-tree-icon">{icon}</span>
       <input
         ref={inputRef}
         className="file-tree-rename-input"

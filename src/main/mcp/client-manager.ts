@@ -70,14 +70,19 @@ export class McpClientManager {
    *
    * 合并内部 deepink server + 所有已启用的外部 server
    */
-  composeMcpConfig(internalPort: number): Record<string, unknown> {
+  composeMcpConfig(internalPort: number, sessionToken?: string): Record<string, unknown> {
+    const internalUrl = new URL(`http://127.0.0.1:${internalPort}/mcp`)
+    if (sessionToken) {
+      internalUrl.searchParams.set('session', sessionToken)
+    }
+
     const mcpServers: Record<string, unknown> = {
       // 内部 deepink server
       // 关键：Claude Code 的 MCP schema 要求 HTTP server 必须显式带 `type: 'http'`，
       // 否则报 "Does not adhere to MCP server configuration schema" 并 exit 1。
       deepink: {
         type: 'http',
-        url: `http://127.0.0.1:${internalPort}/mcp`,
+        url: internalUrl.toString(),
       },
     }
 

@@ -38,6 +38,10 @@ export class BrowserInstanceStore {
   async load(): Promise<void> {
     try {
       const raw = await readFile(this.filePath, 'utf-8')
+      if (!raw.trim()) {
+        this.snapshots = []
+        return
+      }
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
         this.snapshots = parsed as BrowserInstanceSnapshot[]
@@ -55,6 +59,10 @@ export class BrowserInstanceStore {
   private async loadHistory(): Promise<void> {
     try {
       const raw = await readFile(this.historyFilePath, 'utf-8')
+      if (!raw.trim()) {
+        this.history = []
+        return
+      }
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed)) {
         this.history = parsed as BrowserHistoryEntry[]

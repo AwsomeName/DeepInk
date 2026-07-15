@@ -1,15 +1,27 @@
 import { useUIStore, useTabStore } from '../../stores'
 import type { ActivityPanel } from '../../types'
-import { IconFiles, IconGlobe, IconRobot, IconSettings, IconSparkle } from '../common/Icons'
+import {
+  IconFiles,
+  IconGlobe,
+  IconProjects,
+  IconRobot,
+  IconSettings,
+  IconSparkle,
+  IconTerminal,
+  IconTool,
+} from '../common/Icons'
 
 const MAIN_ICONS: Array<{
   id: ActivityPanel
   Icon: React.ComponentType<{ size?: number }>
   label: string
 }> = [
-  { id: 'browser', Icon: IconGlobe, label: '浏览器' },
+  { id: 'projects', Icon: IconProjects, label: '项目' },
   { id: 'files', Icon: IconFiles, label: '文件' },
+  { id: 'browser', Icon: IconGlobe, label: '浏览器' },
+  { id: 'terminal', Icon: IconTerminal, label: 'Terminal' },
   { id: 'operations', Icon: IconSparkle, label: '运营' },
+  { id: 'production', Icon: IconTool, label: '生产' },
   { id: 'sessions', Icon: IconRobot, label: '会话' },
 ]
 

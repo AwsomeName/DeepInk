@@ -6,9 +6,11 @@ import type { CclinkApiContract } from '../shared/ipc/cclink'
 import type { DialogApiContract } from '../shared/ipc/dialog'
 import type { EditorApiContract } from '../shared/ipc/editor'
 import type { FsApiContract } from '../shared/ipc/fs'
+import type { HardwareApiContract } from '../shared/ipc/hardware'
 import type { IdentityApiContract } from '../shared/ipc/identity'
 import type { MeshyApiContract } from '../shared/ipc/meshy'
 import type { ProjectOpsApiContract } from '../shared/ipc/project-ops'
+import type { RemoteApiContract } from '../shared/ipc/remote'
 import type { SettingsApiContract } from '../shared/ipc/settings'
 import type { SubscriptionApiContract } from '../shared/ipc/subscription'
 import type { SyncApiContract } from '../shared/ipc/sync'
@@ -38,11 +40,15 @@ export interface DeepinkAPI {
 
   cclink: CclinkApiContract
 
+  remote: RemoteApiContract
+
   android: AndroidApiContract
 
   fs: FsApiContract
 
   projectOps: ProjectOpsApiContract
+
+  hardware: HardwareApiContract
 
   dialog: DialogApiContract
 

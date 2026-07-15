@@ -1,3 +1,5 @@
+import type { AgentSendMessageInput } from '@shared/ipc/agent'
+
 export type ConversationRuntimeProviderKind = 'local-agent' | 'remote-cclink'
 
 export interface ConversationRuntimeProvider {
@@ -14,7 +16,8 @@ interface LocalAgentConversationProviderOptions {
   addUserMessage: (content: string, conversationId?: string) => void
   addSystemMessage: (content: string, conversationId?: string) => void
   cancelStreaming: (conversationId?: string) => void
-  sendMessage: (conversationId: string, content: string) => Promise<unknown>
+  buildSendInput?: (content: string) => AgentSendMessageInput
+  sendMessage: (conversationId: string, content: AgentSendMessageInput) => Promise<unknown>
   abortMessage: (conversationId: string) => Promise<void>
 }
 
@@ -32,6 +35,7 @@ export function createLocalAgentConversationProvider({
   addUserMessage,
   addSystemMessage,
   cancelStreaming,
+  buildSendInput,
   sendMessage,
   abortMessage,
 }: LocalAgentConversationProviderOptions): ConversationRuntimeProvider {
@@ -43,7 +47,7 @@ export function createLocalAgentConversationProvider({
       setInput('', conversationId)
       addUserMessage(text, conversationId)
       try {
-        await sendMessage(conversationId, text)
+        await sendMessage(conversationId, buildSendInput ? buildSendInput(text) : text)
         return true
       } catch (error) {
         addSystemMessage(`发送失败: ${String(error)}`, conversationId)

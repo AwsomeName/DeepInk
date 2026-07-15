@@ -1,10 +1,39 @@
-import { useEffect, useRef, type ReactNode } from 'react'
-import { useAgentStore, useTabStore } from '../../stores'
-import type { ConversationRuntimeRef } from '../../types'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useAgentStore,
+  useEditorStore,
+  useFsStore,
+  useSettingsStore,
+  useTabStore,
+  useWorkspaceStore,
+} from '../../stores'
+import type { ConversationRuntimeRef, PermissionMode } from '../../types'
+import type { ToolConfirmationRequest } from '../../types'
 import { workspaceRefLabel, workspaceRefSourceLabel } from '../../../../shared/workspace-ref'
 import { ConversationMessageRenderer } from '../common/ConversationMessageRenderer'
-import { IconSend, IconStop } from '../common/Icons'
+import { IconCheck, IconError, IconSend, IconStop, IconTool } from '../common/Icons'
 import { ConversationShell, type ConversationShellBadgeKind } from './ConversationShell'
+import { AgentComposerToolbar } from '../../features/agent-composer/AgentComposerToolbar'
+import { MountedResourceBar } from '../../features/agent-conversations/mounted-resource-bar'
+import { MountedSkillStrip } from '../../features/agent-conversations/mounted-skill-strip'
+import { getConversationActivity } from '../../features/agent-conversations/activity'
+import {
+  ResourceCandidateMenu,
+  SkillCandidateMenu,
+} from '../../features/agent-conversations/context-candidate-menu'
+import {
+  buildResourceCandidates,
+  buildSkillCandidates,
+  type AgentResourceCandidate,
+  type AgentSkillCandidate,
+} from '../../features/agent-conversations/view-model'
+import {
+  stripTrailingMentionToken,
+  toMountedResource,
+  toMountedSkill,
+  toSendResources,
+  toSendSkills,
+} from '../../features/agent-conversations/payload'
 import {
   getLocalAgentConversationMeta,
   type ConversationRuntimeAdapterStatus,
@@ -24,8 +53,25 @@ export function WorkbenchAgentConversation({
   const addSystemMessage = useAgentStore((state) => state.addSystemMessage)
   const cancelStreaming = useAgentStore((state) => state.cancelStreaming)
   const restoreArchivedConversation = useAgentStore((state) => state.restoreArchivedConversation)
+  const pendingConfirmations = useAgentStore((state) => state.pendingConfirmations)
+  const permissionMode = useAgentStore((state) => state.permissionMode)
+  const removePendingConfirmation = useAgentStore((state) => state.removePendingConfirmation)
+  const setPermissionMode = useAgentStore((state) => state.setPermissionMode)
+  const addMountedResource = useAgentStore((state) => state.addMountedResource)
+  const removeMountedResource = useAgentStore((state) => state.removeMountedResource)
+  const addMountedSkill = useAgentStore((state) => state.addMountedSkill)
+  const removeMountedSkill = useAgentStore((state) => state.removeMountedSkill)
+  const tabs = useTabStore((state) => state.tabs)
+  const openTab = useTabStore((state) => state.openTab)
   const updateTabTitle = useTabStore((state) => state.updateTabTitle)
+  const settings = useSettingsStore((state) => state.settings)
+  const loadSettings = useSettingsStore((state) => state.loadSettings)
+  const editorFiles = useEditorStore((state) => state.files)
+  const selectedPath = useFsStore((state) => state.selectedPath)
+  const activeWorkspaceRef = useWorkspaceStore((state) => state.activeWorkspaceRef)
   const listRef = useRef<HTMLDivElement>(null)
+  const [resourceQuery, setResourceQuery] = useState<string | null>(null)
+  const [skillQuery, setSkillQuery] = useState<string | null>(null)
 
   useEffect(() => {
     const list = listRef.current
@@ -37,6 +83,98 @@ export function WorkbenchAgentConversation({
     if (!conversation) return
     updateTabTitle(tabId, conversation.title === '新会话' ? '新工作会话' : conversation.title)
   }, [conversation, tabId, updateTabTitle])
+
+  useEffect(() => {
+    void loadSettings()
+  }, [loadSettings])
+
+  const conversationInput = conversation?.input ?? ''
+  const mountedResources = conversation?.mountedResources ?? []
+  const mountedSkills = conversation?.mountedSkills ?? []
+  const composerWorkspaceRef = conversation?.runtime.workspaceRef ?? activeWorkspaceRef
+  const conversationConfirmations = useMemo(
+    () => pendingConfirmations.filter((request) => request.conversationId === conversationId),
+    [conversationId, pendingConfirmations],
+  )
+  const resourceCandidates = useMemo(
+    () =>
+      buildResourceCandidates({
+        activeWorkspaceRef: composerWorkspaceRef,
+        tabs,
+        editorFiles,
+        selectedPath,
+        query: resourceQuery ?? '',
+      }),
+    [composerWorkspaceRef, editorFiles, resourceQuery, selectedPath, tabs],
+  )
+  const skillCandidates = useMemo(() => buildSkillCandidates(skillQuery ?? ''), [skillQuery])
+  const updateMentionQueryFromInput = useCallback((text: string) => {
+    const match = /(?:^|\s)([@/])([^\s@/]*)$/.exec(text)
+    setResourceQuery(match?.[1] === '@' ? match[2] : null)
+    setSkillQuery(match?.[1] === '/' ? match[2] : null)
+  }, [])
+  const handleInputChange = useCallback(
+    (text: string) => {
+      setInput(text, conversationId)
+      updateMentionQueryFromInput(text)
+    },
+    [conversationId, setInput, updateMentionQueryFromInput],
+  )
+  const handleMountResource = useCallback(
+    (resource: AgentResourceCandidate) => {
+      addMountedResource(toMountedResource(resource), conversationId)
+      setInput(stripTrailingMentionToken(conversationInput), conversationId)
+      setResourceQuery(null)
+      setSkillQuery(null)
+    },
+    [addMountedResource, conversationId, conversationInput, setInput],
+  )
+  const handleRemoveMountedResource = useCallback(
+    (resourceId: string) => {
+      removeMountedResource(resourceId, conversationId)
+    },
+    [conversationId, removeMountedResource],
+  )
+  const handleMountSkill = useCallback(
+    (skill: AgentSkillCandidate) => {
+      addMountedSkill(toMountedSkill(skill), conversationId)
+      setInput(stripTrailingMentionToken(conversationInput), conversationId)
+      setResourceQuery(null)
+      setSkillQuery(null)
+    },
+    [addMountedSkill, conversationId, conversationInput, setInput],
+  )
+  const handleRemoveMountedSkill = useCallback(
+    (skillId: string) => {
+      removeMountedSkill(skillId, conversationId)
+    },
+    [conversationId, removeMountedSkill],
+  )
+  const handlePermissionModeChange = useCallback(
+    async (nextMode: PermissionMode) => {
+      if (nextMode === permissionMode) return
+      await window.deepink.agent.setPermissionMode(nextMode)
+      setPermissionMode(nextMode)
+    },
+    [permissionMode, setPermissionMode],
+  )
+  const handleOpenAgentSettings = useCallback(() => {
+    openTab({ type: 'settings', title: 'Agent 设置', icon: '⚙️', settingsSection: 'agent' })
+  }, [openTab])
+  const handleConfirmApprove = useCallback(
+    async (id: string, alwaysAllow = false) => {
+      await window.deepink.agent.resolveToolConfirmation(id, true, alwaysAllow)
+      removePendingConfirmation(id)
+    },
+    [removePendingConfirmation],
+  )
+  const handleConfirmReject = useCallback(
+    async (id: string) => {
+      await window.deepink.agent.resolveToolConfirmation(id, false)
+      removePendingConfirmation(id)
+    },
+    [removePendingConfirmation],
+  )
 
   if (!conversation) {
     return (
@@ -60,6 +198,16 @@ export function WorkbenchAgentConversation({
     addUserMessage,
     addSystemMessage,
     cancelStreaming,
+    buildSendInput: (content) => {
+      const current = useAgentStore.getState().conversations[conversationId]
+      const resources = current?.mountedResources ?? []
+      const skills = current?.mountedSkills ?? []
+      return {
+        message: content,
+        resources: toSendResources(resources),
+        skills: toSendSkills(skills),
+      }
+    },
     sendMessage: window.deepink.agent.sendMessage,
     abortMessage: window.deepink.agent.abort,
   })
@@ -73,6 +221,17 @@ export function WorkbenchAgentConversation({
       badgeKind={toShellBadgeKind(adapterMeta.status)}
       variant="local"
       listRef={listRef}
+      context={
+        <>
+          <MountedResourceBar resources={mountedResources} onRemove={handleRemoveMountedResource} />
+          <ConversationActivityPanel
+            conversation={conversation}
+            pendingConfirmations={conversationConfirmations}
+            onApprove={handleConfirmApprove}
+            onReject={handleConfirmReject}
+          />
+        </>
+      }
       composer={
         isArchived ? (
           <ConversationComposer>
@@ -85,31 +244,58 @@ export function WorkbenchAgentConversation({
           </ConversationComposer>
         ) : (
           <ConversationComposer>
-            <textarea
-              value={conversation.input}
-              onChange={(event) => setInput(event.target.value, conversationId)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                  event.preventDefault()
-                  void provider.send(conversation.input)
-                }
-              }}
-              placeholder="发送到这个工作会话。Cmd/Ctrl + Enter 发送。"
-              disabled={conversation.loading}
-            />
-            {conversation.loading ? (
-              <button onClick={() => void provider.abort?.()} title="中止当前任务">
-                <IconStop size={16} />
-              </button>
-            ) : (
-              <button
-                disabled={!conversation.input.trim()}
-                onClick={() => void provider.send(conversation.input)}
-                title="发送"
-              >
-                <IconSend size={16} />
-              </button>
+            {resourceQuery !== null && (
+              <ResourceCandidateMenu candidates={resourceCandidates} onPick={handleMountResource} />
             )}
+            {skillQuery !== null && (
+              <SkillCandidateMenu candidates={skillCandidates} onPick={handleMountSkill} />
+            )}
+            <MountedSkillStrip skills={mountedSkills} onRemove={handleRemoveMountedSkill} />
+            <div className="conversation-input-card">
+              <textarea
+                value={conversation.input}
+                onChange={(event) => handleInputChange(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+                    event.preventDefault()
+                    setResourceQuery(null)
+                    setSkillQuery(null)
+                    void provider.send(conversation.input)
+                  }
+                }}
+                placeholder="发送到这个工作会话，@ 挂资源，/ 挂技能。Cmd/Ctrl + Enter 发送。"
+                disabled={conversation.loading}
+              />
+              <AgentComposerToolbar
+                permissionMode={permissionMode}
+                settings={settings}
+                loading={conversation.loading}
+                canSend={Boolean(conversation.input.trim())}
+                onPermissionModeChange={handlePermissionModeChange}
+                onOpenResourceMenu={() => setResourceQuery('')}
+                onOpenSkillMenu={() => setSkillQuery('')}
+                onOpenSettings={handleOpenAgentSettings}
+                sendButton={
+                  conversation.loading ? (
+                    <button onClick={() => void provider.abort?.()} title="中止当前任务">
+                      <IconStop size={16} />
+                    </button>
+                  ) : (
+                    <button
+                      disabled={!conversation.input.trim()}
+                      onClick={() => {
+                        setResourceQuery(null)
+                        setSkillQuery(null)
+                        void provider.send(conversation.input)
+                      }}
+                      title="发送"
+                    >
+                      <IconSend size={16} />
+                    </button>
+                  )
+                }
+              />
+            </div>
           </ConversationComposer>
         )
       }
@@ -123,6 +309,88 @@ export function WorkbenchAgentConversation({
 
 function ConversationComposer({ children }: { children: ReactNode }): React.ReactElement {
   return <>{children}</>
+}
+
+function ConversationActivityPanel({
+  conversation,
+  pendingConfirmations,
+  onApprove,
+  onReject,
+}: {
+  conversation: NonNullable<ReturnType<typeof useAgentStore.getState>['conversations'][string]>
+  pendingConfirmations: ToolConfirmationRequest[]
+  onApprove: (id: string, alwaysAllow?: boolean) => Promise<void>
+  onReject: (id: string) => Promise<void>
+}): React.ReactElement | null {
+  const activity = getConversationActivity(conversation)
+  const visibleConfirmations = pendingConfirmations.slice(0, 2)
+  const showActivity = activity.kind !== 'idle' || visibleConfirmations.length > 0
+
+  if (!showActivity) return null
+
+  return (
+    <div className={`conversation-activity-panel ${activity.kind}`}>
+      <div className="conversation-activity-summary">
+        <span className={`conversation-activity-dot ${activity.kind}`} />
+        <span className="conversation-activity-label">{activity.label}</span>
+        <span className="conversation-activity-detail" title={activity.detail}>
+          {activity.detail}
+        </span>
+        {activity.toolCount > 0 && (
+          <span className="conversation-activity-chip">
+            <IconTool size={11} />
+            {activity.toolCount} 次工具
+          </span>
+        )}
+        {activity.errorCount > 0 && (
+          <span className="conversation-activity-chip error">
+            <IconError size={11} />
+            {activity.errorCount} 个错误
+          </span>
+        )}
+      </div>
+
+      {visibleConfirmations.length > 0 && (
+        <div className="conversation-confirmation-list">
+          {visibleConfirmations.map((request) => (
+            <div key={request.id} className="conversation-confirmation-item">
+              <div className="conversation-confirmation-main">
+                <IconTool size={12} />
+                <span title={request.toolName}>{request.toolName}</span>
+                <em>{riskLabel(request.riskLevel)}</em>
+              </div>
+              <div className="conversation-confirmation-actions">
+                <button onClick={() => void onApprove(request.id, false)} title="允许这次操作">
+                  <IconCheck size={11} />
+                  允许
+                </button>
+                <button onClick={() => void onReject(request.id)} title="拒绝这次操作">
+                  <IconError size={11} />
+                  拒绝
+                </button>
+              </div>
+            </div>
+          ))}
+          {pendingConfirmations.length > visibleConfirmations.length && (
+            <div className="conversation-confirmation-more">
+              还有 {pendingConfirmations.length - visibleConfirmations.length} 个操作待确认
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function riskLabel(risk: ToolConfirmationRequest['riskLevel']): string {
+  switch (risk) {
+    case 'read':
+      return '只读'
+    case 'write':
+      return '写入'
+    case 'destructive':
+      return '高风险'
+  }
 }
 
 function getRuntimeMeta(runtime: ConversationRuntimeRef): {

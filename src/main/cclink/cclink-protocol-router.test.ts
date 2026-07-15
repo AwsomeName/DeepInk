@@ -27,12 +27,13 @@ describe('CclinkProtocolRouter', () => {
 
     const handled = await router.handleMessage('agent-1', {
       cc_type: 'server_meta',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       agent_id: 'agent-1',
       hostname: 'Mac mini',
       os: 'Darwin',
       agent_version: '0.8.0',
+      protocol_version: 2,
       claude_version: '1.0.0',
       workspaces: [{ path: '/workspace', name: 'workspace', session_count: 2 }],
     })
@@ -42,6 +43,7 @@ describe('CclinkProtocolRouter', () => {
       id: 'agent-1',
       hostname: 'Mac mini',
       status: 'online',
+      protocolVersion: '2',
       workspaces: [{ id: 'agent-1:/workspace', path: '/workspace', sessionCount: 2 }],
     })
   })
@@ -52,8 +54,8 @@ describe('CclinkProtocolRouter', () => {
 
     await router.handleMessage('agent-1', {
       cc_type: 'session_sync_response',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       sessions: [{
         session_id: 'sess-1',
         name: '远程任务',
@@ -79,31 +81,31 @@ describe('CclinkProtocolRouter', () => {
 
     await router.handleMessage('agent-1', {
       cc_type: 'stream_start',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       session_id: 'sess-1',
       msg_id: 'msg-1',
     })
     await router.handleMessage('agent-1', {
       cc_type: 'stream_chunk',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       session_id: 'sess-1',
       msg_id: 'msg-1',
       delta: '你好，',
     })
     await router.handleMessage('agent-1', {
       cc_type: 'stream_chunk',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       session_id: 'sess-1',
       msg_id: 'msg-1',
       delta: 'DeepInk',
     })
     await router.handleMessage('agent-1', {
       cc_type: 'stream_end',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       session_id: 'sess-1',
       msg_id: 'msg-1',
     })
@@ -121,8 +123,8 @@ describe('CclinkProtocolRouter', () => {
 
     await router.handleMessage('agent-1', {
       cc_type: 'stream_end',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       session_id: 'sess-1',
       msg_id: 'msg-1',
       error: '远端执行失败',
@@ -150,8 +152,8 @@ describe('CclinkProtocolRouter', () => {
 
     await router.handleMessage('agent-1', {
       cc_type: 'error',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       session_id: 'sess-1',
       request_id: 'req-1',
       message: '远端 Agent 不可用',
@@ -180,8 +182,8 @@ describe('CclinkProtocolRouter', () => {
 
     await router.handleMessage('agent-1', {
       cc_type: 'error',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       session_id: 'sess-1',
       request_id: 'req-1',
       message: '远程工作空间不存在',

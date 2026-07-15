@@ -12,6 +12,7 @@ export type {
   DeviceMode,
   Provider,
   ApiFormat,
+  AgentEngine,
   AppSettings,
   ProviderPreset,
 } from '../../shared/settings-constants'

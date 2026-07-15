@@ -1,6 +1,15 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AgentSendMessageInput } from '../shared/ipc/agent'
 import type { CclinkFileReadRequest, CclinkFileTreeRequest } from '../shared/ipc/cclink'
+import type {
+  RemoteAgentMessageRequest,
+  RemoteFileCreateRequest,
+  RemoteFileDeleteRequest,
+  RemoteFileReadRequest,
+  RemoteFileRenameRequest,
+  RemoteFileTreeRequest,
+  RemoteFileWriteRequest,
+} from '../shared/remote-protocol'
 
 contextBridge.exposeInMainWorld('deepink', {
   // 工作区坐标上报（供 WebContentsView 定位）
@@ -45,6 +54,7 @@ contextBridge.exposeInMainWorld('deepink', {
     goForward: (tabId: string) => ipcRenderer.invoke('browser:goForward', tabId),
     reload: (tabId: string) => ipcRenderer.invoke('browser:reload', tabId),
     getCurrentURL: (tabId: string) => ipcRenderer.invoke('browser:getCurrentURL', tabId),
+    getDiagnostics: (tabId: string) => ipcRenderer.invoke('browser:getDiagnostics', tabId),
     onUrlChanged: (callback: (payload: { tabId: string; url: string }) => void) => {
       const handler = (
         _event: Electron.IpcRendererEvent,
@@ -151,6 +161,26 @@ contextBridge.exposeInMainWorld('deepink', {
     disconnectRealtime: () => ipcRenderer.invoke('cclink:disconnectRealtime'),
     clearLocalData: () => ipcRenderer.invoke('cclink:clearLocalData'),
     seedDemoData: () => ipcRenderer.invoke('cclink:seedDemoData'),
+  },
+
+  // Remote 工作空间统一入口。CCLink/Direct 都应从这里向 renderer 暴露能力。
+  remote: {
+    getStatus: (ref: RemoteFileTreeRequest['ref']) => ipcRenderer.invoke('remote:getStatus', ref),
+    getDiagnostics: (ref: RemoteFileTreeRequest['ref']) =>
+      ipcRenderer.invoke('remote:getDiagnostics', ref),
+    listFileTree: (request: RemoteFileTreeRequest) =>
+      ipcRenderer.invoke('remote:listFileTree', request),
+    readFile: (request: RemoteFileReadRequest) => ipcRenderer.invoke('remote:readFile', request),
+    writeFile: (request: RemoteFileWriteRequest) =>
+      ipcRenderer.invoke('remote:writeFile', request),
+    createFile: (request: RemoteFileCreateRequest) =>
+      ipcRenderer.invoke('remote:createFile', request),
+    renameFile: (request: RemoteFileRenameRequest) =>
+      ipcRenderer.invoke('remote:renameFile', request),
+    deleteFile: (request: RemoteFileDeleteRequest) =>
+      ipcRenderer.invoke('remote:deleteFile', request),
+    sendAgentMessage: (request: RemoteAgentMessageRequest) =>
+      ipcRenderer.invoke('remote:sendAgentMessage', request),
   },
 
   // 认证系统
@@ -339,6 +369,20 @@ contextBridge.exposeInMainWorld('deepink', {
       ipcRenderer.invoke('projectOps:createCopyDraft', workspacePath, input),
     appendPublicationRecord: (workspacePath: string, input: unknown) =>
       ipcRenderer.invoke('projectOps:appendPublicationRecord', workspacePath, input),
+  },
+
+  // 硬件工作区：硬件项目识别、生产包检查。
+  hardware: {
+    scanWorkspace: (workspacePath: string) =>
+      ipcRenderer.invoke('hardware:scanWorkspace', workspacePath),
+    inspectProductionPackage: (workspacePath: string) =>
+      ipcRenderer.invoke('hardware:inspectProductionPackage', workspacePath),
+    readGerberLayerPreview: (workspacePath: string, packagePath: string, entry: string) =>
+      ipcRenderer.invoke('hardware:readGerberLayerPreview', workspacePath, packagePath, entry),
+    readGerberLayerGeometry: (workspacePath: string, packagePath: string, entry: string) =>
+      ipcRenderer.invoke('hardware:readGerberLayerGeometry', workspacePath, packagePath, entry),
+    writeProductionReportMarkdown: (workspacePath: string) =>
+      ipcRenderer.invoke('hardware:writeProductionReportMarkdown', workspacePath),
   },
 
   // 对话框（文件选择、保存）
@@ -623,6 +667,11 @@ contextBridge.exposeInMainWorld('deepink', {
     recordLifecycleEvent: (input: any) =>
       ipcRenderer.invoke('terminal:recordLifecycleEvent', input),
     submitCommand: (input: any) => ipcRenderer.invoke('terminal:submitCommand', input),
+    startPty: (input: any) => ipcRenderer.invoke('terminal:startPty', input),
+    writePty: (input: any) => ipcRenderer.invoke('terminal:writePty', input),
+    resizePty: (input: any) => ipcRenderer.invoke('terminal:resizePty', input),
+    terminatePty: (terminalSessionId: string) =>
+      ipcRenderer.invoke('terminal:terminatePty', terminalSessionId),
     listSessions: () => ipcRenderer.invoke('terminal:listSessions'),
     listAuditEvents: (filter?: any) => ipcRenderer.invoke('terminal:listAuditEvents', filter),
     clearAuditSession: (terminalSessionId: string) =>
@@ -640,6 +689,8 @@ contextBridge.exposeInMainWorld('deepink', {
     reset: () => ipcRenderer.invoke('settings:reset'),
     /** 重置单个设置到默认值 */
     resetKey: (key: string) => ipcRenderer.invoke('settings:resetKey', key),
+    /** 检测本机 Claude Code CLI */
+    detectClaudeCode: () => ipcRenderer.invoke('settings:detectClaudeCode'),
   },
 
   // 工作台状态（逐步替代 renderer localStorage）

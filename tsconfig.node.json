@@ -7,11 +7,7 @@
     "allowSyntheticDefaultImports": true,
     "outDir": "./out",
     "types": ["node"],
-    "baseUrl": ".",
-    "paths": {
-      "core-agent": ["../coreAgent/dist/index.d.ts"],
-      "core-agent/*": ["../coreAgent/dist/*"]
-    }
+    "baseUrl": "."
   },
   "include": [
     "src/main/**/*.ts",

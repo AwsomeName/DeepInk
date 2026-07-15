@@ -1,1 +1,1 @@
-export * from 'core-agent/tools/tool-host'
+export * from '../agent-core/tools/tool-host'

@@ -44,8 +44,8 @@ describe('CclinkRequestRouter', () => {
 
     const promise = router.request('server-a', {
       cc_type: 'file_tree_request',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       path: '/workspace',
     }, {
       expectedTypes: ['file_tree_response'],
@@ -58,8 +58,8 @@ describe('CclinkRequestRouter', () => {
       serverId: 'server-b',
       message: {
         cc_type: 'file_tree_response',
-        v: 1,
-        min_v: 1,
+        v: 2,
+        min_v: 2,
         request_id: requestId,
         tree: {
           id: 'wrong',
@@ -75,8 +75,8 @@ describe('CclinkRequestRouter', () => {
       serverId: 'server-a',
       message: {
         cc_type: 'file_tree_response',
-        v: 1,
-        min_v: 1,
+        v: 2,
+        min_v: 2,
         request_id: requestId,
         tree: {
           id: 'root',
@@ -101,8 +101,8 @@ describe('CclinkRequestRouter', () => {
 
     const promise = router.request('server-a', {
       cc_type: 'file_read_request',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       path: '/workspace/README.md',
     }, {
       expectedTypes: ['file_read_response'],
@@ -127,8 +127,8 @@ describe('CclinkRequestRouter', () => {
 
     const promise = router.request('server-a', {
       cc_type: 'file_read_request',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       path: '/workspace/README.md',
     }, {
       expectedTypes: ['file_read_response'],
@@ -149,8 +149,8 @@ describe('CclinkRequestRouter', () => {
 
     const promise = router.request('server-a', {
       cc_type: 'file_read_request',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       path: '/workspace/README.md',
     }, {
       expectedTypes: ['file_read_response'],
@@ -160,8 +160,8 @@ describe('CclinkRequestRouter', () => {
       serverId: 'server-a',
       message: {
         cc_type: 'error',
-        v: 1,
-        min_v: 1,
+        v: 2,
+        min_v: 2,
         request_id: transport.sent[0]?.message.request_id,
         message: '远程文件不存在',
       },
@@ -179,8 +179,8 @@ describe('CclinkRequestRouter', () => {
 
     const promise = router.request('server-a', {
       cc_type: 'file_read_request',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       path: '/workspace/README.md',
     }, {
       expectedTypes: ['file_read_response'],
@@ -215,8 +215,8 @@ describe('CclinkRequestRouter', () => {
 
     const promise = router.request('server-a', {
       cc_type: 'file_read_request',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       path: '/workspace/README.md',
     }, {
       expectedTypes: ['file_read_response'],
@@ -226,8 +226,8 @@ describe('CclinkRequestRouter', () => {
       serverId: 'server-a',
       message: {
         cc_type: 'file_tree_response',
-        v: 1,
-        min_v: 1,
+        v: 2,
+        min_v: 2,
         request_id: transport.sent[0]?.message.request_id,
         tree: {
           id: 'root',

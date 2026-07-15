@@ -14,6 +14,7 @@ import type {
   UserSubscription,
   PaymentChannel,
   OrderStatus,
+  EntitlementGrant,
 } from '../types/index'
 
 interface SubscriptionState {
@@ -25,6 +26,8 @@ interface SubscriptionState {
   plan: SubscriptionPlan | null
   /** 订阅到期时间 */
   periodEnd: string | null
+  /** 当前用户可用能力，后端未下发时为空，由主进程兼容 Pro 推导 */
+  entitlements: EntitlementGrant[]
   /** 可购买的套餐列表 */
   plans: SubscriptionPlan[]
   /** 是否正在加载 */
@@ -68,6 +71,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
   status: 'inactive',
   plan: null,
   periodEnd: null,
+  entitlements: [],
   plans: [],
   loading: false,
   error: null,
@@ -107,6 +111,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
           status: sub.status,
           plan: sub.plan,
           periodEnd: sub.periodEnd,
+          entitlements: sub.entitlements ?? [],
           loading: false,
         })
       } else {
@@ -213,6 +218,7 @@ export const useSubscriptionStore = create<SubscriptionState>((set, get) => ({
       status: subscription.status,
       plan: subscription.plan,
       periodEnd: subscription.periodEnd,
+      entitlements: subscription.entitlements ?? [],
     })
   },
 }))

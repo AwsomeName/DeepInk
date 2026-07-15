@@ -40,7 +40,11 @@ export interface ChatccServer {
   os: string
   status: ChatccServerStatus
   agentVersion: string
+  protocolVersion?: string
+  minProtocolVersion?: string
   claudeVersion: string
+  capabilities?: Record<string, boolean>
+  capabilityList?: string[]
   lastSeen: number
   workspaces: ChatccWorkspace[]
 }

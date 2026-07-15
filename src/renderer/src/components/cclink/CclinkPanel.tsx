@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import type { ChatccServer } from '@shared/chatcc'
+import type { ChatccServer, ChatccWorkspace } from '@shared/chatcc'
+import type {
+  RemoteDiagnosticCheckStatus,
+  RemoteDiagnosticReport,
+} from '@shared/remote-protocol'
+import { remoteWorkspaceRef } from '@shared/workspace-ref'
 import { useAuthStore, useCclinkStore } from '../../stores'
 import { IconChevronDown, IconFile, IconFolder, IconLink, IconRobot } from '../common/Icons'
 
@@ -28,6 +33,71 @@ function realtimeStatusLabel(state: string): string {
     default:
       return '实时链路未连接'
   }
+}
+
+function diagnosticStatusLabel(status: RemoteDiagnosticCheckStatus): string {
+  switch (status) {
+    case 'pass':
+      return '通过'
+    case 'warn':
+      return '警告'
+    case 'fail':
+      return '失败'
+    case 'unknown':
+      return '未知'
+  }
+}
+
+function buildDiagnosticText(report: RemoteDiagnosticReport): string {
+  const lines = [
+    'DeepInk Remote Diagnostic Report',
+    `traceId: ${report.traceId}`,
+    `generatedAt: ${new Date(report.generatedAt).toISOString()}`,
+    `transport: ${report.ref.transport}`,
+    `endpointId: ${report.ref.endpointId}`,
+    `endpointName: ${report.ref.endpointName ?? report.status.endpointName ?? 'unknown'}`,
+    `workspaceId: ${report.ref.workspaceId}`,
+    `workspacePath: ${report.status.workspacePath}`,
+    `state: ${report.status.state}`,
+    `agentVersion: ${report.status.agentVersion ?? 'unknown'}`,
+    `protocolVersion: ${report.status.protocolVersion ?? 'unknown'}`,
+    `compatibility.status: ${report.status.compatibility?.status ?? 'unknown'}`,
+    `compatibility.minSupported: ${report.status.compatibility?.minSupported ?? 'unknown'}`,
+    `compatibility.currentExpected: ${report.status.compatibility?.currentExpected ?? 'unknown'}`,
+    `compatibility.message: ${report.status.compatibility?.message ?? 'unknown'}`,
+    `lastSeen: ${report.status.lastSeen ?? 'unknown'}`,
+    `capability.file: tree=${report.status.capabilities.file.tree}, read=${report.status.capabilities.file.read}, write=${report.status.capabilities.file.write}`,
+    `capability.shell: command=${report.status.capabilities.shell.command}, pty=${report.status.capabilities.shell.pty}`,
+    `capability.agent: codex=${report.status.capabilities.agent.codex}, claudeCode=${report.status.capabilities.agent.claudeCode}`,
+    `capability.session: list=${report.status.capabilities.session.list}, stream=${report.status.capabilities.session.stream}`,
+    '',
+    'checks:',
+  ]
+
+  for (const check of report.checks) {
+    lines.push(`- [${check.status}] ${check.label}: ${check.message}`)
+    if (check.remoteError) {
+      lines.push(
+        `  remoteError: code=${check.remoteError.code}, layer=${check.remoteError.layer}, retryable=${check.remoteError.retryable}`,
+      )
+    }
+  }
+
+  if (report.recentErrors.length > 0) {
+    lines.push('', 'recentErrors:')
+    for (const event of report.recentErrors) {
+      lines.push(
+        `- ${new Date(event.timestamp).toISOString()} ${event.operation} traceId=${event.traceId}: ${event.message}`,
+      )
+      if (event.remoteError) {
+        lines.push(
+          `  remoteError: code=${event.remoteError.code}, layer=${event.remoteError.layer}, retryable=${event.remoteError.retryable}`,
+        )
+      }
+    }
+  }
+
+  return lines.join('\n')
 }
 
 export function CclinkPanel(): React.ReactElement {
@@ -318,13 +388,141 @@ function ServerItem({ server }: { server: ChatccServer }): React.ReactElement {
       </div>
       <div className="cclink-workspaces">
         {server.workspaces.map((workspace) => (
-          <div key={workspace.id} className="cclink-workspace">
-            {workspace.sessionCount > 0 ? <IconFolder size={13} /> : <IconFile size={13} />}
-            <span>{workspace.name}</span>
-            <span className="cclink-workspace-count">{workspace.sessionCount}</span>
-          </div>
+          <WorkspaceItem key={workspace.id} server={server} workspace={workspace} />
         ))}
       </div>
+    </div>
+  )
+}
+
+function WorkspaceItem({
+  server,
+  workspace,
+}: {
+  server: ChatccServer
+  workspace: ChatccWorkspace
+}): React.ReactElement {
+  const [report, setReport] = useState<RemoteDiagnosticReport | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  const loadDiagnostics = async (): Promise<void> => {
+    setLoading(true)
+    setError(null)
+    setCopyStatus('idle')
+    try {
+      const nextReport = await window.deepink.remote.getDiagnostics(
+        remoteWorkspaceRef({
+          endpointId: server.id,
+          endpointName: server.name,
+          workspaceId: workspace.id,
+          path: workspace.path,
+          label: workspace.name,
+        }),
+      )
+      setReport(nextReport)
+    } catch (err) {
+      setReport(null)
+      setError(err instanceof Error ? err.message : '诊断失败')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const copyDiagnostics = async (): Promise<void> => {
+    if (!report) return
+    try {
+      await navigator.clipboard.writeText(buildDiagnosticText(report))
+      setCopyStatus('copied')
+    } catch {
+      setCopyStatus('failed')
+    }
+  }
+
+  return (
+    <div className="cclink-workspace-entry">
+      <div className="cclink-workspace">
+        {workspace.sessionCount > 0 ? <IconFolder size={13} /> : <IconFile size={13} />}
+        <span>{workspace.name}</span>
+        <span className="cclink-workspace-count">{workspace.sessionCount}</span>
+        <button
+          type="button"
+          className="cclink-workspace-diagnose"
+          onClick={() => void loadDiagnostics()}
+          disabled={loading}
+        >
+          {loading ? '检查中' : report ? '刷新' : '诊断'}
+        </button>
+      </div>
+      {(report || error) && (
+        <div className="remote-diagnostic-report">
+          {error ? (
+            <div className="remote-diagnostic-error">{error}</div>
+          ) : (
+            report && (
+              <>
+                <div className="remote-diagnostic-head">
+                  <span>{report.traceId}</span>
+                  <div className="remote-diagnostic-head-actions">
+                    <span>{new Date(report.generatedAt).toLocaleString()}</span>
+                    <button type="button" onClick={() => void copyDiagnostics()}>
+                      {copyStatus === 'copied'
+                        ? '已复制'
+                        : copyStatus === 'failed'
+                          ? '失败'
+                          : '复制'}
+                    </button>
+                  </div>
+                </div>
+                <div className={`remote-diagnostic-protocol ${report.status.compatibility?.status ?? 'unknown'}`}>
+                  <div>
+                    <span>Agent</span>
+                    <strong>{report.status.agentVersion ?? 'unknown'}</strong>
+                  </div>
+                  <div>
+                    <span>Protocol</span>
+                    <strong>{report.status.protocolVersion ?? 'unknown'}</strong>
+                  </div>
+                  <div>
+                    <span>Compatibility</span>
+                    <strong>{report.status.compatibility?.status ?? 'unknown'}</strong>
+                  </div>
+                  <p>{report.status.compatibility?.message ?? '远端 agent 尚未返回协议兼容信息。'}</p>
+                </div>
+                <div className="remote-diagnostic-checks">
+                  {report.checks.map((check) => (
+                    <div
+                      key={check.id}
+                      className={`remote-diagnostic-check ${check.status}`}
+                    >
+                      <span className="remote-diagnostic-check-badge">
+                        {diagnosticStatusLabel(check.status)}
+                      </span>
+                      <span className="remote-diagnostic-check-main">
+                        <strong>{check.label}</strong>
+                        <span>{check.message}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                {report.recentErrors.length > 0 && (
+                  <div className="remote-diagnostic-history">
+                    <div className="remote-diagnostic-history-title">最近错误</div>
+                    {report.recentErrors.map((event) => (
+                      <div key={event.id} className="remote-diagnostic-history-row">
+                        <span>{event.operation}</span>
+                        <span>{event.remoteError?.code ?? event.message}</span>
+                        <code>{event.traceId}</code>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )
+          )}
+        </div>
+      )}
     </div>
   )
 }

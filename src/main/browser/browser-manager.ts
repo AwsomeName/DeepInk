@@ -495,6 +495,11 @@ export class BrowserManager {
     return this.getState(this.activeViewId)
   }
 
+  /** 当前真正 attach 到窗口里的可视浏览器视图 ID。 */
+  getActiveViewId(): string | null {
+    return this.activeViewId
+  }
+
   // ─────────────────────── 缩放控制 ───────────────────────
 
   /** 设置手动缩放系数（切换到手动模式） */

@@ -17,6 +17,13 @@ export async function shutdownRuntime(runtime: DeepInkRuntimeState): Promise<voi
   registry.register({ name: 'EditorModule', stop: () => runtime.editorModule?.destroy() })
   registry.register({ name: 'PermissionManager', stop: () => runtime.permissionManager?.destroy() })
   registry.register({ name: 'TerminalConfirmationService', stop: () => runtime.terminalConfirmationService?.destroy() })
+  registry.register({
+    name: 'TerminalExecutionAdapter',
+    stop: async () => {
+      const sessions = runtime.terminalSessionRegistry?.list() ?? []
+      await Promise.all(sessions.map((session) => runtime.terminalExecutionAdapter?.terminate(session.sessionId)))
+    },
+  })
   registry.register({ name: 'TerminalSessionRegistry', stop: () => runtime.terminalSessionRegistry?.clear() })
   registry.register({ name: 'AgentBridge', stop: () => runtime.agentBridge?.destroy() })
   registry.register({ name: 'CCLinkRealtimeService', stop: () => runtime.cclinkRealtimeService?.destroy() })

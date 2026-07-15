@@ -322,7 +322,8 @@ export class AgentDeviceManager {
       process.env.ANDROID_HOME = process.env.ANDROID_HOME ?? sdkRoot
       process.env.ANDROID_SDK_ROOT = process.env.ANDROID_SDK_ROOT ?? sdkRoot
     } catch (err) {
-      console.warn('[AgentDeviceManager] 注入 adb 环境失败（忽略）:', err)
+      const message = err instanceof Error ? err.message : String(err)
+      console.log(`[AgentDeviceManager] 未注入 adb 环境（可稍后连接本机 adb）：${message}`)
     }
   }
 

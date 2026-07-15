@@ -23,39 +23,27 @@ Agent 由本地 Claude Code 驱动。Claude Code 自身有完整的 AI 服务配
                                                    (模型、Key、端点)
 ```
 
-**AI 服务配置层级：**
+**M9 当前配置层级：**
 
 ```
 DeepInk 设置页（VSCode 风格，在主工作区 Tab 中打开）
 │
-├── Agent 模式
-│   ├── Claude Code 模式（默认）
-│   │   └── AI 配置由 Claude Code 管理
-│   │        ├── 模型选择 (claude config set model)
-│   │        ├── API Key (claude config set apiKey)
-│   │        └── 自定义端点 (OpenAI 兼容)
-│   │        DeepInk 设置页暴露 UI 入口，底层写入 Claude Code 配置
-│   │
-│   └── 直连 API 模式（可选）
-│        └── DeepInk 直接调用 AI 服务商 API
-│             ├── Anthropic (Claude)
-│             ├── OpenAI (GPT)
-│             └── OpenAI 兼容端点 (Ollama, DeepSeek, vLLM...)
-│             Key 存 macOS Keychain
-│
-└── 模型选择
+├── Agent 引擎：Local Claude Code
+├── Claude Code CLI 路径：自动检测 / 手动填写
+├── 权限模式：auto / categorized / strict
+└── 预算上限：--max-budget-usd
 ```
 
-**BYOK — 用户自带 Key：**
+DeepInk 不保存模型 API Key。模型选择、登录、自定义端点等由本机 Claude Code 自己管理：
 
-无论哪种模式，DeepInk 都不提供 AI 服务：
-
-- **Claude Code 模式**：用户在自己终端执行 `claude config set apiKey` 或在 DeepInk 设置页中配置（底层调用 Claude Code 的配置命令）
-- **直连 API 模式**：用户在 DeepInk 设置页中填写 Key，存 macOS Keychain
+```bash
+claude login
+# 或按 Claude Code 自身文档配置模型、Key、端点
+```
 
 ### 当前开发阶段
 
-> ⚠️ **当前阶段**：先做对话面板 UI 页面（Mock 数据驱动）和设置页 UI，Agent 后端对接后续进行。
+> **当前阶段**：M9.1-M9.3 已推进到本仓库内置 Agent 最小内核、本机 Claude Code 后端、Claude Code 路径检测和设置页配置。HTTP API / OpenAI 兼容直连暂不作为完整工具 Agent。
 
 ## 设计原则
 
@@ -64,22 +52,27 @@ DeepInk 设置页（VSCode 风格，在主工作区 Tab 中打开）
 3. **可中断** — 用户随时可以暂停或取消 Agent 操作
 4. **上下文感知** — Agent 知道用户当前打开的文件、浏览的页面
 
-## Agent Panel 产品模型
+### 诊断与排障
 
-Agent Panel 的详细产品模型见 `docs/features/agent-panel-product-model.md`。这里记录 Agent 系统必须遵守的核心规则：
+真实浏览器任务必须支持一键复制诊断日志。用户遇到“Agent 一直在想”“网页登录失败”“投稿没有填进去”时，应能从右侧 Agent 面板复制当前会话诊断包，直接粘贴给开发者或 Agent 分析。
+
+诊断包设计见 `docs/features/agent-diagnostic-log.md`。第一版重点是当前会话、当前浏览器 tab、浏览器任务日志、工具调用时间线、页面错误摘要和默认脱敏，不做云端日志上传。
+
+## Agent 会话产品模型
+
+这里记录 Agent 系统必须遵守的核心规则：
 
 - 有激活项目时，新会话自动归属当前项目。
 - 无激活项目时，新会话归属默认项目 / 未归档。
-- 右侧 Agent Panel 内部采用“主对话区 + 会话列表窄列”布局，**会话列表窄列在主对话区右边**。
-- 会话列表窄列只展示当前项目的激活会话。
-- 会话列表底部提供已关闭历史展开入口。
+- 会话列表统一放在左侧 Activity Bar 的“会话”视图里，展示当前项目会话，也能查看未归档和已归档历史。
+- 右侧 Agent Panel 不再展示会话历史列表，只承载当前对话、待确认操作和轻量运行反馈。
 - 会话顶端用一行横列展示当前会话已挂载资源。
 - 输入框 `/` 挂 Skill。
 - 输入框 `@` 挂资源，包括项目文件、打开的文档 Tab、浏览器 Tab、Android/设备 Tab、任务产物等。
 - 输入区底部选择 Agent 框架、模型和推理模式。
 - Skill、模型、Provider、API Key、默认模式等长期配置只放设置页。
 
-Agent Panel 负责当前项目会话的使用体验，不负责全局历史管理和复杂配置。
+Agent Panel 负责当前会话的即时协作体验，不负责全局历史管理和复杂配置。
 
 ## 系统架构
 
@@ -383,67 +376,35 @@ interface AgentContext {
 
 ## AI 模型调用
 
-### 主方案：Claude Code 集成
+### 当前方案：本机 Claude Code 集成
 
-Agent 默认由本地 Claude Code 驱动。Claude Code 自身有完整的 AI 配置能力：
+Agent 由本地 Claude Code 驱动。DeepInk 不直接保存模型 API Key，也不代理模型服务：
 
 ```typescript
 // 主进程启动 Claude Code 子进程
-const claudeProcess = spawn('claude', ['--output-format', 'stream-json'], {
+const claudeProcess = spawn(claudeCodePath || 'claude', ['-p', '--output-format', 'stream-json'], {
   stdio: ['pipe', 'pipe', 'pipe'],
 })
 
 // AI 服务配置由 Claude Code 管理
 // 用户可在终端运行:
-//   claude config set model claude-sonnet-4-6
-//   claude config set apiKey <key>
-// 或在 DeepInk 设置页中配置（底层调用 Claude Code 的配置）
+//   claude login
+// 或按 Claude Code 自身文档配置模型、Key、端点
 ```
 
-**Claude Code 的 AI 配置能力**：
+DeepInk 设置页只负责：
 
-- 模型选择（Sonnet / Opus / Haiku，或 OpenAI 兼容模型）
-- API Key 管理
-- 自定义 API 端点（支持 Ollama、vLLM、DeepSeek 等）
-- DeepInk 设置页暴露这些配置的 UI 入口，底层通过 `claude config` 命令写入
+- 检测常见 `claude` 路径。
+- 允许用户手动填写 Claude Code CLI 绝对路径。
+- 配置权限模式。
+- 配置 `--max-budget-usd`。
 
-### 可选方案：直连 AI API（BYOK）
+### 后续方案：HTTP Chat / HTTP Tool Agent
 
-用户也可选择绕过 Claude Code，由 DeepInk 直连 AI 服务商：
+OpenAI 兼容 HTTP API 后续可以作为独立能力接入，但不能和当前完整工具 Agent 混为一谈：
 
-```typescript
-// packages/main/src/agent/provider-registry.ts
-
-export const BUILTIN_PROVIDERS = [
-  {
-    id: 'anthropic',
-    name: 'Anthropic (Claude)',
-    type: 'anthropic',
-    baseUrl: 'https://api.anthropic.com',
-    models: ['claude-sonnet-4-6', 'claude-opus-4-8', 'claude-haiku-4-5'],
-  },
-  {
-    id: 'openai',
-    name: 'OpenAI (GPT)',
-    type: 'openai',
-    baseUrl: 'https://api.openai.com',
-    models: ['gpt-4.1', 'o3'],
-  },
-  {
-    id: 'custom',
-    name: '自定义端点 (OpenAI 兼容)',
-    type: 'openai-compatible',
-    // Ollama, vLLM, DeepSeek, 通义千问, 智谱, Moonshot 等
-  },
-]
-```
-
-此模式下的 Key 存 macOS Keychain：
-
-```typescript
-// 仅直连模式使用
-await keytar.setPassword('DeepInk', 'provider:anthropic', apiKey)
-```
+- `HTTP Chat`：纯对话、写文案、总结，不承诺浏览器/编辑器工具调用。
+- `HTTP Tool Agent`：未来需要完整 tool calling / MCP loop，再作为新后端接入。
 
 ### AgentBridge — 统一接口
 
@@ -455,11 +416,7 @@ export interface IAgentBackend {
   onEvent(callback: (event: AgentEvent) => void): void
 }
 
-// 主方案: Claude Code（AI 配置由 Claude Code 管理）
-export class ClaudeCodeBackend implements IAgentBackend { ... }
-
-// 可选方案: 直连 API（AI 配置由 DeepInk 管理，BYOK）
-export class DirectAPIBackend implements IAgentBackend { ... }
+export class LocalClaudeCodeBackend implements IAgentBackend { ... }
 ```
 
 ### System Prompt

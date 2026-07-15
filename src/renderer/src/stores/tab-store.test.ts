@@ -105,6 +105,39 @@ describe('useTabStore', () => {
       expect(useTabStore.getState().tabs.length).toBe(len1 + 1)
     })
 
+    it('相同 filePath 可从文本 Tab 切换为 Gerber 预览 Tab', () => {
+      useTabStore.getState().openTab({
+        type: 'editor',
+        title: 'board.GKO',
+        icon: '📄',
+        filePath: '/project/board.GKO',
+      })
+      const firstId = useTabStore.getState().activeTabId
+
+      useTabStore.getState().openTab({
+        type: 'hardware-gerber',
+        title: 'board.GKO',
+        icon: '🧩',
+        filePath: '/project/board.GKO',
+        hardwareGerber: {
+          workspacePath: '/project',
+          packagePath: '/project/board.GKO',
+          entry: 'board.GKO',
+        },
+      })
+
+      const state = useTabStore.getState()
+      expect(state.tabs).toHaveLength(2)
+      expect(state.activeTabId).toBe(firstId)
+      const tab = state.tabs.find((item) => item.id === firstId)!
+      expect(tab.type).toBe('hardware-gerber')
+      expect(tab.hardwareGerber).toEqual({
+        workspacePath: '/project',
+        packagePath: '/project/board.GKO',
+        entry: 'board.GKO',
+      })
+    })
+
     it('conversation Tab 按远程会话去重，并兼容旧 cclink Tab', () => {
       useTabStore.getState().openTab({
         type: 'conversation',

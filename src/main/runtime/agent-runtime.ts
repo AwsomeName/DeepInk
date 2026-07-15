@@ -20,8 +20,10 @@ export function bootstrapAgentRuntime(runtime: DeepInkRuntimeState): void {
       runtime.mcpClientMgr,
       runtime.adbBridge,
       {
+        agentEngine: settings.agentEngine,
         backendType: settings.backendType,
         maxBudgetUsd: settings.maxBudgetUsd,
+        claudeCodePath: settings.claudeCodePath,
         apiFormat: settings.apiFormat,
         apiBaseUrl: settings.apiBaseUrl,
         apiKey: settings.apiKey,
@@ -36,7 +38,7 @@ export function bootstrapAgentRuntime(runtime: DeepInkRuntimeState): void {
     if (runtime.browserManager) {
       runtime.browserManager.onViewDestroyed((tabId) => runtime.agentBridge!.invalidateBrowserScope(tabId))
     }
-    console.log(`[DeepInk] Agent 后端就绪 (${settings.provider} / ${settings.apiFormat})`)
+    console.log(`[DeepInk] Agent 后端就绪 (${settings.agentEngine})`)
     return
   }
 

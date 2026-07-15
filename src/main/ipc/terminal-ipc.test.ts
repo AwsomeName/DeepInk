@@ -116,8 +116,16 @@ describe('registerTerminalIpc', () => {
         updatedAt: 200,
         processId: 42,
         exitCode: undefined,
+        signal: undefined,
+        exitedAt: undefined,
         errorMessage: undefined,
         lastCommand: 'pwd',
+        workspaceKey: null,
+        permissionPolicy: undefined,
+        closePolicy: undefined,
+        attachable: true,
+        outputBuffer: [],
+        commandHistory: [],
       },
     ])
   })

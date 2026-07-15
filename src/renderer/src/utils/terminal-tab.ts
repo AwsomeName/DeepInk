@@ -1,4 +1,5 @@
 import type { TerminalTabRef } from '@shared/terminal'
+import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { WorkspaceRef } from '../../../shared/workspace-ref'
 import { workspaceRefLabel } from '../../../shared/workspace-ref'
 
@@ -7,6 +8,15 @@ export interface TerminalTabDraft {
   title: string
   icon: string
   terminal: TerminalTabRef
+  terminalRecord?: TerminalSessionSnapshot
+  forceNew: true
+}
+
+export interface TerminalRecordTabDraft {
+  type: 'terminal-record'
+  title: string
+  icon: string
+  terminalRecord: TerminalSessionSnapshot
   forceNew: true
 }
 
@@ -50,7 +60,7 @@ function getTerminalRuntime(workspaceRef: WorkspaceRef): TerminalTabRef['runtime
   }
 }
 
-function getTerminalPermissionPolicy(
+export function getTerminalPermissionPolicy(
   workspaceRef: WorkspaceRef,
 ): TerminalTabRef['permissionPolicy'] {
   if (workspaceRef.kind === 'remote' || workspaceRef.kind === 'global') {
@@ -80,5 +90,39 @@ export function buildTerminalTabDraft(workspaceRef: WorkspaceRef): TerminalTabDr
       sessionId: createTerminalId('terminal-session'),
       auditLogId: createTerminalId('terminal-audit'),
     },
+  }
+}
+
+export function buildTerminalTabDraftFromSession(
+  session: TerminalSessionSnapshot,
+): TerminalTabDraft {
+  const workspaceRef = session.runtime.workspaceRef
+  return {
+    type: 'terminal',
+    title: `Terminal · ${workspaceRefLabel(workspaceRef)}`,
+    icon: '⌨️',
+    forceNew: true,
+    terminal: {
+      runtime: session.runtime,
+      permissionPolicy: session.permissionPolicy ?? getTerminalPermissionPolicy(workspaceRef),
+      status: session.status,
+      closePolicy: session.closePolicy ?? 'terminate-process',
+      sessionId: session.sessionId,
+      processId: session.processId,
+      auditLogId: `terminal-audit-${session.sessionId}`,
+    },
+    terminalRecord: session,
+  }
+}
+
+export function buildTerminalRecordTabDraft(
+  session: TerminalSessionSnapshot,
+): TerminalRecordTabDraft {
+  return {
+    type: 'terminal-record',
+    title: `Terminal 记录 · ${workspaceRefLabel(session.runtime.workspaceRef)}`,
+    icon: '⌨️',
+    forceNew: true,
+    terminalRecord: session,
   }
 }

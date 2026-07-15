@@ -156,7 +156,11 @@ export class CclinkProtocolRouter {
       os: message.os,
       status: 'online',
       agentVersion: message.agent_version,
+      protocolVersion: normalizeOptionalVersion(message.protocol_version),
+      minProtocolVersion: normalizeOptionalVersion(message.min_protocol_version),
       claudeVersion: message.claude_version ?? 'unknown',
+      capabilities: message.capabilities,
+      capabilityList: message.capability_list,
       lastSeen: nowSeconds(),
       workspaces: (message.workspaces ?? []).map((workspace) => ({
         id: `${message.agent_id}:${workspace.path}`,
@@ -250,4 +254,10 @@ export class CclinkProtocolRouter {
       }
     }
   }
+}
+
+function normalizeOptionalVersion(version?: string | number): string | undefined {
+  if (version === undefined || version === null) return undefined
+  const normalized = String(version).trim()
+  return normalized || undefined
 }

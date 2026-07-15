@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useUIStore } from './stores'
+import { useFsStore, useUIStore, useWorkspaceStore } from './stores'
 import { useThemeStore } from './stores/theme-store'
 import { useAuthStore } from './stores/auth-store'
 import { ActivityBar } from './components/activity-bar/ActivityBar'
@@ -29,6 +29,17 @@ import { useMainProcessEvents } from './bootstrap/use-main-process-events'
 import { useRegisterCommands } from './bootstrap/use-register-commands'
 import { useTerminalEvents } from './bootstrap/use-terminal-events'
 import { useWorkspaceBootstrap } from './bootstrap/use-workspace-bootstrap'
+import { workspaceRefLabel, workspaceRefSourceLabel } from '../../shared/workspace-ref'
+
+function getWorkspaceTitleDetail(
+  workspaceRef: ReturnType<typeof useWorkspaceStore.getState>['activeWorkspaceRef'],
+): string {
+  if (workspaceRef.kind === 'local') return workspaceRef.path
+  if (workspaceRef.kind === 'remote') {
+    return `${workspaceRefSourceLabel(workspaceRef)} · ${workspaceRef.path}`
+  }
+  return '临时草稿与全局会话'
+}
 
 /** 主布局（已登录后显示） */
 function MainLayout(): React.ReactElement {
@@ -41,8 +52,15 @@ function MainLayout(): React.ReactElement {
   const setAgentPanelWidth = useUIStore((s) => s.setAgentPanelWidth)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const setAgentPanelMode = useUIStore((s) => s.setAgentPanelMode)
+  const workspacePath = useFsStore((s) => s.workspacePath)
+  const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
   const agentInCenter = agentPanelMode === 'center'
   const agentInRight = agentPanelMode === 'right'
+  const topbarProjectTitle =
+    activeWorkspaceRef.kind === 'local' && workspacePath
+      ? workspacePath.split('/').filter(Boolean).pop() || workspacePath
+      : workspaceRefLabel(activeWorkspaceRef)
+  const topbarProjectDetail = getWorkspaceTitleDetail(activeWorkspaceRef)
 
   // 订阅主题变化，触发 theme-store 初始化并应用 data-theme。
   useThemeStore((s) => s.resolvedTheme)
@@ -93,7 +111,9 @@ function MainLayout(): React.ReactElement {
           <button className="app-topbar-icon muted" disabled title="前进">
             <IconArrowRight size={14} />
           </button>
-          <span className="app-topbar-title">DeepInk</span>
+          <span className="app-topbar-title" title={topbarProjectDetail}>
+            {topbarProjectTitle}
+          </span>
         </div>
         <div className="app-topbar-right">
           <button

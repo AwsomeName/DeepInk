@@ -41,8 +41,8 @@ describe('CclinkRealtimeBridge', () => {
 
     const promise = requestRouter.request('agent-1', {
       cc_type: 'file_tree_request',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       path: '/workspace',
     }, {
       expectedTypes: ['file_tree_response'],
@@ -50,8 +50,8 @@ describe('CclinkRealtimeBridge', () => {
     const requestId = transport.sent[0].message.request_id
     const response: ChatccProtocolMessage = {
       cc_type: 'file_tree_response',
-      v: 1,
-      min_v: 1,
+      v: 2,
+      min_v: 2,
       request_id: requestId,
       tree: {
         id: 'root',

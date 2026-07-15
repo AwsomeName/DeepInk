@@ -2,6 +2,22 @@ export type SubscriptionTier = 'free' | 'pro'
 export type SubscriptionStatus = 'active' | 'expired' | 'cancelled' | 'inactive'
 export type PaymentChannel = 'wechat_native' | 'apple_iap'
 export type OrderStatus = 'pending' | 'paid' | 'failed' | 'refunded' | 'expired'
+export type Entitlement =
+  | 'cloud_sync'
+  | 'remote_workspace'
+  | 'remote_pairing'
+  | 'remote_file_read'
+  | 'remote_file_write'
+  | 'remote_terminal'
+  | 'remote_agent_session'
+  | 'remote_audit'
+
+export interface EntitlementGrant {
+  code: Entitlement
+  enabled: boolean
+  expiresAt?: string | null
+  reason?: string
+}
 
 export interface SubscriptionPlan {
   id: string
@@ -22,6 +38,7 @@ export interface UserSubscription {
   periodStart: string | null
   periodEnd: string | null
   status: SubscriptionStatus
+  entitlements?: EntitlementGrant[]
 }
 
 export interface CreateOrderResult {

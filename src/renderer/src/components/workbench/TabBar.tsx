@@ -186,7 +186,7 @@ export function TabBar({
               <IconTerminal size={13} />
               <span className="tab-create-menu-main">
                 <span>Terminal</span>
-                <span>受控命令现场（尚未接 shell）</span>
+                <span>本地/远程命令现场</span>
               </span>
             </button>
             <div className="tab-create-menu-separator" />

@@ -1,21 +1,31 @@
-import { useState, type FormEvent, type RefObject } from 'react'
+import { useEffect, useRef, useState, type FormEvent, type RefObject } from 'react'
+import { Terminal as XtermTerminal } from '@xterm/xterm'
+import { FitAddon } from '@xterm/addon-fit'
+import '@xterm/xterm/css/xterm.css'
 import type { TerminalSubmitCommandResult } from '@shared/ipc/terminal'
+import type { TerminalExecutionEvent } from '@shared/terminal'
 import type { Tab } from '../../types'
 import { workspaceRefLabel, workspaceRefSourceLabel } from '../../../../shared/workspace-ref'
+import { useTabStore } from '../../stores/tab-store'
 import { useTerminalStore } from '../../stores/terminal-store'
 import { resolveConversationTab } from '../../utils/conversation-tab'
 import { getUnsupportedConversationMeta } from '../../utils/conversation-runtime-adapter'
 import { submitTerminalCommand } from '../../utils/terminal-command'
+import { buildTerminalTabDraft } from '../../utils/terminal-tab'
 import { CclinkConversation } from '../cclink/CclinkConversation'
 import { ErrorBoundary } from '../common/ErrorBoundary'
 import { PanelErrorFallback } from '../common/ErrorFallback'
 import { SettingsPage } from '../settings/SettingsPage'
 import { AndroidDisplay } from './AndroidDisplay'
+import { GerberLayerPreview } from './GerberLayerPreview'
 import { MarkdownEditor } from './MarkdownEditor'
 import { ModelViewer } from './ModelViewer'
 import { RemoteFileViewer } from './RemoteFileViewer'
 import { WorkbenchAgentConversation } from './WorkbenchAgentConversation'
 import { WeChatPreview } from './wechat/WeChatPreview'
+import type { TerminalOutputLine } from '../../stores/terminal-store'
+
+const EMPTY_TERMINAL_OUTPUT_LINES: TerminalOutputLine[] = []
 
 interface WorkbenchContentProps {
   activeTab: Tab | undefined
@@ -78,7 +88,16 @@ export function WorkbenchContent({
                 remoteFile={activeTab.remoteFile}
               />
             )}
-            {activeTab.type === 'terminal' && <TerminalPlaceholder tab={activeTab} />}
+            {activeTab.type === 'hardware-gerber' && activeTab.hardwareGerber && (
+              <GerberLayerPreview
+                key={`${activeTab.hardwareGerber.packagePath}:${activeTab.hardwareGerber.entry ?? ''}`}
+                hardwareGerber={activeTab.hardwareGerber}
+              />
+            )}
+            {activeTab.type === 'terminal' && <TerminalTabContent tab={activeTab} />}
+            {activeTab.type === 'terminal-record' && activeTab.terminalRecord && (
+              <TerminalRecordView tab={activeTab} />
+            )}
           </>
         )}
       </ErrorBoundary>
@@ -86,7 +105,232 @@ export function WorkbenchContent({
   )
 }
 
-function TerminalPlaceholder({ tab }: { tab: Tab }): React.ReactElement {
+function TerminalRecordView({ tab }: { tab: Tab }): React.ReactElement {
+  const record = tab.terminalRecord
+  const openTab = useTabStore((state) => state.openTab)
+  if (!record) {
+    return (
+      <div className="conversation-shell local">
+        <div className="terminal-placeholder">
+          <div className="terminal-placeholder-title">Terminal 记录不存在</div>
+        </div>
+      </div>
+    )
+  }
+
+  const openFreshTerminal = (): void => {
+    openTab(buildTerminalTabDraft(record.runtime.workspaceRef))
+  }
+
+  return (
+    <div className="conversation-shell local">
+      <div className="terminal-record-view">
+        <div className="terminal-record-header">
+          <div>
+            <div className="terminal-placeholder-title">Terminal 记录</div>
+            <div className="terminal-placeholder-desc">
+              这是只读历史现场；原进程不可输入时，只能从同目录新开 Terminal。
+            </div>
+          </div>
+          <button type="button" onClick={openFreshTerminal}>
+            从此目录新建 Terminal
+          </button>
+        </div>
+        <div className="terminal-placeholder-grid">
+          <TerminalMeta label="工作空间" value={workspaceRefLabel(record.runtime.workspaceRef)} />
+          <TerminalMeta label="来源" value={workspaceRefSourceLabel(record.runtime.workspaceRef)} />
+          <TerminalMeta label="状态" value={record.status} />
+          <TerminalMeta label="cwd" value={record.runtime.cwd ?? '未设置'} />
+          <TerminalMeta label="进程" value={record.processId ? String(record.processId) : '无'} />
+          <TerminalMeta
+            label="退出"
+            value={
+              typeof record.exitCode === 'number'
+                ? `code ${record.exitCode}`
+                : record.signal
+                  ? `signal ${record.signal}`
+                  : '无'
+            }
+          />
+        </div>
+        <div className="terminal-record-section">
+          <div className="terminal-output-header">
+            <span>命令记录</span>
+          </div>
+          {record.commandHistory?.length ? (
+            <div className="terminal-record-command-list">
+              {record.commandHistory.map((item) => (
+                <code key={item.id}>{item.command}</code>
+              ))}
+            </div>
+          ) : (
+            <div className="terminal-output-empty">暂无命令记录</div>
+          )}
+        </div>
+        <div className="terminal-record-section">
+          <div className="terminal-output-header">
+            <span>输出 Buffer</span>
+          </div>
+          <pre className="terminal-output terminal-record-output">
+            {record.outputBuffer?.length ? (
+              record.outputBuffer.map((line) => (
+                <span key={line.id} className={`terminal-output-line ${line.kind}`}>
+                  {line.text}
+                </span>
+              ))
+            ) : (
+              <span className="terminal-output-empty">暂无输出记录</span>
+            )}
+          </pre>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TerminalTabContent({ tab }: { tab: Tab }): React.ReactElement {
+  if (tab.terminal?.runtime.location === 'local') {
+    return <LocalPtyTerminal tab={tab} />
+  }
+  return <TerminalCommandPanel tab={tab} />
+}
+
+function LocalPtyTerminal({ tab }: { tab: Tab }): React.ReactElement {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const xtermRef = useRef<XtermTerminal | null>(null)
+  const fitAddonRef = useRef<FitAddon | null>(null)
+  const terminal = tab.terminal
+  const outputBySessionId = useTerminalStore((state) => state.outputBySessionId)
+  const outputLines = terminal?.sessionId
+    ? (outputBySessionId[terminal.sessionId] ?? EMPTY_TERMINAL_OUTPUT_LINES)
+    : EMPTY_TERMINAL_OUTPUT_LINES
+  const initialRecordOutput =
+    outputLines.length === 0
+      ? (tab.terminalRecord?.outputBuffer ?? EMPTY_TERMINAL_OUTPUT_LINES)
+      : EMPTY_TERMINAL_OUTPUT_LINES
+
+  useEffect(() => {
+    if (!terminal?.sessionId || !terminal.runtime || !containerRef.current) return
+
+    const xterm = new XtermTerminal({
+      cursorBlink: true,
+      convertEol: true,
+      fontFamily:
+        'Menlo, Monaco, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace',
+      fontSize: 13,
+      lineHeight: 1.25,
+      scrollback: 5000,
+      theme: {
+        background: '#1e1e1e',
+        foreground: '#d4d4d4',
+        cursor: '#d4d4d4',
+        selectionBackground: '#264f78',
+        black: '#000000',
+        red: '#cd3131',
+        green: '#0dbc79',
+        yellow: '#e5e510',
+        blue: '#2472c8',
+        magenta: '#bc3fbc',
+        cyan: '#11a8cd',
+        white: '#e5e5e5',
+        brightBlack: '#666666',
+        brightRed: '#f14c4c',
+        brightGreen: '#23d18b',
+        brightYellow: '#f5f543',
+        brightBlue: '#3b8eea',
+        brightMagenta: '#d670d6',
+        brightCyan: '#29b8db',
+        brightWhite: '#e5e5e5',
+      },
+    })
+    const fitAddon = new FitAddon()
+    xterm.loadAddon(fitAddon)
+    xterm.open(containerRef.current)
+    xtermRef.current = xterm
+    fitAddonRef.current = fitAddon
+
+    for (const line of [...initialRecordOutput, ...outputLines]) {
+      xterm.write(line.text)
+    }
+
+    const resizeToContainer = (): void => {
+      try {
+        fitAddon.fit()
+        void window.deepink.terminal.resizePty({
+          terminalSessionId: terminal.sessionId!,
+          size: { columns: xterm.cols, rows: xterm.rows },
+        })
+      } catch {
+        // xterm 尚未完成布局时 fit 可能失败；下一次 ResizeObserver 会重试。
+      }
+    }
+
+    const dataDisposable = xterm.onData((data) => {
+      void window.deepink.terminal.writePty({
+        terminalSessionId: terminal.sessionId!,
+        data,
+      })
+    })
+
+    const resizeDisposable = xterm.onResize((size) => {
+      void window.deepink.terminal.resizePty({
+        terminalSessionId: terminal.sessionId!,
+        size: { columns: size.cols, rows: size.rows },
+      })
+    })
+
+    const offExecutionEvent = window.deepink.terminal.onExecutionEvent(
+      (event: TerminalExecutionEvent) => {
+        if (event.sessionId !== terminal.sessionId) return
+        if (event.kind === 'output') {
+          xterm.write(event.data)
+        } else if (event.kind === 'error') {
+          xterm.write(`\r\n${event.message}\r\n`)
+        } else if (event.kind === 'exit') {
+          xterm.write(
+            `\r\n[进程已退出${typeof event.exitCode === 'number' ? `，退出码 ${event.exitCode}` : ''}${event.signal ? `，信号 ${event.signal}` : ''}]\r\n`,
+          )
+        }
+      },
+    )
+
+    const resizeObserver = new ResizeObserver(resizeToContainer)
+    resizeObserver.observe(containerRef.current)
+    requestAnimationFrame(() => {
+      resizeToContainer()
+      void window.deepink.terminal.startPty({
+        terminalSessionId: terminal.sessionId!,
+        runtime: terminal.runtime,
+        size: { columns: xterm.cols, rows: xterm.rows },
+      })
+      xterm.focus()
+    })
+
+    return () => {
+      resizeObserver.disconnect()
+      offExecutionEvent()
+      dataDisposable.dispose()
+      resizeDisposable.dispose()
+      xterm.dispose()
+      xtermRef.current = null
+      fitAddonRef.current = null
+    }
+  }, [terminal?.sessionId, terminal?.runtime])
+
+  return (
+    <div className="terminal-pty-shell">
+      <div className="terminal-pty-toolbar">
+        <span>{terminal?.runtime.cwd ?? '本地 Terminal'}</span>
+        <button type="button" onClick={() => xtermRef.current?.focus()} title="聚焦 Terminal">
+          聚焦
+        </button>
+      </div>
+      <div ref={containerRef} className="terminal-pty-surface" />
+    </div>
+  )
+}
+
+function TerminalCommandPanel({ tab }: { tab: Tab }): React.ReactElement {
   const terminal = tab.terminal
   const runtime = terminal?.runtime
   const workspace = runtime?.workspaceRef
@@ -94,9 +338,10 @@ function TerminalPlaceholder({ tab }: { tab: Tab }): React.ReactElement {
   const [submitting, setSubmitting] = useState(false)
   const [submitResult, setSubmitResult] = useState<TerminalSubmitCommandResult | null>(null)
   const [retriedAfterRegister, setRetriedAfterRegister] = useState(false)
-  const outputLines = useTerminalStore((state) =>
-    terminal?.sessionId ? (state.outputBySessionId[terminal.sessionId] ?? []) : [],
-  )
+  const outputBySessionId = useTerminalStore((state) => state.outputBySessionId)
+  const outputLines = terminal?.sessionId
+    ? (outputBySessionId[terminal.sessionId] ?? EMPTY_TERMINAL_OUTPUT_LINES)
+    : EMPTY_TERMINAL_OUTPUT_LINES
   const appendOutputLine = useTerminalStore((state) => state.appendOutputLine)
   const clearOutput = useTerminalStore((state) => state.clearOutput)
 
@@ -136,7 +381,7 @@ function TerminalPlaceholder({ tab }: { tab: Tab }): React.ReactElement {
       <div className="terminal-placeholder">
         <div className="terminal-placeholder-title">Terminal 受控命令入口</div>
         <div className="terminal-placeholder-desc">
-          当前命令会进入权限、确认和审计链路；真实 shell 后端尚未接入，因此通过后仍不会启动本机或远端进程。
+          当前命令会进入权限、确认和审计链路；本地项目会启动本机 shell，远程项目会走对应远程执行通道。
         </div>
         <div className="terminal-placeholder-grid">
           <TerminalMeta label="工作空间" value={workspace ? workspaceRefLabel(workspace) : '未知'} />

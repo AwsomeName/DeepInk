@@ -3,6 +3,7 @@ import { useFsStore, useTabStore } from '../../stores'
 import type { FileTreeNode } from '../../stores/fs-store'
 import { IconSearch } from '../common/Icons'
 import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
+import { isGerberFileExtension } from '../../utils/hardware-files'
 
 const SEARCH_PANEL_STORAGE_KEY = 'deepink-search-panel-state'
 
@@ -59,6 +60,20 @@ export function SearchPanel(): React.ReactElement {
 
   const handleFileClick = (node: FileTreeNode): void => {
     if (node.type === 'file') {
+      if (workspacePath && isGerberFileExtension(node.extension)) {
+        openTab({
+          type: 'hardware-gerber',
+          title: node.name,
+          icon: '🧩',
+          filePath: node.path,
+          hardwareGerber: {
+            workspacePath,
+            packagePath: node.path,
+            entry: node.name,
+          },
+        })
+        return
+      }
       openTab({
         type: getTabTypeForFile(node.extension),
         title: node.name,
@@ -98,7 +113,9 @@ export function SearchPanel(): React.ReactElement {
               className="sidebar-item file"
               onClick={() => handleFileClick(r)}
             >
-              <span style={{ fontSize: 14 }}>{r.type === 'directory' ? '📁' : '📄'}</span>
+              <span style={{ fontSize: 14 }}>
+                {r.type === 'directory' ? '📁' : isGerberFileExtension(r.extension) ? '🧩' : '📄'}
+              </span>
               <span className="file-tree-name">{r.name}</span>
             </div>
           ))}
