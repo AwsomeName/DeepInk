@@ -1,6 +1,10 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { WorkspaceStateSnapshot } from '@shared/ipc/workspace-state'
 import { restoreWorkspaceState, type WorkspaceBootstrapDeps } from './workspace-bootstrap-core'
+import {
+  resetWorkspaceBootstrapForTests,
+  runWorkspaceBootstrapOnce,
+} from './use-workspace-bootstrap'
 import { useAgentStore } from '../stores/agent-store'
 import { useBrowserStore } from '../stores/browser-store'
 import { useEditorStore } from '../stores/editor-store'
@@ -41,6 +45,27 @@ function createDeps(overrides: Partial<WorkspaceBootstrapDeps> = {}): WorkspaceB
 }
 
 describe('restoreWorkspaceState', () => {
+  afterEach(() => {
+    resetWorkspaceBootstrapForTests()
+  })
+
+  it('启动恢复只运行一次，避免 StrictMode 双 effect 触发工作区竞态', async () => {
+    resetWorkspaceBootstrapForTests()
+    const deps = createDeps({
+      getSettings: vi.fn().mockResolvedValue({ lastWorkspacePath: '/workspace/a' } as any),
+      getWorkspaceState: vi.fn().mockResolvedValue(snapshot('/workspace/a', {})),
+    })
+    const depsFactory = vi.fn(() => deps)
+
+    await Promise.all([
+      runWorkspaceBootstrapOnce(depsFactory),
+      runWorkspaceBootstrapOnce(depsFactory),
+    ])
+
+    expect(depsFactory).toHaveBeenCalledTimes(1)
+    expect(deps.initWorkspace).toHaveBeenCalledTimes(1)
+  })
+
   it('按 lastWorkspacePath 优先恢复对应工作区快照', async () => {
     const deps = createDeps({
       getSettings: vi.fn().mockResolvedValue({ lastWorkspacePath: '/workspace/a' } as any),

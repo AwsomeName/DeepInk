@@ -10,13 +10,17 @@ notarization.
 pnpm smoke:local
 pnpm smoke:ui
 pnpm smoke:workflow
+pnpm smoke:restore
+pnpm smoke:standalone
 ```
 
 The scripts start CCLink Studio with `scripts/restart.sh start` when needed, connect to the Electron
 renderer through CDP, run the checks below, and stop the app again unless it was already running.
 
 `smoke:local` verifies the real preload API. `smoke:ui` verifies the visible workbench entry points
-by clicking the actual UI. `smoke:workflow` verifies a local workspace task loop.
+by clicking the actual UI. `smoke:workflow` verifies a local workspace task loop. `smoke:restore`
+verifies startup restoration from `lastWorkspacePath`. `smoke:standalone` runs the full standalone
+desktop shell smoke gate.
 
 Use this variant when you want to keep the app open after the smoke check:
 
@@ -24,6 +28,7 @@ Use this variant when you want to keep the app open after the smoke check:
 pnpm smoke:local -- --keep-running
 pnpm smoke:ui -- --keep-running
 pnpm smoke:workflow -- --keep-running
+pnpm smoke:restore -- --keep-running
 ```
 
 ## What `smoke:local` Proves
@@ -56,6 +61,13 @@ pnpm smoke:workflow -- --keep-running
 - Browser workbench state remains available during the local workflow.
 - Terminal execution can run in the local workspace cwd and produce output.
 
+## What `smoke:restore` Proves
+
+- A temporary local workspace persisted as `lastWorkspacePath` is restored after an app restart.
+- The restored file tree is usable without manually opening the project again.
+- `lastWorkspacePath` is not cleared during successful startup restore.
+- Previous workspace settings are restored after the smoke check.
+
 ## Current Passing Result
 
 Latest local run:
@@ -64,6 +76,7 @@ Latest local run:
 Local smoke passed: 9/9
 UI smoke passed: 5/5
 Workflow smoke passed: 5/5
+Restore smoke passed: 4/4
 ```
 
 The filesystem test intentionally writes under the user's home directory, because the app's file
@@ -73,6 +86,9 @@ after the run.
 `smoke:workflow` temporarily updates the recent workspace settings, then restores the previous
 values and deletes its temporary workspace.
 
+`smoke:restore` temporarily updates `lastWorkspacePath`, restarts the app, restores the previous
+settings, and deletes its temporary workspace.
+
 ## Failure Policy
 
 Treat a failure here as a Studio-side blocker when it affects standalone local use. Examples:
@@ -81,6 +97,7 @@ Treat a failure here as a Studio-side blocker when it affects standalone local u
 - Browser, editor, terminal, settings, or local filesystem APIs fail in the open source shell.
 - First-screen UI, Activity Bar, settings, or tab creation cannot be used without login.
 - A local workspace cannot be opened from recent projects, edited, saved, or used as Terminal cwd.
+- `lastWorkspacePath` is cleared or ignored when it points at a valid local workspace.
 - Official account, paid feature, message, quota, or release capabilities appear in the default
   preload surface.
 - Missing ADB or missing official integration stops startup instead of degrading.

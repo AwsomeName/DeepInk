@@ -18,6 +18,8 @@ import { restoreWorkspaceState, type WorkspaceBootstrapDeps } from './workspace-
 export type { WorkspaceBootstrapDeps } from './workspace-bootstrap-core'
 export { restoreWorkspaceState } from './workspace-bootstrap-core'
 
+let workspaceBootstrapPromise: Promise<void> | null = null
+
 export function createWorkspaceBootstrapDeps(): WorkspaceBootstrapDeps {
   return {
     getSettings: () => window.cclinkStudio.settings.getAll().catch(() => null),
@@ -36,6 +38,22 @@ export function createWorkspaceBootstrapDeps(): WorkspaceBootstrapDeps {
   }
 }
 
+export function runWorkspaceBootstrapOnce(
+  depsFactory: () => WorkspaceBootstrapDeps = createWorkspaceBootstrapDeps,
+): Promise<void> {
+  if (!workspaceBootstrapPromise) {
+    workspaceBootstrapPromise = restoreWorkspaceState(depsFactory()).catch((error: unknown) => {
+      workspaceBootstrapPromise = null
+      throw error
+    })
+  }
+  return workspaceBootstrapPromise
+}
+
+export function resetWorkspaceBootstrapForTests(): void {
+  workspaceBootstrapPromise = null
+}
+
 /** 启动时从 main process 恢复工作台状态，再挂载工作区 UI。 */
 export function useWorkspaceBootstrap(): boolean {
   const [ready, setReady] = useState(false)
@@ -44,7 +62,7 @@ export function useWorkspaceBootstrap(): boolean {
     let cancelled = false
 
     async function bootstrap(): Promise<void> {
-      await restoreWorkspaceState(createWorkspaceBootstrapDeps())
+      await runWorkspaceBootstrapOnce()
       if (!cancelled) setReady(true)
     }
 
