@@ -36,8 +36,12 @@ pnpm lint
 pnpm test
 pnpm build
 pnpm verify
+pnpm smoke:local
+pnpm smoke:ui
 git diff --check
 ```
+
+`pnpm verify` 是无 GUI 的代码质量门禁；`pnpm smoke:local` 是 Electron preload/API 本地冒烟；`pnpm smoke:ui` 是真实 UI 点击冒烟。两者会启动真实桌面壳并验证无登录状态下的核心本地能力。冒烟说明见 `docs/ops/local-smoke-check.md`。
 
 ## 项目结构
 
@@ -50,8 +54,11 @@ cclink-studio/
 │   ├── architecture.md
 │   ├── development.md
 │   ├── official-integration-contract.md
+│   ├── ops/local-smoke-check.md
 │   └── ops/cclink-dev-official-integration-handoff.md
 ├── scripts/
+│   ├── local-smoke.mjs
+│   ├── ui-smoke.mjs
 │   ├── verify-oss-boundary.mjs
 │   ├── package.sh
 │   ├── restart.sh
@@ -87,16 +94,16 @@ cclink-studio/
 
 ## 技术栈
 
-| 层级 | 技术 |
-| --- | --- |
-| 桌面框架 | Electron 35 |
-| 前端 | React 19 + TypeScript 5.9 |
-| 构建 | electron-vite 5 + Vite 6 |
-| 状态管理 | Zustand 5 |
-| 浏览器自动化 | Playwright CDP |
-| MCP | `@modelcontextprotocol/sdk` |
-| Schema | Zod |
-| 样式 | CSS variables + component CSS |
+| 层级         | 技术                          |
+| ------------ | ----------------------------- |
+| 桌面框架     | Electron 35                   |
+| 前端         | React 19 + TypeScript 5.9     |
+| 构建         | electron-vite 5 + Vite 6      |
+| 状态管理     | Zustand 5                     |
+| 浏览器自动化 | Playwright CDP                |
+| MCP          | `@modelcontextprotocol/sdk`   |
+| Schema       | Zod                           |
+| 样式         | CSS variables + component CSS |
 
 ## Android 真机边界
 
