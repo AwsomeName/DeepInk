@@ -9,10 +9,14 @@ export function useEditorContentUpdates(): void {
       const targetPath = update.filePath
       const hasMatchingTab = useTabStore
         .getState()
-        .tabs.some((tab) => tab.type === 'editor' && (targetPath ? tab.filePath === targetPath : true))
+        .tabs.some(
+          (tab) => tab.type === 'editor' && (targetPath ? tab.filePath === targetPath : true),
+        )
 
       if (!hasMatchingTab) {
-        const title = update.title ?? (targetPath ? targetPath.split('/').pop() ?? 'Untitled.md' : 'Untitled.md')
+        const title =
+          update.title ??
+          (targetPath ? (targetPath.split('/').pop() ?? 'Untitled.md') : 'Untitled.md')
         useTabStore.getState().openTab({
           type: 'editor',
           title,

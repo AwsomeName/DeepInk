@@ -23,6 +23,7 @@ import { BrowserDownloadStore } from './browser-download-store'
 
 let tempDir = ''
 let workspaceDir = ''
+let stores: BrowserDownloadStore[] = []
 
 function createStore(): { store: BrowserDownloadStore; send: ReturnType<typeof vi.fn> } {
   const send = vi.fn()
@@ -30,10 +31,9 @@ function createStore(): { store: BrowserDownloadStore; send: ReturnType<typeof v
     isDestroyed: () => false,
     webContents: { send },
   } as any
-  return {
-    store: new BrowserDownloadStore(mainWindow, () => workspaceDir),
-    send,
-  }
+  const store = new BrowserDownloadStore(mainWindow, () => workspaceDir)
+  stores.push(store)
+  return { store, send }
 }
 
 beforeEach(async () => {
@@ -43,9 +43,11 @@ beforeEach(async () => {
   electronMocks.paths.downloads = join(tempDir, 'downloads')
   electronMocks.openPath.mockResolvedValue('')
   electronMocks.showItemInFolder.mockClear()
+  stores = []
 })
 
 afterEach(async () => {
+  await Promise.all(stores.map((store) => store.flushPersistence()))
   vi.clearAllMocks()
   if (tempDir) await rm(tempDir, { recursive: true, force: true })
 })
@@ -67,7 +69,9 @@ describe('BrowserDownloadStore', () => {
 
     expect(record.retention).toBe('temporary')
     expect(record.tempPath).toBe(targetPath)
-    expect(targetPath).toBe(join(electronMocks.paths.userData, 'agent-downloads', 'task-1', 'file.pdf'))
+    expect(targetPath).toBe(
+      join(electronMocks.paths.userData, 'agent-downloads', 'task-1', 'file.pdf'),
+    )
   })
 
   it('stores manual downloads in the system downloads directory', async () => {
@@ -106,7 +110,9 @@ describe('BrowserDownloadStore', () => {
     const kept = await store.keepDownloadToWorkspace('download-1')
 
     expect(kept.retention).toBe('kept')
-    expect(kept.savedPath).toBe(join(workspaceDir, '.cclink-studio', 'downloads', 'task-1', 'file.pdf'))
+    expect(kept.savedPath).toBe(
+      join(workspaceDir, '.cclink-studio', 'downloads', 'task-1', 'file.pdf'),
+    )
     await expect(stat(kept.savedPath!)).resolves.toBeTruthy()
   })
 

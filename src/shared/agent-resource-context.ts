@@ -60,15 +60,13 @@ export interface AgentResourceContextSnapshot {
   notes: string[]
 }
 
-export function browserDiagnosticToResource(
-  input: {
-    tabId: string
-    visibleTabId: string | null
-    profile?: string | null
-    viewState: BrowserViewState | null
-    diagnostics: BrowserPageDiagnosticSummary | null
-  },
-): AgentBrowserResourceSnapshot {
+export function browserDiagnosticToResource(input: {
+  tabId: string
+  visibleTabId: string | null
+  profile?: string | null
+  viewState: BrowserViewState | null
+  diagnostics: BrowserPageDiagnosticSummary | null
+}): AgentBrowserResourceSnapshot {
   const url = input.diagnostics?.url ?? null
   return {
     tabId: input.tabId,

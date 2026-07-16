@@ -28,6 +28,7 @@ import type { TerminalSessionRegistry } from '../terminal/terminal-session-regis
 import type { TerminalSessionStore } from '../terminal/terminal-session-store'
 import type { TerminalCommandOrchestrator } from '../terminal/terminal-command-orchestrator'
 import type { TerminalExecutionAdapter } from '../terminal/terminal-execution-adapter'
+import type { OfficialIntegration } from '../official/official-integration'
 
 export interface CclinkStudioRuntimeState {
   isDev: boolean
@@ -61,6 +62,7 @@ export interface CclinkStudioRuntimeState {
   terminalSessionStore: TerminalSessionStore | null
   terminalCommandOrchestrator: TerminalCommandOrchestrator | null
   terminalExecutionAdapter: TerminalExecutionAdapter | null
+  officialIntegration: OfficialIntegration | null
 }
 
 export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
@@ -96,5 +98,6 @@ export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
     terminalSessionStore: null,
     terminalCommandOrchestrator: null,
     terminalExecutionAdapter: null,
+    officialIntegration: null,
   }
 }

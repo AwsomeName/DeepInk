@@ -34,19 +34,21 @@ beforeEach(() => {
   vi.stubGlobal('window', {
     cclinkStudio: {
       workspaceState: {
-        get: vi.fn().mockResolvedValue(snapshot('/workspace/b', {
-          tabs: {
-            tabs: [{ id: 'browser-b', type: 'browser', title: 'B', icon: '🌐' }],
-            activeTabId: 'browser-b',
-          },
-          browserTabs: { tabs: {} },
-          editorDrafts: { files: {} },
-          agentConversations: {
-            conversations: {},
-            conversationOrder: [],
-            activeConversationId: null,
-          },
-        })),
+        get: vi.fn().mockResolvedValue(
+          snapshot('/workspace/b', {
+            tabs: {
+              tabs: [{ id: 'browser-b', type: 'browser', title: 'B', icon: '🌐' }],
+              activeTabId: 'browser-b',
+            },
+            browserTabs: { tabs: {} },
+            editorDrafts: { files: {} },
+            agentConversations: {
+              conversations: {},
+              conversationOrder: [],
+              activeConversationId: null,
+            },
+          }),
+        ),
         setSection: vi.fn().mockResolvedValue({ success: true }),
       },
     },
@@ -60,11 +62,14 @@ beforeEach(() => {
   useAgentStore.setState(useAgentStore.getInitialState(), true)
   useBrowserStore.setState(useBrowserStore.getInitialState(), true)
   useEditorStore.setState(useEditorStore.getInitialState(), true)
-  useTabStore.setState({
-    ...useTabStore.getInitialState(),
-    tabs: [{ id: 'browser-a', type: 'browser', title: 'A', icon: '🌐' }],
-    activeTabId: 'browser-a',
-  }, true)
+  useTabStore.setState(
+    {
+      ...useTabStore.getInitialState(),
+      tabs: [{ id: 'browser-a', type: 'browser', title: 'A', icon: '🌐' }],
+      activeTabId: 'browser-a',
+    },
+    true,
+  )
   setWorkspaceStatePath('/workspace/a')
   setWorkspaceStateOwnerKey('local:owner-1')
 })

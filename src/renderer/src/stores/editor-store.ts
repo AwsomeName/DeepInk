@@ -82,7 +82,9 @@ function normalizeEditorDrafts(value: unknown): Record<string, EditorFileState> 
   return Object.keys(files).length > 0 ? files : null
 }
 
-function getPersistableEditorFiles(files: Record<string, EditorFileState>): Record<string, EditorFileState> {
+function getPersistableEditorFiles(
+  files: Record<string, EditorFileState>,
+): Record<string, EditorFileState> {
   const result: Record<string, EditorFileState> = {}
   for (const [key, file] of Object.entries(files)) {
     if (key.startsWith('virtual:') || file.dirty) {

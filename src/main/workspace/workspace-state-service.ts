@@ -79,7 +79,10 @@ function normalizeSnapshot(
   const workspaceKey = snapshot.workspaceKey ?? snapshot.workspacePath ?? null
   return {
     ...snapshot,
-    workspaceId: getWorkspaceId(workspaceKeyOverride ?? workspaceKey, ownerKey ?? snapshot.ownerKey),
+    workspaceId: getWorkspaceId(
+      workspaceKeyOverride ?? workspaceKey,
+      ownerKey ?? snapshot.ownerKey,
+    ),
     ownerKey: ownerKey ?? snapshot.ownerKey ?? null,
     workspaceKey: workspaceKeyOverride ?? workspaceKey,
     workspacePath: workspaceKeyOverride ?? snapshot.workspacePath ?? workspaceKey,
@@ -106,7 +109,10 @@ export class WorkspaceStateService {
       this.state = await this.readStateFile(this.stateFilePath)
       console.log('[WorkspaceStateService] 工作台状态已加载')
     } catch (error: unknown) {
-      const isEnoent = error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
+      const isEnoent =
+        error instanceof Error &&
+        'code' in error &&
+        (error as NodeJS.ErrnoException).code === 'ENOENT'
       if (isEnoent) {
         this.state = { version: CURRENT_FILE_VERSION, workspaces: {} }
         return
@@ -178,9 +184,7 @@ export class WorkspaceStateService {
   }
 
   private async saveState(): Promise<void> {
-    this.saveQueue = this.saveQueue
-      .catch(() => {})
-      .then(() => this.writeStateFile())
+    this.saveQueue = this.saveQueue.catch(() => {}).then(() => this.writeStateFile())
     await this.saveQueue
   }
 

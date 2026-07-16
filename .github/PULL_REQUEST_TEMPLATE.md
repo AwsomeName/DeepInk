@@ -13,9 +13,8 @@ Fixes #(issue number)
 
 ## Testing
 - [ ] Tested with `pnpm dev`
-- [ ] `pnpm build` passes
+- [ ] `pnpm verify` passes
 - [ ] Added/updated tests
-- [ ] `pnpm lint` passes
 
 ## Checklist
 - [ ] Code follows project style guide

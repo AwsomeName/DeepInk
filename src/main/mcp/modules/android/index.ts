@@ -11,7 +11,7 @@
 import type { ToolModule, ToolDefinition } from '../../types'
 import type { AdbBridge } from '../../../android/adb-bridge'
 import type { ScrcpyBridge } from '../../../android/scrcpy-bridge'
-import { executeAndroidAction, ANDROID_ACTION_TYPES } from '../../../android/android-actions'
+import { executeAndroidAction } from '../../../android/android-actions'
 
 /**
  * 将 MCP 工具名映射为 action type
@@ -98,7 +98,8 @@ const ANDROID_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'android_press_key',
-    description: '按下 Android 按键。支持: home, back, recent, volume_up, volume_down, power, enter, delete, tab, escape, menu',
+    description:
+      '按下 Android 按键。支持: home, back, recent, volume_up, volume_down, power, enter, delete, tab, escape, menu',
     inputSchema: {
       type: 'object',
       properties: {
@@ -207,17 +208,16 @@ export class AndroidToolModule implements ToolModule {
   readonly name = 'android'
   readonly tools: ToolDefinition[] = ANDROID_TOOL_DEFINITIONS
 
-  constructor(private adbBridge: AdbBridge, private scrcpyBridge?: ScrcpyBridge) {}
+  constructor(
+    private adbBridge: AdbBridge,
+    private scrcpyBridge?: ScrcpyBridge,
+  ) {}
 
   async execute(toolName: string, params: Record<string, unknown>): Promise<unknown> {
     if (!this.adbBridge.isConnected()) {
       throw new Error('ADB 未连接，Android 设备可能未启动')
     }
     const actionType = toolNameToActionType(toolName)
-    return executeAndroidAction(
-      this.adbBridge,
-      { type: actionType, ...params },
-      this.scrcpyBridge,
-    )
+    return executeAndroidAction(this.adbBridge, { type: actionType, ...params }, this.scrcpyBridge)
   }
 }

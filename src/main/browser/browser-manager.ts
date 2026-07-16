@@ -2,7 +2,11 @@ import { BrowserWindow, WebContentsView, session } from 'electron'
 import { randomUUID } from 'node:crypto'
 import type { PlaywrightBridge } from '../playwright/playwright-bridge'
 import type { BrowserInstanceStore } from '../persistence/browser-instance-store'
-import type { BrowserViewModeType, BrowserViewState, BrowserZoomModeType } from '../../shared/ipc/browser'
+import type {
+  BrowserViewModeType,
+  BrowserViewState,
+  BrowserZoomModeType,
+} from '../../shared/ipc/browser'
 import { installBrowserCompatibilityHeaders, normalizeDesktopUserAgent } from './browser-stealth'
 
 /** 移动版模拟时的目标视口宽度（CSS px，约等于 iPhone Pro 逻辑宽度） */
@@ -143,7 +147,13 @@ export class BrowserManager {
     tabId: string,
     initialUrl?: string,
     opts?: {
-      restore?: { viewMode: ViewMode; zoomMode: ZoomMode; manualZoom: number; history?: string[]; historyIndex?: number }
+      restore?: {
+        viewMode: ViewMode
+        zoomMode: ZoomMode
+        manualZoom: number
+        history?: string[]
+        historyIndex?: number
+      }
       profileId?: string | null
     },
   ): void {
@@ -155,11 +165,14 @@ export class BrowserManager {
         existing.manualZoom = opts.restore.manualZoom
         if (opts.restore.history?.length) {
           existing.history = opts.restore.history
-          existing.historyIndex = typeof opts.restore.historyIndex === 'number'
-            ? Math.min(Math.max(opts.restore.historyIndex, 0), opts.restore.history.length - 1)
-            : opts.restore.history.length - 1
+          existing.historyIndex =
+            typeof opts.restore.historyIndex === 'number'
+              ? Math.min(Math.max(opts.restore.historyIndex, 0), opts.restore.history.length - 1)
+              : opts.restore.history.length - 1
         }
-        existing.view.webContents.setUserAgent(existing.viewMode === 'mobile' ? MOBILE_UA : existing.desktopUA)
+        existing.view.webContents.setUserAgent(
+          existing.viewMode === 'mobile' ? MOBILE_UA : existing.desktopUA,
+        )
       }
       if (initialUrl && existing.url === DEFAULT_URL) {
         existing.pendingUrl = initialUrl
@@ -186,7 +199,7 @@ export class BrowserManager {
 
     installBrowserCompatibilityHeaders(view.webContents.session)
 
-    // 去掉 Electron/deepink 标识，让 UA 看起来像真实 Chrome
+    // 去掉 Electron/CCLink Studio 标识，让 UA 看起来像真实 Chrome
     const desktopUA = normalizeDesktopUserAgent(view.webContents.getUserAgent())
     // 恢复态：按快照设置 UA（移动/桌面）以拿到对应布局
     const initViewMode = opts?.restore?.viewMode ?? this.defaultViewMode
@@ -208,9 +221,13 @@ export class BrowserManager {
       pendingUrl: initialUrl ?? DEFAULT_URL,
       url: initialUrl ?? DEFAULT_URL,
       history: opts?.restore?.history?.length ? opts.restore.history : [initialUrl ?? DEFAULT_URL],
-      historyIndex: typeof opts?.restore?.historyIndex === 'number'
-        ? Math.min(Math.max(opts.restore.historyIndex, 0), Math.max((opts.restore.history?.length ?? 1) - 1, 0))
-        : 0,
+      historyIndex:
+        typeof opts?.restore?.historyIndex === 'number'
+          ? Math.min(
+              Math.max(opts.restore.historyIndex, 0),
+              Math.max((opts.restore.history?.length ?? 1) - 1, 0),
+            )
+          : 0,
       pendingHistoryDirection: null,
       profileId,
     }
@@ -272,12 +289,13 @@ export class BrowserManager {
       })
     }
     const win = this.win()
-    if (win) win.webContents.send('browser:urlChanged', {
-      tabId,
-      url,
-      history: entry?.history ?? [url],
-      historyIndex: entry?.historyIndex ?? 0,
-    })
+    if (win)
+      win.webContents.send('browser:urlChanged', {
+        tabId,
+        url,
+        history: entry?.history ?? [url],
+        historyIndex: entry?.historyIndex ?? 0,
+      })
   }
 
   /**
@@ -290,9 +308,10 @@ export class BrowserManager {
     entry.boundsReceived = true
     // 即使 renderer 尚未上报真实 bounds，也先用 1x1 临时区域加载页面。
     // 否则 Electron 会暴露一个空 URL 的 CDP target，Playwright connectOverCDP 可能卡住。
-    const bounds = this.currentBounds.width > 0 && this.currentBounds.height > 0
-      ? this.currentBounds
-      : { x: 0, y: 0, width: 1, height: 1 }
+    const bounds =
+      this.currentBounds.width > 0 && this.currentBounds.height > 0
+        ? this.currentBounds
+        : { x: 0, y: 0, width: 1, height: 1 }
     entry.view.setBounds(bounds)
     void entry.view.webContents.loadURL(entry.pendingUrl)
   }

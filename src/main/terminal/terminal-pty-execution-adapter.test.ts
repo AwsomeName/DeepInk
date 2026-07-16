@@ -65,7 +65,9 @@ describe('PtyExecutionAdapter', () => {
       }),
     )
     if (process.platform !== 'win32') {
-      expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain('CCLINK_STUDIO_TERMINAL_SESSION_ID')
+      expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain(
+        'CCLINK_STUDIO_TERMINAL_SESSION_ID',
+      )
       expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain('terminal-1')
     }
     expect(events).toContainEqual({

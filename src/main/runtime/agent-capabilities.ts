@@ -26,9 +26,7 @@ export function getAgentCapabilities(runtime: CclinkStudioRuntimeState): AgentCa
       label: 'Android',
       available: runtime.activeDeviceManager?.getSource() === 'physical',
       reason:
-        runtime.activeDeviceManager?.getSource() === 'physical'
-          ? undefined
-          : '未连接用户真机',
+        runtime.activeDeviceManager?.getSource() === 'physical' ? undefined : '未连接用户真机',
     },
     {
       name: 'agent-device',

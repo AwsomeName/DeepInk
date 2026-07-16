@@ -232,7 +232,7 @@ export class McpToolHost {
               tools: { listChanged: false },
             },
             serverInfo: {
-              name: 'deepink',
+              name: 'cclink_studio',
               version: '1.0.0',
             },
           })

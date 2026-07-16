@@ -43,7 +43,8 @@ export class DataSourceConfigStore {
       this.state = {
         version: 1,
         sources: Array.isArray(parsed.sources) ? parsed.sources.filter(isDataSourceConfig) : [],
-        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+        updatedAt:
+          typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {

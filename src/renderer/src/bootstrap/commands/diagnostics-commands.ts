@@ -10,7 +10,10 @@ async function copyWorkspaceDiagnostics(): Promise<void> {
     await navigator.clipboard.writeText(text)
     showToast(`工作台状态诊断已复制 · ${diagnostics.workspaceCount} 个工作空间`, 'success')
   } catch (error) {
-    showToast(`复制工作台状态诊断失败: ${error instanceof Error ? error.message : String(error)}`, 'error')
+    showToast(
+      `复制工作台状态诊断失败: ${error instanceof Error ? error.message : String(error)}`,
+      'error',
+    )
   }
 }
 

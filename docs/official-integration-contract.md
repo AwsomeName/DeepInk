@@ -49,7 +49,7 @@ These seams should be inert by default. A clean open source build must not try t
 ```ts
 export interface OfficialIntegration {
   readonly id: string
-  readonly buildProfile: 'dev' | 'internal' | 'beta' | 'stable'
+  readonly buildProfile: 'oss' | 'dev' | 'internal' | 'beta' | 'stable'
   registerMainServices(context: OfficialMainContext): Promise<void>
   registerIpc?(context: OfficialIpcContext): Promise<void>
   exposePreload?(context: OfficialPreloadContext): OfficialPreloadApi
@@ -77,3 +77,38 @@ The open source shell owns the context interfaces and default no-op providers. T
 5. Should official diagnostics be exportable from the open source diagnostics panel, or kept behind an official-only panel?
 
 Until these are answered, the safe default is a typed no-op integration interface with compile-time validation and no production values in this repository.
+
+## Current OSS Implementation
+
+The open source shell now owns a minimal inert integration surface:
+
+- Shared status contract: `src/shared/ipc/official.ts`.
+- Main-process no-op implementation: `src/main/official/official-integration.ts`.
+- Assembly seam: `src/main/official/official-integration-loader.ts`.
+- Read-only IPC probe: `official:getStatus`.
+- Preload namespace: `window.cclinkStudio.official.getStatus()`.
+- Runtime hook points: `registerMainServices()` and `registerIpc()` are invoked with typed contexts, but the OSS implementation is a no-op.
+
+`loadOfficialIntegration()` is the only main-process assembly point the official build should replace or alias. The default implementation always returns `createNoopOfficialIntegration()`. Core runtime startup must not import official account, message, quota, release, or runtime packages directly.
+
+In OSS builds this returns:
+
+```ts
+{
+  id: 'oss-noop',
+  buildProfile: 'oss',
+  available: false,
+  reason: 'official-integration-not-installed',
+  features: {
+    account: false,
+    deviceRegistry: false,
+    messageNetwork: false,
+    entitlement: false,
+    quota: false,
+    officialRuntime: false,
+    releaseProvider: false,
+  },
+}
+```
+
+This is intentionally a status probe only. It does not expose login, message credentials, device registry, entitlement, quota, release upload, signing, notarization, or official runtime APIs.

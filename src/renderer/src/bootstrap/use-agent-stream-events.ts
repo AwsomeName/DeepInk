@@ -64,9 +64,15 @@ export function applyAgentStreamEventToStore(
       if (innerEvent.type === 'content_block_start' && innerEvent.content_block) {
         const block = innerEvent.content_block
         if (block.type === 'text') {
-          store.appendContentBlock({ type: 'text', text: block.text ?? '' } as ContentBlock, conversationId)
+          store.appendContentBlock(
+            { type: 'text', text: block.text ?? '' } as ContentBlock,
+            conversationId,
+          )
         } else if (block.type === 'thinking') {
-          store.appendContentBlock({ type: 'thinking', thinking: '' } as ContentBlock, conversationId)
+          store.appendContentBlock(
+            { type: 'thinking', thinking: '' } as ContentBlock,
+            conversationId,
+          )
         } else if (block.type === 'tool_use') {
           store.appendContentBlock(
             {

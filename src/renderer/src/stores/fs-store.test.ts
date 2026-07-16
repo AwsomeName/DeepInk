@@ -194,21 +194,25 @@ describe('fs-store workspace switching', () => {
     const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
     getWorkspaceState.mockImplementation((key: string | null) => {
       if (key === null) {
-        return Promise.resolve(snapshot(null, {
-          tabs: { tabs: [], activeTabId: null },
-          browserTabs: { tabs: {} },
-          editorDrafts: { files: {} },
-          agentConversations: {
-            conversations: {},
-            conversationOrder: [],
-            activeConversationId: null,
-          },
-          fileTree: { expandedPaths: [], selectedPath: null },
-        }))
+        return Promise.resolve(
+          snapshot(null, {
+            tabs: { tabs: [], activeTabId: null },
+            browserTabs: { tabs: {} },
+            editorDrafts: { files: {} },
+            agentConversations: {
+              conversations: {},
+              conversationOrder: [],
+              activeConversationId: null,
+            },
+            fileTree: { expandedPaths: [], selectedPath: null },
+          }),
+        )
       }
-      return Promise.resolve(snapshot(key, {
-        fileTree: { expandedPaths: [missingWorkspacePath], selectedPath: missingWorkspacePath },
-      }))
+      return Promise.resolve(
+        snapshot(key, {
+          fileTree: { expandedPaths: [missingWorkspacePath], selectedPath: missingWorkspacePath },
+        }),
+      )
     })
 
     await useFsStore.getState().initWorkspace()

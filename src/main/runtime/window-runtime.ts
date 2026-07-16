@@ -19,7 +19,10 @@ interface CreateWindowRuntimeOptions {
   rendererHtmlPath: string
 }
 
-export function createWindowRuntime(runtime: CclinkStudioRuntimeState, options: CreateWindowRuntimeOptions): void {
+export function createWindowRuntime(
+  runtime: CclinkStudioRuntimeState,
+  options: CreateWindowRuntimeOptions,
+): void {
   runtime.mainWindow = createMainWindow({
     isDev: runtime.isDev,
     preloadPath: options.preloadPath,
@@ -48,7 +51,9 @@ export function createWindowRuntime(runtime: CclinkStudioRuntimeState, options: 
     () => runtime.settingsService?.getAll().lastWorkspacePath ?? null,
   )
   void runtime.browserDownloadStore.load()
-  runtime.browserManager.onViewDestroyed((tabId) => runtime.browserTaskRuntime?.cancelTasksForTab(tabId, 'tab_closed'))
+  runtime.browserManager.onViewDestroyed((tabId) =>
+    runtime.browserTaskRuntime?.cancelTasksForTab(tabId, 'tab_closed'),
+  )
   registerBrowserIpc(
     runtime.browserManager,
     runtime.browserInstanceStore,
@@ -63,7 +68,10 @@ export function createWindowRuntime(runtime: CclinkStudioRuntimeState, options: 
   runtime.adbBridge = new AdbBridge()
   runtime.scrcpyBridge = new ScrcpyBridge(runtime.mainWindow)
   runtime.activeDeviceManager = new ActiveDeviceManager()
-  runtime.physicalDeviceManager = new PhysicalDeviceManager(runtime.adbBridge, runtime.activeDeviceManager)
+  runtime.physicalDeviceManager = new PhysicalDeviceManager(
+    runtime.adbBridge,
+    runtime.activeDeviceManager,
+  )
   registerAndroidIpc(
     runtime.adbBridge,
     runtime.mainWindow,

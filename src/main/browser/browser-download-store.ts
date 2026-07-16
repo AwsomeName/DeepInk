@@ -51,7 +51,9 @@ export class BrowserDownloadStore {
     this.persistSoon()
   }
 
-  async startDownload(options: StartDownloadOptions): Promise<{ record: BrowserDownloadRecord; targetPath: string }> {
+  async startDownload(
+    options: StartDownloadOptions,
+  ): Promise<{ record: BrowserDownloadRecord; targetPath: string }> {
     const targetPath = await this.resolveInitialPath(options)
     const record: BrowserDownloadRecord = {
       id: options.id,
@@ -181,9 +183,10 @@ export class BrowserDownloadStore {
   }
 
   private async resolveInitialPath(options: StartDownloadOptions): Promise<string> {
-    const folderName = options.trigger === 'agent'
-      ? join(app.getPath('userData'), 'agent-downloads', options.taskRunId ?? 'unassigned')
-      : app.getPath('downloads')
+    const folderName =
+      options.trigger === 'agent'
+        ? join(app.getPath('userData'), 'agent-downloads', options.taskRunId ?? 'unassigned')
+        : app.getPath('downloads')
     return this.uniquePath(folderName, options.suggestedFilename)
   }
 
@@ -226,7 +229,10 @@ export class BrowserDownloadStore {
   }
 
   private persistSoon(): void {
-    this.pendingSave = this.pendingSave.then(() => this.save(), () => this.save())
+    this.pendingSave = this.pendingSave.then(
+      () => this.save(),
+      () => this.save(),
+    )
   }
 
   async flushPersistence(): Promise<void> {
@@ -255,7 +261,9 @@ async function exists(path: string): Promise<boolean> {
 }
 
 function sanitizeFilename(filename: string): string {
-  const safe = basename(filename).replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim()
+  const safe = basename(filename)
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
+    .trim()
   return safe || 'download'
 }
 

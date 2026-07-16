@@ -7,7 +7,7 @@ on:
     branches: [ main ]
 
 jobs:
-  lint:
+  verify:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,34 +19,4 @@ jobs:
           node-version: '22'
           cache: 'pnpm'
       - run: pnpm install
-      - run: pnpm lint
-
-  build:
-    runs-on: macos-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-      - run: pnpm install
-      - run: pnpm build
-
-  test:
-    runs-on: macos-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-      - run: pnpm install
-      - run: pnpm test
+      - run: pnpm verify

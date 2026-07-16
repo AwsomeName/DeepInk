@@ -109,6 +109,8 @@ const IPC_HANDLE_CHANNELS = [
   'settings:reset',
   'settings:resetKey',
   'settings:detectClaudeCode',
+  // official-ipc
+  'official:getStatus',
   // cad-ipc
   'cad:getBackendStatus',
   'cad:getModelSupport',

@@ -29,7 +29,12 @@ describe('workspace-state utils', () => {
 
     expect(getWorkspaceStatePath()).toBe('/workspace/a')
     expect(getWorkspaceStateKey()).toBe('/workspace/a')
-    expect(setSection).toHaveBeenCalledWith('/workspace/a', 'layout', { sidebarVisible: false }, null)
+    expect(setSection).toHaveBeenCalledWith(
+      '/workspace/a',
+      'layout',
+      { sidebarVisible: false },
+      null,
+    )
   })
 
   it('显式传入 workspacePath 时覆盖默认路径', () => {
@@ -39,9 +44,14 @@ describe('workspace-state utils', () => {
     setWorkspaceStatePath('/workspace/a')
     persistWorkspaceSection('fileTree', { selectedPath: '/workspace/b/file.md' }, '/workspace/b')
 
-    expect(setSection).toHaveBeenCalledWith('/workspace/b', 'fileTree', {
-      selectedPath: '/workspace/b/file.md',
-    }, null)
+    expect(setSection).toHaveBeenCalledWith(
+      '/workspace/b',
+      'fileTree',
+      {
+        selectedPath: '/workspace/b/file.md',
+      },
+      null,
+    )
   })
 
   it('默认携带当前本机身份 ownerKey', () => {
@@ -68,9 +78,14 @@ describe('workspace-state utils', () => {
     persistWorkspaceSection('tabs', { tabs: [] })
 
     expect(getWorkspaceStateKey()).toBe('/Users/app/project')
-    expect(setSection).toHaveBeenCalledWith('/Users/app/project', 'tabs', {
-      tabs: [],
-    }, null)
+    expect(setSection).toHaveBeenCalledWith(
+      '/Users/app/project',
+      'tabs',
+      {
+        tabs: [],
+      },
+      null,
+    )
   })
 
   it('恢复事务期间跳过 section 持久化', () => {

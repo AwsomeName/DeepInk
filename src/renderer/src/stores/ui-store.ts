@@ -72,16 +72,6 @@ function normalizeActivityPanel(panel: unknown): ActivityPanel {
     : UI_DEFAULTS.activePanel
 }
 
-function normalizeAgentPanelMode(value: unknown): AgentPanelMode {
-  return value === 'center' || value === 'right' || value === 'hidden'
-    ? value
-    : UI_DEFAULTS.agentPanelMode
-}
-
-function normalizeAgentPanelModeSource(value: unknown): AgentPanelModeSource {
-  return value === 'user' || value === 'system' ? value : UI_DEFAULTS.agentPanelModeSource
-}
-
 function normalizeStoredAgentPanelMode(value: unknown, storedVisible: unknown): AgentPanelMode {
   if (value === 'center' || value === 'right' || value === 'hidden') return value
   return storedVisible === false ? 'hidden' : UI_DEFAULTS.agentPanelMode

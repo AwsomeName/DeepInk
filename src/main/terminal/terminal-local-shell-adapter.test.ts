@@ -92,5 +92,4 @@ describe('LocalShellExecutionAdapter', () => {
       timestamp: 2000,
     })
   })
-
 })

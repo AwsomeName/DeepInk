@@ -199,8 +199,7 @@ function LocalPtyTerminal({ tab }: { tab: Tab }): React.ReactElement {
     const xterm = new XtermTerminal({
       cursorBlink: true,
       convertEol: true,
-      fontFamily:
-        'Menlo, Monaco, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace',
+      fontFamily: 'Menlo, Monaco, "SF Mono", "Cascadia Mono", "Roboto Mono", Consolas, monospace',
       fontSize: 13,
       lineHeight: 1.25,
       scrollback: 5000,
@@ -368,7 +367,10 @@ function TerminalCommandPanel({ tab }: { tab: Tab }): React.ReactElement {
           当前命令会进入权限、确认和审计链路；本地项目会启动本机 shell。
         </div>
         <div className="terminal-placeholder-grid">
-          <TerminalMeta label="工作空间" value={workspace ? workspaceRefLabel(workspace) : '未知'} />
+          <TerminalMeta
+            label="工作空间"
+            value={workspace ? workspaceRefLabel(workspace) : '未知'}
+          />
           <TerminalMeta
             label="来源"
             value={workspace ? workspaceRefSourceLabel(workspace) : '未知'}

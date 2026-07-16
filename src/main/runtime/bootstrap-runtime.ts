@@ -11,12 +11,24 @@ export interface RuntimeWindowOptions {
   rendererHtmlPath: string
 }
 
-export async function bootstrapRuntime(runtime: CclinkStudioRuntimeState, windowOptions: RuntimeWindowOptions): Promise<void> {
+export async function bootstrapRuntime(
+  runtime: CclinkStudioRuntimeState,
+  windowOptions: RuntimeWindowOptions,
+): Promise<void> {
   const registry = new ServiceRegistry()
   registry.register({ name: 'state-services', start: () => bootstrapStateServices(runtime) })
-  registry.register({ name: 'window-runtime', start: () => createWindowRuntime(runtime, windowOptions) })
-  registry.register({ name: 'main-process-services', start: () => bootstrapMainProcessServices(runtime) })
-  registry.register({ name: 'automation-runtime', start: () => bootstrapAutomationRuntime(runtime) })
+  registry.register({
+    name: 'window-runtime',
+    start: () => createWindowRuntime(runtime, windowOptions),
+  })
+  registry.register({
+    name: 'main-process-services',
+    start: () => bootstrapMainProcessServices(runtime),
+  })
+  registry.register({
+    name: 'automation-runtime',
+    start: () => bootstrapAutomationRuntime(runtime),
+  })
   registry.register({ name: 'agent-runtime', start: () => bootstrapAgentRuntime(runtime) })
 
   await registry.startAll()

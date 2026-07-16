@@ -1,5 +1,9 @@
 import { randomUUID } from 'node:crypto'
-import type { TerminalExecutionErrorInfo, TerminalPermissionRisk, TerminalStatus } from '../../shared/terminal'
+import type {
+  TerminalExecutionErrorInfo,
+  TerminalPermissionRisk,
+  TerminalStatus,
+} from '../../shared/terminal'
 import type {
   TerminalSubmitCommandInput,
   TerminalSubmitCommandResult,
@@ -40,9 +44,7 @@ export class TerminalCommandOrchestrator {
     this.idFactory = options.idFactory ?? randomUUID
   }
 
-  async submitCommand(
-    input: TerminalSubmitCommandInput,
-  ): Promise<TerminalSubmitCommandResult> {
+  async submitCommand(input: TerminalSubmitCommandInput): Promise<TerminalSubmitCommandResult> {
     const session = this.sessionRegistry.get(input.terminalSessionId)
     if (!session) {
       return {

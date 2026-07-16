@@ -7,7 +7,10 @@ interface BrowserHistoryMenuProps {
   onRestoreSnapshot: (snapshot: BrowserInstanceSnapshot) => void | Promise<void>
 }
 
-export function BrowserHistoryMenu({ onOpenUrl, onRestoreSnapshot }: BrowserHistoryMenuProps): React.ReactElement {
+export function BrowserHistoryMenu({
+  onOpenUrl,
+  onRestoreSnapshot,
+}: BrowserHistoryMenuProps): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [history, setHistory] = useState<BrowserHistoryEntry[]>([])
   const [snapshots, setSnapshots] = useState<BrowserInstanceSnapshot[]>([])
@@ -53,9 +56,7 @@ export function BrowserHistoryMenu({ onOpenUrl, onRestoreSnapshot }: BrowserHist
           <div className="browser-history-section">
             <div className="browser-history-header">
               <span>浏览历史</span>
-              {history.length > 0 && (
-                <button onClick={() => void clearHistory()}>清空</button>
-              )}
+              {history.length > 0 && <button onClick={() => void clearHistory()}>清空</button>}
             </div>
             {history.length === 0 ? (
               <div className="browser-history-empty">暂无记录</div>

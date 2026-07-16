@@ -4,20 +4,15 @@ import { XMLParser } from 'fast-xml-parser'
 import * as yauzl from 'yauzl'
 import type { HardwareTablePreview } from './types'
 
-const REFERENCE_HEADER_HINTS = [
-  'designator',
-  'reference',
-  'refdes',
-  'ref',
-  '位号',
-  '编号',
-]
+const REFERENCE_HEADER_HINTS = ['designator', 'reference', 'refdes', 'ref', '位号', '编号']
 
 function detectDelimiter(line: string): string {
   const candidates = ['\t', ',', ';']
-  return candidates
-    .map((delimiter) => ({ delimiter, count: line.split(delimiter).length }))
-    .sort((a, b) => b.count - a.count)[0]?.delimiter ?? ','
+  return (
+    candidates
+      .map((delimiter) => ({ delimiter, count: line.split(delimiter).length }))
+      .sort((a, b) => b.count - a.count)[0]?.delimiter ?? ','
+  )
 }
 
 function parseDelimitedLine(line: string, delimiter: string): string[] {
@@ -207,9 +202,11 @@ async function parseXlsxTable(filePath: string): Promise<HardwareTablePreview> {
 
   const headers = parsedRows[0].map((header, index) => header || `列${index + 1}`)
   const referenceColumn = findReferenceColumn(headers)
-  const rows = parsedRows.slice(1, 101).map((cells) =>
-    Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ''])),
-  )
+  const rows = parsedRows
+    .slice(1, 101)
+    .map((cells) =>
+      Object.fromEntries(headers.map((header, index) => [header, cells[index] ?? ''])),
+    )
 
   const references = new Set<string>()
   if (referenceColumn) {
@@ -255,8 +252,8 @@ export async function parseHardwareTable(filePath: string): Promise<HardwareTabl
   }
 
   const delimiter = detectDelimiter(lines[0])
-  const headers = parseDelimitedLine(lines[0], delimiter).map((header, index) =>
-    header || `列${index + 1}`,
+  const headers = parseDelimitedLine(lines[0], delimiter).map(
+    (header, index) => header || `列${index + 1}`,
   )
   const referenceColumn = findReferenceColumn(headers)
   const rows = lines.slice(1, 101).map((line) => {

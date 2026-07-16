@@ -7,8 +7,16 @@
  */
 
 import { ipcMain, dialog, type BrowserWindow } from 'electron'
-import type { MessageBoxOptions, OpenDialogOptions, SaveDialogOptions } from '../../shared/ipc/dialog'
-export type { MessageBoxOptions, OpenDialogOptions, SaveDialogOptions } from '../../shared/ipc/dialog'
+import type {
+  MessageBoxOptions,
+  OpenDialogOptions,
+  SaveDialogOptions,
+} from '../../shared/ipc/dialog'
+export type {
+  MessageBoxOptions,
+  OpenDialogOptions,
+  SaveDialogOptions,
+} from '../../shared/ipc/dialog'
 
 /**
  * 注册对话框相关的 IPC 处理器
@@ -23,10 +31,7 @@ export function registerDialogIpc(mainWindow: BrowserWindow): void {
       title: options?.title ?? (options?.selectDirectory ? '选择文件夹' : '选择文件'),
       properties: options?.selectDirectory
         ? ['openDirectory']
-        : [
-            'openFile',
-            ...(options?.multiSelections ? ['multiSelections' as const] : []),
-          ],
+        : ['openFile', ...(options?.multiSelections ? ['multiSelections' as const] : [])],
       filters: options?.filters,
     })
     return {

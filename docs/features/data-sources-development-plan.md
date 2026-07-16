@@ -463,7 +463,7 @@ data-source:save-query
 - 扩展 Tab 类型：`data-source-query`、`data-source-result`。
 - 新建 `DataSourceQueryTab`。
 - 查询编辑器先用 textarea 或现有代码编辑控件，后续再升级 Monaco。
-- 查询运行走 `deepink.dataSource.runQuery`。
+- 查询运行走 `cclinkStudio.dataSource.runQuery`。
 - 新建结果表格，默认展示 title/content/sourceUrl/collectedAt/score。
 - 单条记录点击打开详情 drawer。
 - 结果过多时分页或虚拟滚动。

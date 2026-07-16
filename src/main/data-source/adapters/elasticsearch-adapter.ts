@@ -56,7 +56,10 @@ function clampRows(value: number | undefined, fallback: number): number {
 function normalizeEndpoint(endpoint: string): string {
   const trimmed = endpoint.trim().replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(trimmed)) {
-    throw new DataSourceError('DATA_SOURCE_QUERY_INVALID', '数据源 endpoint 必须以 http:// 或 https:// 开头')
+    throw new DataSourceError(
+      'DATA_SOURCE_QUERY_INVALID',
+      '数据源 endpoint 必须以 http:// 或 https:// 开头',
+    )
   }
   return trimmed
 }
@@ -101,7 +104,8 @@ function mapFetchError(error: unknown): DataSourceError {
   if (error instanceof DOMException && error.name === 'AbortError') {
     return new DataSourceError('DATA_SOURCE_TIMEOUT', '数据源请求超时', error)
   }
-  const code = (error as { cause?: { code?: string }; code?: string } | null)?.cause?.code ??
+  const code =
+    (error as { cause?: { code?: string }; code?: string } | null)?.cause?.code ??
     (error as { code?: string } | null)?.code
   if (typeof code === 'string' && (code.includes('CERT') || code.includes('TLS'))) {
     return new DataSourceError('DATA_SOURCE_TLS_ERROR', 'TLS 证书错误', error)
@@ -128,11 +132,15 @@ export class ElasticsearchAdapter implements DataSourceAdapter {
 
   constructor(private readonly fetchImpl: FetchLike = fetch) {}
 
-  async test(config: DataSourceConfig, secret: DataSourceSecret | null): Promise<ConnectionTestResult> {
+  async test(
+    config: DataSourceConfig,
+    secret: DataSourceSecret | null,
+  ): Promise<ConnectionTestResult> {
     const json = await this.requestJson<Record<string, unknown>>(config, secret, '/')
-    const version = json.version && typeof json.version === 'object'
-      ? (json.version as Record<string, unknown>).number
-      : undefined
+    const version =
+      json.version && typeof json.version === 'object'
+        ? (json.version as Record<string, unknown>).number
+        : undefined
     return {
       ok: true,
       sourceId: config.id,
@@ -141,7 +149,10 @@ export class ElasticsearchAdapter implements DataSourceAdapter {
     }
   }
 
-  async listCollections(config: DataSourceConfig, secret: DataSourceSecret | null): Promise<DataCollection[]> {
+  async listCollections(
+    config: DataSourceConfig,
+    secret: DataSourceSecret | null,
+  ): Promise<DataCollection[]> {
     const rows = await this.requestJson<ElasticsearchIndexRow[]>(
       config,
       secret,
@@ -155,7 +166,10 @@ export class ElasticsearchAdapter implements DataSourceAdapter {
         name: row.index!,
         kind: 'index' as const,
         docsCount: row['docs.count'] ? Number(row['docs.count']) : undefined,
-        health: row.health === 'green' || row.health === 'yellow' || row.health === 'red' ? row.health : 'unknown',
+        health:
+          row.health === 'green' || row.health === 'yellow' || row.health === 'red'
+            ? row.health
+            : 'unknown',
       }))
   }
 
@@ -253,7 +267,10 @@ export class ElasticsearchAdapter implements DataSourceAdapter {
         throw new DataSourceError('DATA_SOURCE_COLLECTION_NOT_FOUND', '数据源 index 不存在')
       }
       if (!response.ok) {
-        throw new DataSourceError('DATA_SOURCE_INTERNAL_ERROR', `数据源请求失败: HTTP ${response.status}`)
+        throw new DataSourceError(
+          'DATA_SOURCE_INTERNAL_ERROR',
+          `数据源请求失败: HTTP ${response.status}`,
+        )
       }
       const text = await response.text()
       if (Buffer.byteLength(text, 'utf-8') > RESPONSE_BYTE_LIMIT) {

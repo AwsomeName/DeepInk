@@ -1,6 +1,10 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import type { TerminalBackend, TerminalExecutionErrorInfo, TerminalExecutionEvent } from '../../shared/terminal'
+import type {
+  TerminalBackend,
+  TerminalExecutionErrorInfo,
+  TerminalExecutionEvent,
+} from '../../shared/terminal'
 import type {
   TerminalExecutionAdapter,
   TerminalExecutionEventListener,

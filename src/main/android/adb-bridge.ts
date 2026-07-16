@@ -2,7 +2,12 @@ import { execFile } from 'child_process'
 import { existsSync } from 'fs'
 import { join } from 'path'
 import { AdbServerClient } from '@yume-chan/adb'
-import { getAdbPath as getBundledAdbPath, getExternalSdkRoots, withExe, isWindows } from './android-platform'
+import {
+  getAdbPath as getBundledAdbPath,
+  getExternalSdkRoots,
+  withExe,
+  isWindows,
+} from './android-platform'
 import { NodeAdbServerConnector } from './node-adb-connector'
 import type { AndroidDeviceInfo } from '../../shared/ipc/android'
 
@@ -203,7 +208,11 @@ export class AdbBridge {
   /**
    * 对指定 serial 执行 adb 命令（绕过 this.serial，不经过 buildArgs）
    */
-  async execAdbWithSerial(serial: string, args: string[], options?: { timeout?: number }): Promise<AdbResult> {
+  async execAdbWithSerial(
+    serial: string,
+    args: string[],
+    options?: { timeout?: number },
+  ): Promise<AdbResult> {
     const adb = await this.discoverAdb()
     const fullArgs = ['-s', serial, ...args]
 
@@ -312,17 +321,15 @@ export class AdbBridge {
   }
 
   /** 滑动手势 */
-  async swipe(
-    x1: number,
-    y1: number,
-    x2: number,
-    y2: number,
-    durationMs?: number,
-  ): Promise<void> {
+  async swipe(x1: number, y1: number, x2: number, y2: number, durationMs?: number): Promise<void> {
     const args = [
-      'shell', 'input', 'swipe',
-      String(Math.round(x1)), String(Math.round(y1)),
-      String(Math.round(x2)), String(Math.round(y2)),
+      'shell',
+      'input',
+      'swipe',
+      String(Math.round(x1)),
+      String(Math.round(y1)),
+      String(Math.round(x2)),
+      String(Math.round(y2)),
     ]
     if (durationMs !== undefined) {
       args.push(String(durationMs))

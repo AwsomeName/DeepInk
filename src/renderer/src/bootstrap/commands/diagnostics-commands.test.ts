@@ -13,7 +13,8 @@ describe('diagnostics commands', () => {
     const diagnostics = {
       userDataPath: '/Users/me/Library/Application Support/CCLink Studio',
       stateFilePath: '/Users/me/Library/Application Support/CCLink Studio/workspace-state.json',
-      backupFilePath: '/Users/me/Library/Application Support/CCLink Studio/workspace-state.json.bak',
+      backupFilePath:
+        '/Users/me/Library/Application Support/CCLink Studio/workspace-state.json.bak',
       workspaceCount: 2,
       fileVersion: 1,
       userData: {

@@ -14,10 +14,10 @@ Decision:
 
 Reason:
 - This keeps the split low-risk while preserving existing CCLink Studio imports.
-- The boundary is enforced by `npm run deepink:shim-check` and
+- The boundary is enforced by `npm run cclink-studio:shim-check` and
   `npm run check:boundaries`.
 
 Removal criteria:
 - Remove the shims only after all CCLink Studio imports have moved directly to
   `core-agent/*` public entry points.
-- The removal must be paired with a successful `npm run deepink:build`.
+- The removal must be paired with a successful `pnpm build`.

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
-import type { TerminalAuditEventKind, TerminalCommandConfirmationRequest } from '../../shared/terminal'
+import type {
+  TerminalAuditEventKind,
+  TerminalCommandConfirmationRequest,
+} from '../../shared/terminal'
 import type { TerminalAuditStore } from './terminal-audit-store'
 
 export const TERMINAL_CONFIRMATION_CHANNEL = 'terminal:requestCommandConfirmation'

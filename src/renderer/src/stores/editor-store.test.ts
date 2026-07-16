@@ -98,8 +98,20 @@ describe('useEditorStore', () => {
 
   describe('pendingUpdates', () => {
     it('按文件消费 Agent 更新', () => {
-      useEditorStore.getState().applyAgentUpdate({ id: 'u1', type: 'write', filePath: '/a.md', content: 'A', timestamp: 1 })
-      useEditorStore.getState().applyAgentUpdate({ id: 'u2', type: 'write', filePath: '/b.md', content: 'B', timestamp: 2 })
+      useEditorStore.getState().applyAgentUpdate({
+        id: 'u1',
+        type: 'write',
+        filePath: '/a.md',
+        content: 'A',
+        timestamp: 1,
+      })
+      useEditorStore.getState().applyAgentUpdate({
+        id: 'u2',
+        type: 'write',
+        filePath: '/b.md',
+        content: 'B',
+        timestamp: 2,
+      })
 
       const updates = useEditorStore.getState().consumePendingUpdates('/a.md')
 

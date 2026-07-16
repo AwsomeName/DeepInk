@@ -60,9 +60,7 @@ describe('workspace-runtime', () => {
 
     const setSection = window.cclinkStudio.workspaceState.setSection as ReturnType<typeof vi.fn>
     const tabsPayload = setSection.mock.calls.find((call) => call[1] === 'tabs')?.[2]
-    const agentPayload = setSection.mock.calls.find(
-      (call) => call[1] === 'agentConversations',
-    )?.[2]
+    const agentPayload = setSection.mock.calls.find((call) => call[1] === 'agentConversations')?.[2]
 
     expect(tabsPayload.tabs.map((tab: { type: string }) => tab.type)).toEqual(['conversation'])
     expect(agentPayload.conversations[conversationId].surface).toBe('workbench-tab')

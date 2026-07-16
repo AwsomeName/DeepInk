@@ -15,7 +15,10 @@ export function useMainProcessEvents(): void {
       } else {
         setStoreInstall({
           phase: 'done',
-          message: result.status === 'installed' ? `已安装 ${result.displayName}` : `${result.displayName} 已就绪`,
+          message:
+            result.status === 'installed'
+              ? `已安装 ${result.displayName}`
+              : `${result.displayName} 已就绪`,
         })
         setTimeout(() => setStoreInstall({ phase: 'idle' }), 4000)
       }
@@ -31,6 +34,8 @@ export function useMainProcessEvents(): void {
     const offUpdate = window.cclinkStudio.update.onUpdateAvailable((info) => {
       if (info.latest) setUpdate(info.latest)
     })
-    return () => { offUpdate() }
+    return () => {
+      offUpdate()
+    }
   }, [])
 }

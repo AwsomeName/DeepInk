@@ -10,7 +10,11 @@ export function useBrowserViewLifecycle(activeTab: Tab | undefined, tabs: Tab[])
   const activeTabId = activeTab?.id
   const isBrowserTab = activeTab?.type === 'browser'
   const browserTabKey = useMemo(
-    () => tabs.filter((tab) => tab.type === 'browser').map((tab) => tab.id).join('\u0000'),
+    () =>
+      tabs
+        .filter((tab) => tab.type === 'browser')
+        .map((tab) => tab.id)
+        .join('\u0000'),
     [tabs],
   )
   const prevBrowserIdsRef = useRef<string[]>(browserTabKey ? browserTabKey.split('\u0000') : [])

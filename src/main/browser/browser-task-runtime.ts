@@ -43,7 +43,10 @@ export class BrowserTaskRuntime {
   }
 
   listTasks(): BrowserTaskRun[] {
-    return Array.from(this.tasks.values()).map((task) => ({ ...task, downloadIds: [...task.downloadIds] }))
+    return Array.from(this.tasks.values()).map((task) => ({
+      ...task,
+      downloadIds: [...task.downloadIds],
+    }))
   }
 
   getTask(taskRunId: string): BrowserTaskRun | null {
@@ -91,7 +94,10 @@ export class BrowserTaskRuntime {
   }
 
   cancelTask(taskRunId: string): BrowserTaskRun {
-    return this.transition(taskRunId, 'cancelled', { endedAt: Date.now(), failureReason: 'user_interrupted' })
+    return this.transition(taskRunId, 'cancelled', {
+      endedAt: Date.now(),
+      failureReason: 'user_interrupted',
+    })
   }
 
   failTask(taskRunId: string, options: FailBrowserTaskOptions): BrowserTaskRun {
@@ -218,7 +224,10 @@ export class BrowserTaskRuntime {
 
 const SENSITIVE_KEY_RE = /(password|passwd|pwd|token|secret|cookie|authorization|api[-_]?key)/i
 
-export function summarizeBrowserActionParams(action: string, params: Record<string, unknown>): string {
+export function summarizeBrowserActionParams(
+  action: string,
+  params: Record<string, unknown>,
+): string {
   const summary: Record<string, unknown> = {}
 
   for (const [key, value] of Object.entries(params)) {
@@ -232,7 +241,8 @@ export function summarizeBrowserActionParams(action: string, params: Record<stri
       continue
     }
     if (action === 'evaluate' && key === 'expression') {
-      summary[key] = typeof value === 'string' ? `[javascript:${value.length} chars]` : '[javascript]'
+      summary[key] =
+        typeof value === 'string' ? `[javascript:${value.length} chars]` : '[javascript]'
       continue
     }
     if (action === 'setCookie' && key === 'value') {

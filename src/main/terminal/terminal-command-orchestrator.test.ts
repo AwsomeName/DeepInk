@@ -26,12 +26,14 @@ const readOnlyPolicy: TerminalPermissionPolicy = {
   requireConfirmationFor: [],
 }
 
-function createOrchestrator(options: {
-  registry?: TerminalSessionRegistry
-  requestConfirmation?: ReturnType<typeof vi.fn>
-  recordEvent?: ReturnType<typeof vi.fn>
-  executionAdapter?: Pick<TerminalExecutionAdapter, 'start' | 'write'>
-} = {}): {
+function createOrchestrator(
+  options: {
+    registry?: TerminalSessionRegistry
+    requestConfirmation?: ReturnType<typeof vi.fn>
+    recordEvent?: ReturnType<typeof vi.fn>
+    executionAdapter?: Pick<TerminalExecutionAdapter, 'start' | 'write'>
+  } = {},
+): {
   registry: TerminalSessionRegistry
   requestConfirmation: ReturnType<typeof vi.fn>
   recordEvent: ReturnType<typeof vi.fn>

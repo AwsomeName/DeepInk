@@ -194,7 +194,9 @@ export function AgentComposerToolbar({
                   <em>模型、登录和 API Key 由本机 Claude Code 管理</em>
                 </span>
               </div>
-              <div className={`agent-runtime-status ${claudeStatus?.installed ? 'ready' : 'warning'}`}>
+              <div
+                className={`agent-runtime-status ${claudeStatus?.installed ? 'ready' : 'warning'}`}
+              >
                 <span className="agent-runtime-status-dot" />
                 <span>
                   <strong>{detectingClaude ? '检测中' : claudeStatusLabel}</strong>

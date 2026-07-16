@@ -87,10 +87,14 @@ export async function ensureStoreInstalled(
 ): Promise<StoreInstallResult> {
   // 1. 加载配置，取默认商店
   const config = await loadStoreConfig()
-  const store =
-    config.stores.find((s) => s.id === config.defaultStoreId) ?? config.stores[0]
+  const store = config.stores.find((s) => s.id === config.defaultStoreId) ?? config.stores[0]
   if (!store) {
-    return { status: 'failed', storeId: '', displayName: '', message: 'store-sources.json 未配置商店' }
+    return {
+      status: 'failed',
+      storeId: '',
+      displayName: '',
+      message: 'store-sources.json 未配置商店',
+    }
   }
 
   // 2. 已装则跳过
@@ -110,7 +114,11 @@ export async function ensureStoreInstalled(
       }
     } catch {
       // stat 失败（权限等）也删掉重下
-      try { unlinkSync(apkPath) } catch { /* 忽略 */ }
+      try {
+        unlinkSync(apkPath)
+      } catch {
+        /* 忽略 */
+      }
     }
   }
   if (!existsSync(apkPath)) {
@@ -214,7 +222,7 @@ async function resolveApkUrl(source: StoreSource): Promise<string | null> {
  * 抓取 URL 内容为 Buffer，自动跟随重定向（最多 5 次）
  *
  * downloadTo / fetchText 共用此底层，重定向逻辑只写一遍。
- * 32MB 级 APK 进 Buffer 无压力（与 sdk-setup maxBuffer 50MB 同量级）。
+ * 32MB 级 APK 进 Buffer 无压力；仅用于用户已连接真机后的本地安装引导。
  */
 function fetchBuffer(url: string, maxBytes: number, timeoutMs: number): Promise<Buffer> {
   return new Promise<Buffer>((resolve, reject) => {
@@ -224,38 +232,43 @@ function fetchBuffer(url: string, maxBytes: number, timeoutMs: number): Promise<
         return
       }
       const mod = currentUrl.startsWith('https') ? https : http
-      const req = mod.get(currentUrl, {
-        timeout: timeoutMs,
-        headers: {
-          // 部分 CDN/应用商店（APKPure 等）会拒绝无 UA 的请求
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      const req = mod.get(
+        currentUrl,
+        {
+          timeout: timeoutMs,
+          headers: {
+            // 部分 CDN/应用商店（APKPure 等）会拒绝无 UA 的请求
+            'User-Agent':
+              'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+          },
         },
-      }, (res) => {
-        const status = res.statusCode ?? 0
-        if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
-          res.resume()
-          visit(resolveUrl(currentUrl, res.headers.location), redirects + 1)
-          return
-        }
-        if (status !== 200) {
-          res.resume()
-          reject(new Error(`HTTP ${status}`))
-          return
-        }
-        const chunks: Buffer[] = []
-        let size = 0
-        res.on('data', (chunk: Buffer) => {
-          size += chunk.length
-          if (size > maxBytes) {
-            res.destroy()
-            reject(new Error(`超过大小上限 ${maxBytes} 字节`))
+        (res) => {
+          const status = res.statusCode ?? 0
+          if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
+            res.resume()
+            visit(resolveUrl(currentUrl, res.headers.location), redirects + 1)
             return
           }
-          chunks.push(chunk)
-        })
-        res.on('end', () => resolve(Buffer.concat(chunks)))
-        res.on('error', reject)
-      })
+          if (status !== 200) {
+            res.resume()
+            reject(new Error(`HTTP ${status}`))
+            return
+          }
+          const chunks: Buffer[] = []
+          let size = 0
+          res.on('data', (chunk: Buffer) => {
+            size += chunk.length
+            if (size > maxBytes) {
+              res.destroy()
+              reject(new Error(`超过大小上限 ${maxBytes} 字节`))
+              return
+            }
+            chunks.push(chunk)
+          })
+          res.on('end', () => resolve(Buffer.concat(chunks)))
+          res.on('error', reject)
+        },
+      )
       req.on('timeout', () => req.destroy(new Error(`请求超时 ${timeoutMs}ms`)))
       req.on('error', reject)
     }

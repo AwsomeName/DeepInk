@@ -104,10 +104,18 @@ export async function executePlaywrightAction(
             const el = document.querySelector(sel) as HTMLElement | null
             if (!el) return
             switch (dir) {
-              case 'up': el.scrollBy(0, -amt); break
-              case 'down': el.scrollBy(0, amt); break
-              case 'left': el.scrollBy(-amt, 0); break
-              case 'right': el.scrollBy(amt, 0); break
+              case 'up':
+                el.scrollBy(0, -amt)
+                break
+              case 'down':
+                el.scrollBy(0, amt)
+                break
+              case 'left':
+                el.scrollBy(-amt, 0)
+                break
+              case 'right':
+                el.scrollBy(amt, 0)
+                break
             }
           },
           { sel: action.selector, dir: direction, amt: amount },
@@ -116,10 +124,18 @@ export async function executePlaywrightAction(
         await page!.evaluate(
           ({ dir, amt }) => {
             switch (dir) {
-              case 'up': window.scrollBy(0, -amt); break
-              case 'down': window.scrollBy(0, amt); break
-              case 'left': window.scrollBy(-amt, 0); break
-              case 'right': window.scrollBy(amt, 0); break
+              case 'up':
+                window.scrollBy(0, -amt)
+                break
+              case 'down':
+                window.scrollBy(0, amt)
+                break
+              case 'left':
+                window.scrollBy(-amt, 0)
+                break
+              case 'right':
+                window.scrollBy(amt, 0)
+                break
             }
           },
           { dir: direction, amt: amount },
@@ -199,17 +215,19 @@ export async function executePlaywrightAction(
 
     case 'setCookie': {
       const ctx = bridge!.getContext()!
-      await ctx.addCookies([{
-        name: action.name,
-        value: action.value,
-        ...(action.url && { url: action.url }),
-        ...(action.domain && { domain: action.domain }),
-        ...(action.path && { path: action.path }),
-        ...(action.secure !== undefined && { secure: action.secure }),
-        ...(action.httpOnly !== undefined && { httpOnly: action.httpOnly }),
-        ...(action.sameSite && { sameSite: action.sameSite as 'Strict' | 'Lax' | 'None' }),
-        ...(action.expires && { expires: action.expires }),
-      }])
+      await ctx.addCookies([
+        {
+          name: action.name,
+          value: action.value,
+          ...(action.url && { url: action.url }),
+          ...(action.domain && { domain: action.domain }),
+          ...(action.path && { path: action.path }),
+          ...(action.secure !== undefined && { secure: action.secure }),
+          ...(action.httpOnly !== undefined && { httpOnly: action.httpOnly }),
+          ...(action.sameSite && { sameSite: action.sameSite as 'Strict' | 'Lax' | 'None' }),
+          ...(action.expires && { expires: action.expires }),
+        },
+      ])
       return { set: action.name }
     }
 
@@ -240,7 +258,10 @@ export async function executePlaywrightAction(
       // 注册新路由
       await activePage.route(pattern, (route) => {
         const handler = bridge!.getRouteHandler(pattern)
-        if (!handler) { route.continue(); return }
+        if (!handler) {
+          route.continue()
+          return
+        }
         switch (handler.action) {
           case 'block':
             route.abort()
@@ -284,7 +305,10 @@ export async function executePlaywrightAction(
         const activePage = bridge!.getActivePage()!
         await activePage.route(pattern, (route) => {
           const h = bridge!.getRouteHandler(pattern)
-          if (!h) { route.continue(); return }
+          if (!h) {
+            route.continue()
+            return
+          }
           route.fulfill({
             status: h.statusCode ?? 200,
             body: h.body ?? '',

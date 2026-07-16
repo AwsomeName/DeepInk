@@ -44,7 +44,7 @@ export async function verifyAllCapabilities(page: Page): Promise<VerificationRes
   // 3. 表单填写
   await test('page.fill', async () => {
     await page.fill('#input-name', '张三')
-    await page.fill('#input-email', 'test@deepink.com')
+    await page.fill('#input-email', 'test@cclink.studio')
     await page.fill('#input-message', '这是一条测试消息')
     const name = await page.inputValue('#input-name')
     if (name !== '张三') throw new Error(`填写结果不匹配: ${name}`)
@@ -70,9 +70,7 @@ export async function verifyAllCapabilities(page: Page): Promise<VerificationRes
 
   // 7. 网络拦截
   await test('page.route', async () => {
-    let intercepted = false
     await page.route('**/test', (route) => {
-      intercepted = true
       route.fulfill({ status: 200, body: 'ok' })
     })
     await page.unroute('**/test')
@@ -148,6 +146,7 @@ export async function verifyAllCapabilities(page: Page): Promise<VerificationRes
     const context = page.context()
     await context.addCookies([{ name: 'test', value: '1', domain: 'file://', path: '/' }])
     const cookies = await context.cookies()
+    if (!Array.isArray(cookies)) throw new Error('Cookie 读取结果不匹配')
     // addCookies API 可调用即算通过
   })
 

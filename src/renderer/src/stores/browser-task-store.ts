@@ -16,32 +16,36 @@ export const useBrowserTaskStore = create<BrowserTaskState>((set, get) => ({
   tasks: {},
   actionLogs: {},
 
-  upsertTask: (task) => set((state) => ({
-    tasks: {
-      ...state.tasks,
-      [task.id]: task,
-    },
-  })),
-
-  upsertActionLog: (log) => set((state) => {
-    const existing = state.actionLogs[log.taskRunId] ?? []
-    const next = existing.some((item) => item.id === log.id)
-      ? existing.map((item) => (item.id === log.id ? log : item))
-      : [...existing, log]
-    return {
-      actionLogs: {
-        ...state.actionLogs,
-        [log.taskRunId]: next,
+  upsertTask: (task) =>
+    set((state) => ({
+      tasks: {
+        ...state.tasks,
+        [task.id]: task,
       },
-    }
-  }),
+    })),
+
+  upsertActionLog: (log) =>
+    set((state) => {
+      const existing = state.actionLogs[log.taskRunId] ?? []
+      const next = existing.some((item) => item.id === log.id)
+        ? existing.map((item) => (item.id === log.id ? log : item))
+        : [...existing, log]
+      return {
+        actionLogs: {
+          ...state.actionLogs,
+          [log.taskRunId]: next,
+        },
+      }
+    }),
 
   refresh: async () => {
     const tasks = await window.cclinkStudio.browser.listTasks()
     const actionLogs: Record<string, BrowserActionLog[]> = {}
-    await Promise.all(tasks.map(async (task) => {
-      actionLogs[task.id] = await window.cclinkStudio.browser.listActionLogs(task.id)
-    }))
+    await Promise.all(
+      tasks.map(async (task) => {
+        actionLogs[task.id] = await window.cclinkStudio.browser.listActionLogs(task.id)
+      }),
+    )
     set({
       tasks: Object.fromEntries(tasks.map((task) => [task.id, task])),
       actionLogs,
@@ -56,4 +60,3 @@ export const useBrowserTaskStore = create<BrowserTaskState>((set, get) => ({
     return active ?? tasks[0] ?? null
   },
 }))
-

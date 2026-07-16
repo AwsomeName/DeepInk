@@ -5,8 +5,18 @@ describe('ServiceRegistry', () => {
   it('starts services in registration order', async () => {
     const calls: string[] = []
     const registry = new ServiceRegistry()
-    registry.register({ name: 'a', start: () => { calls.push('start:a') } })
-    registry.register({ name: 'b', start: async () => { calls.push('start:b') } })
+    registry.register({
+      name: 'a',
+      start: () => {
+        calls.push('start:a')
+      },
+    })
+    registry.register({
+      name: 'b',
+      start: async () => {
+        calls.push('start:b')
+      },
+    })
 
     await registry.startAll()
 
@@ -16,8 +26,18 @@ describe('ServiceRegistry', () => {
   it('stops services in reverse registration order', async () => {
     const calls: string[] = []
     const registry = new ServiceRegistry()
-    registry.register({ name: 'a', stop: () => { calls.push('stop:a') } })
-    registry.register({ name: 'b', stop: async () => { calls.push('stop:b') } })
+    registry.register({
+      name: 'a',
+      stop: () => {
+        calls.push('stop:a')
+      },
+    })
+    registry.register({
+      name: 'b',
+      stop: async () => {
+        calls.push('stop:b')
+      },
+    })
 
     await registry.stopAll()
 
@@ -28,9 +48,24 @@ describe('ServiceRegistry', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     const calls: string[] = []
     const registry = new ServiceRegistry()
-    registry.register({ name: 'a', stop: () => { calls.push('stop:a') } })
-    registry.register({ name: 'b', stop: () => { throw new Error('boom') } })
-    registry.register({ name: 'c', stop: () => { calls.push('stop:c') } })
+    registry.register({
+      name: 'a',
+      stop: () => {
+        calls.push('stop:a')
+      },
+    })
+    registry.register({
+      name: 'b',
+      stop: () => {
+        throw new Error('boom')
+      },
+    })
+    registry.register({
+      name: 'c',
+      stop: () => {
+        calls.push('stop:c')
+      },
+    })
 
     await registry.stopAll()
 

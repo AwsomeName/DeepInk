@@ -122,10 +122,7 @@ export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElem
 
       {/* 预览区（模拟手机宽度） */}
       <div className="wechat-preview-phone">
-        <div
-          className="wechat-preview-body"
-          dangerouslySetInnerHTML={{ __html: html }}
-        />
+        <div className="wechat-preview-body" dangerouslySetInnerHTML={{ __html: html }} />
       </div>
     </div>
   )

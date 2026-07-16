@@ -34,9 +34,7 @@ export interface AgentDeviceSnapshotResult {
 }
 
 /** click 目标：语义 ref 或坐标（二选一） */
-export type AgentDeviceClickTarget =
-  | { ref: string }
-  | { x: number; y: number }
+export type AgentDeviceClickTarget = { ref: string } | { x: number; y: number }
 
 const SNAPSHOT_TIMEOUT_MS = 30_000 // 首次含 helper 安装 + daemon 冷启动
 const ACTION_TIMEOUT_MS = 8_000 // click/swipe/type
@@ -49,6 +47,8 @@ export class AgentDeviceManager {
   private enabled = true
   /** agent-device 库是否 import 成功（不可用时全量降级） */
   private available = false
+  /** 本机 adb 是否已发现；agent-device daemon 依赖 adb 启动和连接设备。 */
+  private adbAvailable = false
 
   private client: AgentDeviceClient | null = null
   private currentSerial: string | null = null
@@ -81,7 +81,9 @@ export class AgentDeviceManager {
       const mod = await import('agent-device')
       this.client = mod.createAgentDeviceClient({ debug: false })
       this.available = true
-      console.log('[AgentDeviceManager] init 成功，agent-device 可用')
+      console.log(
+        `[AgentDeviceManager] agent-device 库已加载${this.adbAvailable ? '' : '，等待本机 adb 后启用语义层'}`,
+      )
     } catch (err) {
       this.available = false
       this.client = null
@@ -110,9 +112,9 @@ export class AgentDeviceManager {
     if (!value) void this.unbind()
   }
 
-  /** 工具层判断是否可用（flag 开 + 库 import 成功） */
+  /** 工具层判断是否可用（flag 开 + 库 import 成功 + 本机 adb 可用） */
   isAvailable(): boolean {
-    return this.enabled && this.available && this.client !== null
+    return this.enabled && this.available && this.adbAvailable && this.client !== null
   }
 
   // ─── 工具层入口（每个方法失败返回 null/false，由 ToolModule 提示 Agent 降级） ───
@@ -126,7 +128,9 @@ export class AgentDeviceManager {
       const result = await this.withTimeout(
         this.client!.capture.snapshot({
           session: this.sessionName!,
-          ...(options.interactiveOnly !== undefined ? { interactiveOnly: options.interactiveOnly } : {}),
+          ...(options.interactiveOnly !== undefined
+            ? { interactiveOnly: options.interactiveOnly }
+            : {}),
           ...(options.depth !== undefined ? { depth: options.depth } : {}),
         }),
         options.timeoutMs ?? SNAPSHOT_TIMEOUT_MS,
@@ -215,6 +219,9 @@ export class AgentDeviceManager {
    * 失败返回 false（上层降级）。
    */
   async ensureSession(): Promise<boolean> {
+    if (this.enabled && this.available && !this.adbAvailable) {
+      await this.injectAdbEnv()
+    }
     if (!this.isAvailable()) return false
     const serial = this.activeDeviceManager.getSerial()
     if (!serial) return false
@@ -234,7 +241,7 @@ export class AgentDeviceManager {
     // serial 变了：先关旧 session
     if (this.sessionOpen) await this.closeSession()
     this.currentSerial = serial
-    this.sessionName = `deepink-${serial}`
+    this.sessionName = `cclink-studio-${serial}`
     try {
       // 首次 daemon spawn 需 ELECTRON_RUN_AS_NODE（Electron 二进制以 Node 模式运行 daemon）
       // daemon 起来后长驻，后续调用无需再设（withDaemonEnv 内部按 daemonInitialized 判断）
@@ -314,14 +321,19 @@ export class AgentDeviceManager {
   private async injectAdbEnv(): Promise<void> {
     try {
       const adbPath = await this.adbBridge.discoverAdb()
-      if (!adbPath) return
+      if (!adbPath) {
+        this.adbAvailable = false
+        return
+      }
       const platformToolsDir = path.dirname(adbPath)
       const sdkRoot = path.dirname(platformToolsDir)
       // 前置 platform-tools，让 agent-device 的 runCmd('adb') 命中 CCLink Studio 的 adb
       process.env.PATH = `${platformToolsDir}${path.delimiter}${process.env.PATH ?? ''}`
       process.env.ANDROID_HOME = process.env.ANDROID_HOME ?? sdkRoot
       process.env.ANDROID_SDK_ROOT = process.env.ANDROID_SDK_ROOT ?? sdkRoot
+      this.adbAvailable = true
     } catch (err) {
+      this.adbAvailable = false
       const message = err instanceof Error ? err.message : String(err)
       console.log(`[AgentDeviceManager] 未注入 adb 环境（可稍后连接本机 adb）：${message}`)
     }

@@ -167,7 +167,16 @@ function hasAny(value: string, patterns: RegExp[]): boolean {
 function detectByName(name: string): { kind: GerberLayerKind; score: number; reason: string } {
   const lower = name.toLowerCase()
 
-  if (hasAny(lower, [/\.(gm1|gko|gml|gmb|gpb)$/i, /outline/, /edge/, /profile/, /board.?outline/, /外形/])) {
+  if (
+    hasAny(lower, [
+      /\.(gm1|gko|gml|gmb|gpb)$/i,
+      /outline/,
+      /edge/,
+      /profile/,
+      /board.?outline/,
+      /外形/,
+    ])
+  ) {
     return { kind: 'outline', score: 0.82, reason: '文件名像外形/机械层' }
   }
   if (hasAny(lower, [/\.(gtl|gbl|g[0-9]+)$/i, /copper/, /top.*layer/, /bottom.*layer/, /inner/])) {
@@ -196,7 +205,10 @@ function isDrillLike(sample: string): boolean {
   return /M48|INCH|METRIC|T\d+C|X[-+]?\d+Y[-+]?\d+/.test(sample)
 }
 
-function contentReasons(kind: GerberLayerKind, sample: string): { score: number; reasons: string[] } {
+function contentReasons(
+  kind: GerberLayerKind,
+  sample: string,
+): { score: number; reasons: string[] } {
   const reasons: string[] = []
   let score = 0
 
@@ -236,9 +248,7 @@ function classifyLayer(entry: ZipEntryPreview): GerberLayerCandidate {
   }
 }
 
-function buildLayerHints(
-  layers: GerberLayerCandidate[],
-): GerberPackageInspection['layerHints'] {
+function buildLayerHints(layers: GerberLayerCandidate[]): GerberPackageInspection['layerHints'] {
   return {
     copper: layers.filter((layer) => layer.kind === 'copper').map((layer) => layer.entry),
     solderMask: layers.filter((layer) => layer.kind === 'solder-mask').map((layer) => layer.entry),

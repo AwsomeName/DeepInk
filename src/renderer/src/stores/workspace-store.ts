@@ -3,14 +3,10 @@ import type { WorkspaceRef } from '../../../shared/workspace-ref'
 import {
   globalWorkspaceRef,
   localWorkspaceRef,
-  workspaceRefKey,
   workspaceRefLabel,
   workspaceRefSourceLabel,
 } from '../../../shared/workspace-ref'
-import {
-  getWorkspaceStateKey,
-  setWorkspaceStateRef,
-} from '../utils/workspace-state'
+import { setWorkspaceStateRef } from '../utils/workspace-state'
 import {
   applyWorkspaceRuntimeTransition,
   prepareWorkspaceRuntimeTransition,
@@ -58,7 +54,6 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       set({ activating: false, error: describeError(error) })
     }
   },
-
 }))
 
 export function getWorkspaceDisplayTitle(ref: WorkspaceRef): string {

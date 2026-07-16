@@ -10,27 +10,27 @@ describe('PermissionManager.getRiskLevel', () => {
   })
 
   it('readOnlyHint: true 返回 read', () => {
-    expect(
-      PermissionManager.getRiskLevel({ readOnlyHint: true, destructiveHint: false }),
-    ).toBe('read')
+    expect(PermissionManager.getRiskLevel({ readOnlyHint: true, destructiveHint: false })).toBe(
+      'read',
+    )
   })
 
   it('destructiveHint: true 返回 destructive', () => {
-    expect(
-      PermissionManager.getRiskLevel({ readOnlyHint: false, destructiveHint: true }),
-    ).toBe('destructive')
+    expect(PermissionManager.getRiskLevel({ readOnlyHint: false, destructiveHint: true })).toBe(
+      'destructive',
+    )
   })
 
   it('两个 hint 都是 false 返回 write', () => {
-    expect(
-      PermissionManager.getRiskLevel({ readOnlyHint: false, destructiveHint: false }),
-    ).toBe('write')
+    expect(PermissionManager.getRiskLevel({ readOnlyHint: false, destructiveHint: false })).toBe(
+      'write',
+    )
   })
 
   it('destructive 优先于 readOnly（两者都为 true）', () => {
-    expect(
-      PermissionManager.getRiskLevel({ readOnlyHint: true, destructiveHint: true }),
-    ).toBe('destructive')
+    expect(PermissionManager.getRiskLevel({ readOnlyHint: true, destructiveHint: true })).toBe(
+      'destructive',
+    )
   })
 })
 

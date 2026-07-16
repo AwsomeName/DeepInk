@@ -33,16 +33,23 @@ export class PhysicalDeviceManager {
       let model: string | undefined
       if (d.state === 'device') {
         try {
-          model = (await this.adbBridge.execAdbWithSerial(d.serial, [
-            'shell',
-            'getprop',
-            'ro.product.model',
-          ])).stdout.trim()
+          model = (
+            await this.adbBridge.execAdbWithSerial(d.serial, [
+              'shell',
+              'getprop',
+              'ro.product.model',
+            ])
+          ).stdout.trim()
         } catch {
           // 取型号失败不影响发现
         }
       }
-      result.push({ serial: d.serial, state: d.state, isEmulator: false, ...(model ? { model } : {}) })
+      result.push({
+        serial: d.serial,
+        state: d.state,
+        isEmulator: false,
+        ...(model ? { model } : {}),
+      })
     }
     return result
   }

@@ -9,7 +9,9 @@ import { useEffect, useState } from 'react'
 import { useTabStore } from '../../stores'
 import { IconHistory, IconClose } from '../common/Icons'
 
-type BrowserInstanceSnapshot = Awaited<ReturnType<typeof window.cclinkStudio.browser.listSnapshots>>[number]
+type BrowserInstanceSnapshot = Awaited<
+  ReturnType<typeof window.cclinkStudio.browser.listSnapshots>
+>[number]
 
 export function SessionRestoreBanner(): React.ReactElement | null {
   const [snapshots, setSnapshots] = useState<BrowserInstanceSnapshot[]>([])
@@ -59,7 +61,11 @@ export function SessionRestoreBanner(): React.ReactElement | null {
       <button className="session-restore-btn" onClick={() => void restoreAll()}>
         恢复上次会话
       </button>
-      <button className="session-restore-close" onClick={() => void dismissAll()} title="忽略并清除">
+      <button
+        className="session-restore-close"
+        onClick={() => void dismissAll()}
+        title="忽略并清除"
+      >
         <IconClose size={12} />
       </button>
     </div>

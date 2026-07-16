@@ -200,7 +200,8 @@ function MainLayout(): React.ReactElement {
 /** 根组件：开源壳只要求桌面 preload 可用，不要求 CCLink 登录态。 */
 function App(): React.ReactElement {
   const cclinkStudioApiAvailable =
-    typeof window !== 'undefined' && Boolean(window.cclinkStudio?.identity && window.cclinkStudio?.settings)
+    typeof window !== 'undefined' &&
+    Boolean(window.cclinkStudio?.identity && window.cclinkStudio?.settings)
 
   useAppSession(cclinkStudioApiAvailable)
 
@@ -210,8 +211,8 @@ function App(): React.ReactElement {
         <div className="runtime-unavailable-card">
           <h1>CCLink Studio 需要在桌面运行时中打开</h1>
           <p>
-            当前页面缺少 Electron preload API。请通过 CCLink Studio 桌面应用或 `pnpm dev`
-            启动的 Electron 窗口访问。
+            当前页面缺少 Electron preload API。请通过 CCLink Studio 桌面应用或 `pnpm dev` 启动的
+            Electron 窗口访问。
           </p>
         </div>
       </div>

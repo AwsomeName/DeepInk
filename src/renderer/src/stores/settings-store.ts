@@ -2,7 +2,6 @@
  * SettingsStore — 应用设置 Zustand store
  *
  * 通过 IPC 与主进程 SettingsService 通信，管理应用设置的读取和写入。
- * 参照 sync-store 的模式。
  */
 
 import { create } from 'zustand'

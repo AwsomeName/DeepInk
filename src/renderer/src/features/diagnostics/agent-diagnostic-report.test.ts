@@ -36,9 +36,7 @@ const messages: AgentMessage[] = [
   },
 ]
 
-function minimalReportInput(
-  scope: AgentScope,
-): Parameters<typeof buildAgentDiagnosticMarkdown>[0] {
+function minimalReportInput(scope: AgentScope): Parameters<typeof buildAgentDiagnosticMarkdown>[0] {
   return {
     generatedAt: new Date('2026-07-15T10:55:00+08:00').getTime(),
     appVersion: '0.1.1',
@@ -66,11 +64,13 @@ function minimalReportInput(
 describe('agent diagnostic report', () => {
   it('redacts sensitive values recursively', () => {
     expect(redactDiagnosticValue('cookie', 'sid=123')).toBe('[redacted]')
-    expect(redactDiagnosticValue('input', {
-      token: 'abc',
-      phone: '13812345678',
-      nested: { password: 'secret' },
-    })).toEqual({
+    expect(
+      redactDiagnosticValue('input', {
+        token: 'abc',
+        phone: '13812345678',
+        nested: { password: 'secret' },
+      }),
+    ).toEqual({
       token: '[redacted]',
       phone: '138****5678',
       nested: { password: '[redacted]' },

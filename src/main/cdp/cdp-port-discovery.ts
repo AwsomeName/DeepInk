@@ -8,10 +8,7 @@ import { join } from 'path'
  * 通过 --remote-debugging-port=0 启动后，Chromium 会将实际端口
  * 写入 userData 目录下的 DevToolsActivePort 文件
  */
-export async function discoverCdpPort(
-  maxRetries = 50,
-  intervalMs = 200,
-): Promise<number> {
+export async function discoverCdpPort(maxRetries = 50, intervalMs = 200): Promise<number> {
   const userDataPath = app.getPath('userData')
   const devToolsPortFile = join(userDataPath, 'DevToolsActivePort')
 

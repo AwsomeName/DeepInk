@@ -72,11 +72,14 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:listAuditEvents')
     await expect(
-      handler?.({}, {
-        terminalSessionId: 'terminal-1',
-        workspaceKey: 123,
-        limit: 2.8,
-      }),
+      handler?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          workspaceKey: 123,
+          limit: 2.8,
+        },
+      ),
     ).resolves.toEqual([{ id: 'audit-1' }])
     expect(terminalAuditStore.listEvents).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-1',
@@ -156,18 +159,21 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:submitCommand')
     await expect(
-      handler?.({}, {
-        terminalSessionId: ' terminal-1 ',
-        command: '  pwd  ',
-        actor: 'user',
-        workspaceKey: 123,
-        permissionPolicy: {
-          mode: 'ask-risky-command',
-          requireConfirmationFor: ['write', 'write', 'not-risk'],
-          allowlist: [' pwd ', ''],
-          denylist: [' rm -rf   dist '],
+      handler?.(
+        {},
+        {
+          terminalSessionId: ' terminal-1 ',
+          command: '  pwd  ',
+          actor: 'user',
+          workspaceKey: 123,
+          permissionPolicy: {
+            mode: 'ask-risky-command',
+            requireConfirmationFor: ['write', 'write', 'not-risk'],
+            allowlist: [' pwd ', ''],
+            denylist: [' rm -rf   dist '],
+          },
         },
-      }),
+      ),
     ).resolves.toEqual({
       success: true,
       status: 'accepted',
@@ -194,15 +200,18 @@ describe('registerTerminalIpc', () => {
     registerTerminalIpc({ resolveConfirmation: vi.fn() } as any, { listEvents: vi.fn() } as any)
 
     await expect(
-      mockIpcMain.handlers.get('terminal:submitCommand')?.({}, {
-        terminalSessionId: 'terminal-1',
-        command: 'pwd',
-        actor: 'user',
-        permissionPolicy: {
-          mode: 'ask-risky-command',
-          requireConfirmationFor: ['write'],
+      mockIpcMain.handlers.get('terminal:submitCommand')?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          command: 'pwd',
+          actor: 'user',
+          permissionPolicy: {
+            mode: 'ask-risky-command',
+            requireConfirmationFor: ['write'],
+          },
         },
-      }),
+      ),
     ).resolves.toEqual({
       success: false,
       status: 'rejected',
@@ -223,15 +232,18 @@ describe('registerTerminalIpc', () => {
     )
 
     await expect(
-      mockIpcMain.handlers.get('terminal:submitCommand')?.({}, {
-        terminalSessionId: 'terminal-1',
-        command: '   ',
-        actor: 'robot',
-        permissionPolicy: {
-          mode: 'unknown-mode',
-          requireConfirmationFor: ['write'],
+      mockIpcMain.handlers.get('terminal:submitCommand')?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          command: '   ',
+          actor: 'robot',
+          permissionPolicy: {
+            mode: 'unknown-mode',
+            requireConfirmationFor: ['write'],
+          },
         },
-      }),
+      ),
     ).resolves.toEqual({
       success: false,
       status: 'rejected',
@@ -249,12 +261,15 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:recordLifecycleEvent')
     await expect(
-      handler?.({}, {
-        terminalSessionId: 'terminal-1',
-        workspaceKey: 123,
-        kind: 'created',
-        message: 'x'.repeat(600),
-      }),
+      handler?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          workspaceKey: 123,
+          kind: 'created',
+          message: 'x'.repeat(600),
+        },
+      ),
     ).resolves.toEqual({ success: true })
     expect(terminalAuditStore.recordEvent).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-1',
@@ -283,12 +298,15 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:recordLifecycleEvent')
     await expect(
-      handler?.({}, {
-        terminalSessionId: 'terminal-1',
-        workspaceKey: '/workspace',
-        kind: 'created',
-        runtime: terminalRuntime,
-      }),
+      handler?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          workspaceKey: '/workspace',
+          kind: 'created',
+          runtime: terminalRuntime,
+        },
+      ),
     ).resolves.toEqual({ success: true })
 
     expect(terminalSessionRegistry.register).toHaveBeenCalledWith({
@@ -322,10 +340,13 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:recordLifecycleEvent')
     await expect(
-      handler?.({}, {
-        terminalSessionId: 'terminal-1',
-        kind: 'created',
-      }),
+      handler?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          kind: 'created',
+        },
+      ),
     ).resolves.toEqual({ success: true })
 
     expect(terminalSessionRegistry.register).not.toHaveBeenCalled()
@@ -351,10 +372,13 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:recordLifecycleEvent')
     await expect(
-      handler?.({}, {
-        terminalSessionId: 'terminal-1',
-        kind: 'closed',
-      }),
+      handler?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          kind: 'closed',
+        },
+      ),
     ).resolves.toEqual({ success: true })
 
     expect(terminalSessionRegistry.remove).toHaveBeenCalledWith('terminal-1')
@@ -379,10 +403,13 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:recordLifecycleEvent')
     await expect(
-      handler?.({}, {
-        terminalSessionId: 'terminal-1',
-        kind: 'terminated',
-      }),
+      handler?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          kind: 'terminated',
+        },
+      ),
     ).resolves.toEqual({ success: true })
 
     expect(terminalSessionRegistry.transition).toHaveBeenCalledWith('terminal-1', 'exited', {
@@ -401,10 +428,13 @@ describe('registerTerminalIpc', () => {
 
     const handler = mockIpcMain.handlers.get('terminal:recordLifecycleEvent')
     await expect(
-      handler?.({}, {
-        terminalSessionId: 'terminal-1',
-        kind: 'command-submitted',
-      }),
+      handler?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          kind: 'command-submitted',
+        },
+      ),
     ).resolves.toEqual({
       success: false,
       error: 'Terminal 生命周期审计事件无效',
@@ -457,15 +487,20 @@ describe('registerTerminalIpc', () => {
     registerTerminalIpc({ resolveConfirmation: vi.fn() } as any)
 
     await expect(
-      mockIpcMain.handlers.get('terminal:recordLifecycleEvent')?.({}, {
-        terminalSessionId: 'terminal-1',
-        kind: 'created',
-      }),
+      mockIpcMain.handlers.get('terminal:recordLifecycleEvent')?.(
+        {},
+        {
+          terminalSessionId: 'terminal-1',
+          kind: 'created',
+        },
+      ),
     ).resolves.toEqual({
       success: false,
       error: 'Terminal 审计存储未就绪',
     })
-    await expect(mockIpcMain.handlers.get('terminal:listAuditEvents')?.({}, {})).resolves.toEqual([])
+    await expect(mockIpcMain.handlers.get('terminal:listAuditEvents')?.({}, {})).resolves.toEqual(
+      [],
+    )
     await expect(mockIpcMain.handlers.get('terminal:clearAuditEvents')?.({})).resolves.toEqual({
       success: false,
       error: 'Terminal 审计存储未就绪',

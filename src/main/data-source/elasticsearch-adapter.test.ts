@@ -119,14 +119,22 @@ describe('ElasticsearchAdapter', () => {
   })
 
   it('maps auth and missing index errors to stable codes', async () => {
-    const authAdapter = new ElasticsearchAdapter(vi.fn(async () => jsonResponse({}, 401)) as unknown as typeof fetch)
+    const authAdapter = new ElasticsearchAdapter(
+      vi.fn(async () => jsonResponse({}, 401)) as unknown as typeof fetch,
+    )
     await expect(authAdapter.test(config, secret)).rejects.toMatchObject({
       code: 'DATA_SOURCE_AUTH_FAILED',
     })
 
-    const missingAdapter = new ElasticsearchAdapter(vi.fn(async () => jsonResponse({}, 404)) as unknown as typeof fetch)
+    const missingAdapter = new ElasticsearchAdapter(
+      vi.fn(async () => jsonResponse({}, 404)) as unknown as typeof fetch,
+    )
     await expect(
-      missingAdapter.getRecord({ sourceId: 'source-1', collection: 'missing', id: '1' }, config, secret),
+      missingAdapter.getRecord(
+        { sourceId: 'source-1', collection: 'missing', id: '1' },
+        config,
+        secret,
+      ),
     ).rejects.toMatchObject({ code: 'DATA_SOURCE_COLLECTION_NOT_FOUND' })
   })
 })

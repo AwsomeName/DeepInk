@@ -1,4 +1,5 @@
 import { LocalIdentityService } from '../identity/local-identity-service'
+import { ipcMain } from 'electron'
 import { registerIdentityIpc } from '../identity/identity-ipc'
 import { FileService } from '../fs/file-service'
 import { registerFsIpc } from '../fs/fs-ipc'
@@ -30,6 +31,8 @@ import { TerminalCommandOrchestrator } from '../terminal/terminal-command-orches
 import { PtyExecutionAdapter } from '../terminal/terminal-pty-execution-adapter'
 import { CompositeTerminalExecutionAdapter } from '../terminal/terminal-composite-execution-adapter'
 import { registerTerminalIpc } from '../ipc/terminal-ipc'
+import { registerOfficialIpc } from '../ipc/official-ipc'
+import { loadOfficialIntegration } from '../official/official-integration-loader'
 import { getAgentCapabilities } from './agent-capabilities'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 
@@ -44,7 +47,9 @@ export async function bootstrapStateServices(runtime: CclinkStudioRuntimeState):
   console.log('[CCLink Studio] 工作台状态 IPC 已注册')
 }
 
-export async function bootstrapMainProcessServices(runtime: CclinkStudioRuntimeState): Promise<void> {
+export async function bootstrapMainProcessServices(
+  runtime: CclinkStudioRuntimeState,
+): Promise<void> {
   if (!runtime.mainWindow || !runtime.settingsService) {
     throw new Error('主窗口或设置系统尚未初始化')
   }
@@ -53,6 +58,25 @@ export async function bootstrapMainProcessServices(runtime: CclinkStudioRuntimeS
   await runtime.localIdentityService.ensureIdentity()
   registerIdentityIpc(runtime.localIdentityService)
   console.log('[CCLink Studio] 本地身份系统已初始化')
+
+  runtime.officialIntegration = await loadOfficialIntegration()
+  await runtime.officialIntegration.registerMainServices?.({
+    isDev: runtime.isDev,
+    mainWindow: runtime.mainWindow,
+    settingsService: runtime.settingsService,
+    workspaceStateService: runtime.workspaceStateService!,
+  })
+  await runtime.officialIntegration.registerIpc?.({
+    isDev: runtime.isDev,
+    mainWindow: runtime.mainWindow,
+    settingsService: runtime.settingsService,
+    workspaceStateService: runtime.workspaceStateService!,
+    ipcMain,
+  })
+  registerOfficialIpc(runtime.officialIntegration)
+  console.log(
+    `[CCLink Studio] 官方集成接口已注册 (id=${runtime.officialIntegration.id}, profile=${runtime.officialIntegration.buildProfile})`,
+  )
 
   const fileService = new FileService()
   registerFsIpc(fileService, runtime.settingsService)

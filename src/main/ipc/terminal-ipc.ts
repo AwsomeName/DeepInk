@@ -22,7 +22,10 @@ import type { TerminalCommandOrchestrator } from '../terminal/terminal-command-o
 import type { TerminalConfirmationService } from '../terminal/terminal-confirmation-service'
 import type { TerminalExecutionAdapter } from '../terminal/terminal-execution-adapter'
 import type { TerminalSessionRegistry } from '../terminal/terminal-session-registry'
-import type { TerminalSessionRecord, TerminalSessionStore } from '../terminal/terminal-session-store'
+import type {
+  TerminalSessionRecord,
+  TerminalSessionStore,
+} from '../terminal/terminal-session-store'
 import type { TerminalSessionState } from '../terminal/terminal-session-state'
 import { canTransitionTerminalStatus } from '../terminal/terminal-session-state'
 
@@ -47,31 +50,31 @@ export function registerTerminalIpc(
     })
   }
 
+  ipcMain.handle('terminal:resolveCommandConfirmation', (_event, id: string, approved: boolean) => {
+    return {
+      success: terminalConfirmationService.resolveConfirmation(id, approved),
+    }
+  })
+
   ipcMain.handle(
-    'terminal:resolveCommandConfirmation',
-    (_event, id: string, approved: boolean) => {
-      return {
-        success: terminalConfirmationService.resolveConfirmation(id, approved),
+    'terminal:recordLifecycleEvent',
+    async (_event, input?: TerminalLifecycleAuditInput) => {
+      if (!terminalAuditStore) return { success: false, error: 'Terminal 审计存储未就绪' }
+      const normalized = normalizeLifecycleAuditInput(input)
+      if (!normalized) {
+        return { success: false, error: 'Terminal 生命周期审计事件无效' }
       }
+      const registryResult = await syncTerminalSessionRegistry(
+        input,
+        terminalSessionRegistry,
+        terminalExecutionAdapter,
+        terminalSessionStore,
+      )
+      if (!registryResult.success) return registryResult
+      await terminalAuditStore.recordEvent(normalized)
+      return { success: true }
     },
   )
-
-  ipcMain.handle('terminal:recordLifecycleEvent', async (_event, input?: TerminalLifecycleAuditInput) => {
-    if (!terminalAuditStore) return { success: false, error: 'Terminal 审计存储未就绪' }
-    const normalized = normalizeLifecycleAuditInput(input)
-    if (!normalized) {
-      return { success: false, error: 'Terminal 生命周期审计事件无效' }
-    }
-    const registryResult = await syncTerminalSessionRegistry(
-      input,
-      terminalSessionRegistry,
-      terminalExecutionAdapter,
-      terminalSessionStore,
-    )
-    if (!registryResult.success) return registryResult
-    await terminalAuditStore.recordEvent(normalized)
-    return { success: true }
-  })
 
   ipcMain.handle('terminal:listAuditEvents', async (_event, filter?: TerminalAuditListFilter) => {
     if (!terminalAuditStore) return []
@@ -341,7 +344,9 @@ function clampInteger(
   return Math.min(max, Math.max(min, Math.floor(value)))
 }
 
-function normalizePermissionPolicy(policy?: TerminalPermissionPolicy): TerminalPermissionPolicy | null {
+function normalizePermissionPolicy(
+  policy?: TerminalPermissionPolicy,
+): TerminalPermissionPolicy | null {
   if (!policy || typeof policy !== 'object') return null
   if (!TERMINAL_PERMISSION_MODES.has(policy.mode)) return null
 
@@ -397,7 +402,12 @@ async function syncTerminalSessionRegistry(
 
     if (input.kind === 'closed') {
       const session = terminalSessionRegistry.get(input.terminalSessionId)
-      if (!session || session.status === 'idle' || session.status === 'exited' || session.status === 'error') {
+      if (
+        !session ||
+        session.status === 'idle' ||
+        session.status === 'exited' ||
+        session.status === 'error'
+      ) {
         terminalSessionRegistry.remove(input.terminalSessionId)
       }
       await terminalSessionStore?.patchSession({
@@ -579,9 +589,7 @@ async function listTerminalSessions(
     byId.set(liveSession.sessionId, mergeLiveSession(existing, liveSession))
   }
 
-  return [...byId.values()]
-    .sort((a, b) => b.updatedAt - a.updatedAt)
-    .map(toTerminalSessionSnapshot)
+  return [...byId.values()].sort((a, b) => b.updatedAt - a.updatedAt).map(toTerminalSessionSnapshot)
 }
 
 function mergeLiveSession(

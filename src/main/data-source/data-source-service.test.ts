@@ -79,7 +79,11 @@ describe('DataSourceService', () => {
 
   it('routes query through the adapter and records audit metadata', async () => {
     const querySpy = vi.fn(
-      async (input: RunDataQueryInput, config: DataSourceConfig, secret: DataSourceSecret | null) => ({
+      async (
+        input: RunDataQueryInput,
+        config: DataSourceConfig,
+        secret: DataSourceSecret | null,
+      ) => ({
         id: 'snapshot-1',
         sourceId: config.id,
         collection: input.collection ?? 'articles-*',

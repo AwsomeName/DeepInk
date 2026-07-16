@@ -95,9 +95,7 @@ export class TerminalAuditStore {
       id: input.id ?? newAuditEventId(),
       timestamp: input.timestamp ?? Date.now(),
     }
-    this.state.events = [...this.state.events, event]
-      .sort(byTimestampAsc)
-      .slice(-MAX_AUDIT_EVENTS)
+    this.state.events = [...this.state.events, event].sort(byTimestampAsc).slice(-MAX_AUDIT_EVENTS)
     await this.save()
     return event
   }
@@ -119,7 +117,9 @@ export class TerminalAuditStore {
 
   async clearSession(terminalSessionId: string): Promise<void> {
     await this.ensureLoaded()
-    this.state.events = this.state.events.filter((event) => event.terminalSessionId !== terminalSessionId)
+    this.state.events = this.state.events.filter(
+      (event) => event.terminalSessionId !== terminalSessionId,
+    )
     await this.save()
   }
 

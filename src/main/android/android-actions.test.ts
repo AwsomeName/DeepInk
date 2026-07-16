@@ -8,9 +8,21 @@ describe('ANDROID_ACTION_TYPES', () => {
 
   it('包含所有预期的 action type', () => {
     const expected = [
-      'screenshot', 'dumpUi', 'deviceInfo', 'listPackages', 'currentActivity',
-      'tap', 'swipe', 'pressKey', 'typeText', 'launchPackage', 'goHome',
-      'installApk', 'uninstallPackage', 'pushFile', 'shell',
+      'screenshot',
+      'dumpUi',
+      'deviceInfo',
+      'listPackages',
+      'currentActivity',
+      'tap',
+      'swipe',
+      'pressKey',
+      'typeText',
+      'launchPackage',
+      'goHome',
+      'installApk',
+      'uninstallPackage',
+      'pushFile',
+      'shell',
     ]
     for (const action of expected) {
       expect(ANDROID_ACTION_TYPES).toContain(action)

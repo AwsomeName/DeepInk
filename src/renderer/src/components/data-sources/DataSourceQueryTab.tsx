@@ -18,7 +18,9 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
   const collection = tab.dataSourceQuery?.collection ?? source?.defaultCollection ?? ''
   const [queryText, setQueryText] = useState(DEFAULT_QUERY)
   const [queryName, setQueryName] = useState('')
-  const [currentSavedQueryId, setCurrentSavedQueryId] = useState(tab.dataSourceQuery?.savedQueryId ?? null)
+  const [currentSavedQueryId, setCurrentSavedQueryId] = useState(
+    tab.dataSourceQuery?.savedQueryId ?? null,
+  )
   const [snapshot, setSnapshot] = useState<DataQuerySnapshot | null>(null)
   const [selectedRecord, setSelectedRecord] = useState<NormalizedRecord | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -29,7 +31,9 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
   const sourceLabel = useMemo(() => source?.name ?? sourceId, [source?.name, sourceId])
   const savedQuery = useMemo(() => {
     if (!currentSavedQueryId) return undefined
-    return (savedQueriesBySourceId[sourceId] ?? []).find((query) => query.id === currentSavedQueryId)
+    return (savedQueriesBySourceId[sourceId] ?? []).find(
+      (query) => query.id === currentSavedQueryId,
+    )
   }, [currentSavedQueryId, savedQueriesBySourceId, sourceId])
 
   useEffect(() => {
@@ -153,7 +157,11 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
 
   const exportJson = (): void => {
     if (!snapshot) return
-    downloadText(`${snapshot.collection}-query-result.json`, JSON.stringify(snapshot, null, 2), 'application/json')
+    downloadText(
+      `${snapshot.collection}-query-result.json`,
+      JSON.stringify(snapshot, null, 2),
+      'application/json',
+    )
   }
 
   const exportCsv = (): void => {
@@ -164,9 +172,15 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
       return `"${text.replaceAll('"', '""')}"`
     }
     const rows = snapshot.records.map((record) =>
-      headers.map((header) => escape((record as unknown as Record<string, unknown>)[header])).join(','),
+      headers
+        .map((header) => escape((record as unknown as Record<string, unknown>)[header]))
+        .join(','),
     )
-    downloadText(`${snapshot.collection}-query-result.csv`, [headers.join(','), ...rows].join('\n'), 'text/csv')
+    downloadText(
+      `${snapshot.collection}-query-result.csv`,
+      [headers.join(','), ...rows].join('\n'),
+      'text/csv',
+    )
   }
 
   return (
@@ -182,10 +196,18 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
             onChange={(event) => setQueryName(event.target.value)}
             placeholder="Saved Query 名称"
           />
-          <button type="button" onClick={() => void saveCurrentQuery()} disabled={!sourceId || !collection}>
+          <button
+            type="button"
+            onClick={() => void saveCurrentQuery()}
+            disabled={!sourceId || !collection}
+          >
             保存
           </button>
-          <button type="button" onClick={() => void runQuery()} disabled={!sourceId || !collection || running}>
+          <button
+            type="button"
+            onClick={() => void runQuery()}
+            disabled={!sourceId || !collection || running}
+          >
             {running ? '查询中...' : '运行查询'}
           </button>
         </div>
@@ -215,9 +237,15 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
               <span>total {snapshot.total}</span>
               <span>returned {snapshot.returned}</span>
               <span>{snapshot.truncated ? '已截断' : '完整返回'}</span>
-              <button type="button" onClick={mountQueryResult}>挂载结果</button>
-              <button type="button" onClick={exportJson}>JSON</button>
-              <button type="button" onClick={exportCsv}>CSV</button>
+              <button type="button" onClick={mountQueryResult}>
+                挂载结果
+              </button>
+              <button type="button" onClick={exportJson}>
+                JSON
+              </button>
+              <button type="button" onClick={exportCsv}>
+                CSV
+              </button>
             </div>
           )}
           {records.length > 0 ? (
@@ -225,7 +253,12 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
               {records.map((record) => (
                 <button key={record.id} type="button" onClick={() => setSelectedRecord(record)}>
                   <span>{record.title ?? record.id}</span>
-                  <small>{record.sourceUrl ?? record.collectedAt ?? record.publishedAt ?? record.collection}</small>
+                  <small>
+                    {record.sourceUrl ??
+                      record.collectedAt ??
+                      record.publishedAt ??
+                      record.collection}
+                  </small>
                 </button>
               ))}
             </div>
@@ -237,11 +270,7 @@ export function DataSourceQueryTab({ tab }: { tab: Tab }): React.ReactElement {
         <div className="data-source-record-preview-shell">
           <div className="data-source-record-preview-toolbar">
             <span>JSON</span>
-            <button
-              type="button"
-              disabled={!selectedRecord}
-              onClick={mountSelectedRecord}
-            >
+            <button type="button" disabled={!selectedRecord} onClick={mountSelectedRecord}>
               挂载记录
             </button>
             <button

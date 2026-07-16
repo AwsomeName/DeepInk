@@ -15,7 +15,11 @@ interface ResizeHandleProps {
  * 渲染一个 4px 宽的透明可拖拽区域，hover 时显示蓝色高亮条。
  * 拖拽时实时回调 onResize(delta)，由父组件控制实际宽度。
  */
-export function ResizeHandle({ onResize, onResizeEnd, side = 'right' }: ResizeHandleProps): React.ReactElement {
+export function ResizeHandle({
+  onResize,
+  onResizeEnd,
+  side = 'right',
+}: ResizeHandleProps): React.ReactElement {
   const dragStartXRef = useRef(0)
   const draggingRef = useRef(false)
 
@@ -53,10 +57,5 @@ export function ResizeHandle({ onResize, onResizeEnd, side = 'right' }: ResizeHa
     [onResize, onResizeEnd, side],
   )
 
-  return (
-    <div
-      className="resize-handle"
-      onMouseDown={handleMouseDown}
-    />
-  )
+  return <div className="resize-handle" onMouseDown={handleMouseDown} />
 }

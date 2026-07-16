@@ -26,7 +26,7 @@ import {
   type AgentScope,
 } from '../runtime/scope.js'
 
-const DISALLOWED_CLAUDE_TOOLS = ['mcp__deepink__browser_new_tab', 'AskUserQuestion']
+const DISALLOWED_CLAUDE_TOOLS = ['mcp__cclink_studio__browser_new_tab', 'AskUserQuestion']
 const DISALLOWED_TOOL_NAMES = new Set(['browser_new_tab'])
 
 export interface McpConfigComposer {

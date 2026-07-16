@@ -15,11 +15,9 @@ export type { UpdateCheckResult } from '../../shared/ipc/update'
 
 /**
  * 更新源基础地址（公开 URL，无密钥）。
- * 开源版不内置 CCLink Studio 官方更新源；闭源产品构建由环境注入。
+ * 开源版不内置 CCLink Studio 官方更新源；官方构建层按需注入。
  */
-const UPDATE_BASE_URL = normalizeUpdateBaseUrl(
-  process.env['CCLINK_STUDIO_UPDATE_BASE_URL'],
-)
+const UPDATE_BASE_URL = normalizeUpdateBaseUrl(process.env['CCLINK_STUDIO_UPDATE_BASE_URL'])
 
 /** 检查间隔：6 小时 */
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000

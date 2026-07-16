@@ -50,7 +50,10 @@ function normalizeMaxRows(value: number | undefined): number {
 function sanitizeEndpoint(endpoint: string): string {
   const trimmed = endpoint.trim().replace(/\/+$/, '')
   if (!/^https?:\/\//i.test(trimmed)) {
-    throw new DataSourceError('DATA_SOURCE_QUERY_INVALID', '数据源 endpoint 必须以 http:// 或 https:// 开头')
+    throw new DataSourceError(
+      'DATA_SOURCE_QUERY_INVALID',
+      '数据源 endpoint 必须以 http:// 或 https:// 开头',
+    )
   }
   return trimmed
 }
@@ -100,7 +103,10 @@ export class DataSourceService {
 
   async createSource(input: CreateDataSourceInput): Promise<DataSourceConfig> {
     if (input.type !== 'elasticsearch') {
-      throw new DataSourceError('DATA_SOURCE_ADAPTER_UNSUPPORTED', `不支持的数据源类型: ${input.type}`)
+      throw new DataSourceError(
+        'DATA_SOURCE_ADAPTER_UNSUPPORTED',
+        `不支持的数据源类型: ${input.type}`,
+      )
     }
     const timestamp = nowIso()
     const id = newSourceId()
@@ -138,7 +144,8 @@ export class DataSourceService {
         patch.defaultCollection !== undefined
           ? patch.defaultCollection.trim() || undefined
           : existing.defaultCollection,
-      timeoutMs: patch.timeoutMs !== undefined ? normalizeTimeoutMs(patch.timeoutMs) : existing.timeoutMs,
+      timeoutMs:
+        patch.timeoutMs !== undefined ? normalizeTimeoutMs(patch.timeoutMs) : existing.timeoutMs,
       maxRows: patch.maxRows !== undefined ? normalizeMaxRows(patch.maxRows) : existing.maxRows,
       fieldMapping: patch.fieldMapping !== undefined ? patch.fieldMapping : existing.fieldMapping,
       authRef: patch.secret ? `data-source:${id}` : existing.authRef,
@@ -163,7 +170,9 @@ export class DataSourceService {
     const start = Date.now()
     try {
       const config = await this.requireConfig(id)
-      const result = await this.adapterRegistry.get(config.type).test(config, await this.getSecret(config))
+      const result = await this.adapterRegistry
+        .get(config.type)
+        .test(config, await this.getSecret(config))
       await this.recordAudit({
         caller: 'user',
         sourceId: id,
@@ -204,16 +213,14 @@ export class DataSourceService {
     const start = Date.now()
     try {
       const config = await this.requireConfig(input.sourceId)
-      const snapshot = await this.adapterRegistry
-        .get(config.type)
-        .query(
-          {
-            ...input,
-            maxRows: normalizeMaxRows(input.maxRows ?? config.maxRows),
-          },
-          config,
-          await this.getSecret(config),
-        )
+      const snapshot = await this.adapterRegistry.get(config.type).query(
+        {
+          ...input,
+          maxRows: normalizeMaxRows(input.maxRows ?? config.maxRows),
+        },
+        config,
+        await this.getSecret(config),
+      )
       await this.recordAudit({
         caller: input.caller ?? 'user',
         sourceId: input.sourceId,

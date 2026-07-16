@@ -58,7 +58,10 @@ function loadRecentCommandIds(): string[] {
 function saveRecentCommandIds(ids: string[]): void {
   try {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(COMMAND_STORAGE_KEY, JSON.stringify({ recentCommandIds: ids.slice(0, 12) }))
+    localStorage.setItem(
+      COMMAND_STORAGE_KEY,
+      JSON.stringify({ recentCommandIds: ids.slice(0, 12) }),
+    )
   } catch {
     // localStorage 可能不可用，忽略持久化失败。
   }
@@ -99,7 +102,10 @@ export const useCommandStore = create<CommandState>((set, get) => ({
 
   markCommandUsed: (id) =>
     set((state) => {
-      const recentCommandIds = [id, ...state.recentCommandIds.filter((item) => item !== id)].slice(0, 12)
+      const recentCommandIds = [id, ...state.recentCommandIds.filter((item) => item !== id)].slice(
+        0,
+        12,
+      )
       saveRecentCommandIds(recentCommandIds)
       return { recentCommandIds }
     }),

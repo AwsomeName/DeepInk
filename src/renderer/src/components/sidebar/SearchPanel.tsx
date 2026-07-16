@@ -25,7 +25,10 @@ function loadSearchState(): { query: string; results: FileTreeNode[] } {
 function saveSearchState(query: string, results: FileTreeNode[]): void {
   try {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(SEARCH_PANEL_STORAGE_KEY, JSON.stringify({ query, results: results.slice(0, 100) }))
+    localStorage.setItem(
+      SEARCH_PANEL_STORAGE_KEY,
+      JSON.stringify({ query, results: results.slice(0, 100) }),
+    )
   } catch {
     // localStorage 可能不可用，忽略持久化失败。
   }
@@ -108,11 +111,7 @@ export function SearchPanel(): React.ReactElement {
       {results.length > 0 && (
         <div className="search-panel-results">
           {results.map((r) => (
-            <div
-              key={r.path}
-              className="sidebar-item file"
-              onClick={() => handleFileClick(r)}
-            >
+            <div key={r.path} className="sidebar-item file" onClick={() => handleFileClick(r)}>
               <span style={{ fontSize: 14 }}>
                 {r.type === 'directory' ? '📁' : isGerberFileExtension(r.extension) ? '🧩' : '📄'}
               </span>

@@ -66,7 +66,7 @@ function createBackendFixture(): {
     if (sessionToken) url.searchParams.set('session', sessionToken)
     return {
       mcpServers: {
-        cclinkStudio: { type: 'http', url: url.toString() },
+        cclink_studio: { type: 'http', url: url.toString() },
       },
     }
   })
@@ -83,7 +83,7 @@ function createBackendFixture(): {
       claudeCodePath: '/usr/local/bin/claude',
       hostContext: {
         hostName: 'CCLink Studio',
-        mcpServerName: 'deepink',
+        mcpServerName: 'cclink_studio',
         androidControllerName: 'CCLink Studio',
       },
     },
@@ -135,7 +135,7 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
     expect(args).toContain('--strict-mcp-config')
     expect(
       args.slice(args.indexOf('--disallowedTools'), args.indexOf('--disallowedTools') + 2),
-    ).toEqual(['--disallowedTools', 'mcp__deepink__browser_new_tab AskUserQuestion'])
+    ).toEqual(['--disallowedTools', 'mcp__cclink_studio__browser_new_tab AskUserQuestion'])
 
     const prompt = getPrompt(args)
     expect(prompt).toContain('不要使用 Claude Code 内置 WebSearch/WebFetch')

@@ -25,10 +25,7 @@ export interface BackendFactoryDeps {
  * @param config 后端配置
  * @param deps 共享依赖（MCP 工具、Playwright 等）
  */
-export function createBackend(
-  config: BackendConfig,
-  deps: BackendFactoryDeps,
-): IAgentBackend {
+export function createBackend(config: BackendConfig, deps: BackendFactoryDeps): IAgentBackend {
   switch (config.type) {
     case 'local-claude-code':
       return new LocalClaudeCodeBackend(

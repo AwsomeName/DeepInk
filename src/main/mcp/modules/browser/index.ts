@@ -224,7 +224,8 @@ const BROWSER_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'browser_press_key',
-    description: '在页面上按下键盘按键（不需要指定元素）。用于 Tab 切换字段、Enter 提交、Escape 关闭弹窗、组合键等',
+    description:
+      '在页面上按下键盘按键（不需要指定元素）。用于 Tab 切换字段、Enter 提交、Escape 关闭弹窗、组合键等',
     inputSchema: {
       type: 'object',
       properties: {
@@ -266,7 +267,8 @@ const BROWSER_TOOL_DEFINITIONS: ToolDefinition[] = [
   // ── 对话框处理 ──────────────────────
   {
     name: 'browser_handle_dialog',
-    description: '处理弹出的对话框（alert/confirm/prompt）。可以接受或关闭对话框，对 prompt 类型可输入文本',
+    description:
+      '处理弹出的对话框（alert/confirm/prompt）。可以接受或关闭对话框，对 prompt 类型可输入文本',
     inputSchema: {
       type: 'object',
       properties: {
@@ -364,11 +366,15 @@ const BROWSER_TOOL_DEFINITIONS: ToolDefinition[] = [
   // ── 网络拦截 ──────────────────────
   {
     name: 'browser_intercept_request',
-    description: '拦截匹配 URL 模式的网络请求。可阻止请求（block）、修改请求头（modify）或放行（continue）',
+    description:
+      '拦截匹配 URL 模式的网络请求。可阻止请求（block）、修改请求头（modify）或放行（continue）',
     inputSchema: {
       type: 'object',
       properties: {
-        urlPattern: { type: 'string', description: 'URL 匹配模式（支持 glob 通配符，如 **/*.png）' },
+        urlPattern: {
+          type: 'string',
+          description: 'URL 匹配模式（支持 glob 通配符，如 **/*.png）',
+        },
         action: {
           type: 'string',
           description: '拦截行为：block（阻止）、modify（修改请求头后继续）、continue（放行）',
@@ -472,7 +478,8 @@ const BROWSER_TOOL_DEFINITIONS: ToolDefinition[] = [
   // ── 文件下载 ──────────────────────
   {
     name: 'browser_wait_for_download',
-    description: '等待文件下载事件触发。返回下载 ID 和文件名，后续可用 save_download 保存到指定路径',
+    description:
+      '等待文件下载事件触发。返回下载 ID 和文件名，后续可用 save_download 保存到指定路径',
     inputSchema: {
       type: 'object',
       properties: {
@@ -652,7 +659,11 @@ export class BrowserToolModule implements ToolModule {
     }
 
     try {
-      const result = await executePlaywrightAction(page, { type: actionType, ...params }, this.playwrightBridge)
+      const result = await executePlaywrightAction(
+        page,
+        { type: actionType, ...params },
+        this.playwrightBridge,
+      )
       if (actionLogId) {
         this.browserTaskRuntime!.succeedActionLog(actionLogId)
       }

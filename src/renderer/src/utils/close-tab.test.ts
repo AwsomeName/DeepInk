@@ -58,7 +58,6 @@ describe('closeTabWithDraftPolicy conversation lifecycle', () => {
       '保留这条消息',
     )
   })
-
 })
 
 describe('closeTabWithDraftPolicy terminal lifecycle', () => {
@@ -126,7 +125,14 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
         runtime,
         permissionPolicy: {
           mode: 'ask-every-command',
-          requireConfirmationFor: ['read', 'write', 'network', 'destructive', 'privileged', 'unknown'],
+          requireConfirmationFor: [
+            'read',
+            'write',
+            'network',
+            'destructive',
+            'privileged',
+            'unknown',
+          ],
         },
         status: 'running',
         closePolicy: 'terminate-process',
@@ -152,7 +158,14 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
       runtime,
       permissionPolicy: {
         mode: 'ask-every-command',
-        requireConfirmationFor: ['read', 'write', 'network', 'destructive', 'privileged', 'unknown'],
+        requireConfirmationFor: [
+          'read',
+          'write',
+          'network',
+          'destructive',
+          'privileged',
+          'unknown',
+        ],
       },
       closePolicy: 'terminate-process',
     })

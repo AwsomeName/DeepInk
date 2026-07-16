@@ -1,6 +1,10 @@
 import type { ToolDefinition, ToolModule } from '../../types'
 import type { DataSourceService } from '../../../data-source/data-source-service'
-import type { DataQuerySnapshot, NormalizedRecord, RunDataQueryInput } from '../../../data-source/types'
+import type {
+  DataQuerySnapshot,
+  NormalizedRecord,
+  RunDataQueryInput,
+} from '../../../data-source/types'
 import { DataSourceError } from '../../../data-source/errors'
 
 const DEFAULT_TOOL_LIMIT = 20
@@ -158,7 +162,9 @@ export class DataSourceToolModule implements ToolModule {
 
   private async runSavedQuery(params: Record<string, unknown>): Promise<DataQuerySnapshot> {
     const savedQueryId = requireString(params.savedQueryId, 'savedQueryId')
-    const savedQuery = (await this.service.listSavedQueries()).find((query) => query.id === savedQueryId)
+    const savedQuery = (await this.service.listSavedQueries()).find(
+      (query) => query.id === savedQueryId,
+    )
     if (!savedQuery) {
       throw new DataSourceError('DATA_SOURCE_NOT_FOUND', `未找到 Saved Query: ${savedQueryId}`)
     }

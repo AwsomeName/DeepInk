@@ -27,11 +27,11 @@ export function DataSourcesPanel(): React.ReactElement {
   }, [loadSources])
 
   const selectedCollections = useMemo(
-    () => (selectedSourceId ? collectionsBySourceId[selectedSourceId] ?? [] : []),
+    () => (selectedSourceId ? (collectionsBySourceId[selectedSourceId] ?? []) : []),
     [collectionsBySourceId, selectedSourceId],
   )
   const selectedSavedQueries = useMemo(
-    () => (selectedSourceId ? savedQueriesBySourceId[selectedSourceId] ?? [] : []),
+    () => (selectedSourceId ? (savedQueriesBySourceId[selectedSourceId] ?? []) : []),
     [savedQueriesBySourceId, selectedSourceId],
   )
 
@@ -105,7 +105,9 @@ export function DataSourcesPanel(): React.ReactElement {
               <IconDatabase size={14} />
               <span className="project-panel-row-main">
                 <span className="project-panel-row-title">{source.name}</span>
-                <span className="project-panel-row-meta">{source.defaultCollection ?? source.endpoint}</span>
+                <span className="project-panel-row-meta">
+                  {source.defaultCollection ?? source.endpoint}
+                </span>
               </span>
             </button>
           ))
@@ -173,7 +175,11 @@ export function DataSourcesPanel(): React.ReactElement {
       <section className="sidebar-section">
         <div className="sidebar-section-header">添加 Elasticsearch</div>
         <form className="data-source-form" onSubmit={(event) => void handleCreate(event)}>
-          <input value={name} onChange={(event) => setName(event.target.value)} placeholder="名称" />
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="名称"
+          />
           <input
             value={endpoint}
             onChange={(event) => setEndpoint(event.target.value)}

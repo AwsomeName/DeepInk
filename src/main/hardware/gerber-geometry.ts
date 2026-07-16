@@ -353,10 +353,10 @@ function createOutlineCandidate(
 
 function centroid(points: GerberGeometryPoint[]): GerberGeometryPoint {
   const usable = points.length > 1 ? points.slice(0, -1) : points
-  const sum = usable.reduce(
-    (acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }),
-    { x: 0, y: 0 },
-  )
+  const sum = usable.reduce((acc, point) => ({ x: acc.x + point.x, y: acc.y + point.y }), {
+    x: 0,
+    y: 0,
+  })
   return {
     x: usable.length ? sum.x / usable.length : 0,
     y: usable.length ? sum.y / usable.length : 0,
@@ -412,18 +412,19 @@ function withRole(
   }
 }
 
-function classifyOutlineCandidates(
-  candidates: GerberOutlineCandidate[],
-): GerberOutlineCandidate[] {
+function classifyOutlineCandidates(candidates: GerberOutlineCandidate[]): GerberOutlineCandidate[] {
   if (candidates.length === 0) return []
-  const sorted = [...candidates].sort((a, b) => b.areaMm2 - a.areaMm2 || b.confidence - a.confidence)
+  const sorted = [...candidates].sort(
+    (a, b) => b.areaMm2 - a.areaMm2 || b.confidence - a.confidence,
+  )
   const outer = withRole(sorted[0], 'outer', '面积最大的闭合轮廓，暂定为外轮廓')
 
   return [
     outer,
     ...sorted.slice(1).map((candidate) => {
       const containedByOuter =
-        boundsContain(outer.bounds, candidate.bounds) && pointInPolygon(centroid(candidate.points), outer.points)
+        boundsContain(outer.bounds, candidate.bounds) &&
+        pointInPolygon(centroid(candidate.points), outer.points)
       if (containedByOuter) {
         const role: GerberOutlineRole = aspectRatio(candidate.bounds) >= 3 ? 'slot' : 'hole'
         return withRole(
@@ -501,7 +502,9 @@ export function parseGerberLayerGeometry(input: {
     state.warnings.push('源 Gerber 内容过大，当前仅解析了前 2 MB。')
   }
   if (state.segments.length === 0) {
-    state.warnings.push('未解析到可绘制线段；可能是钻孔文件、纯 aperture/region，或暂不支持的 Gerber 写法。')
+    state.warnings.push(
+      '未解析到可绘制线段；可能是钻孔文件、纯 aperture/region，或暂不支持的 Gerber 写法。',
+    )
   }
 
   return {

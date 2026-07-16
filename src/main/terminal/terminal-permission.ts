@@ -14,28 +14,107 @@ const RISK_PRIORITY: Record<TerminalPermissionRisk, number> = {
 }
 
 const READ_COMMANDS = new Set([
-  'cat', 'cd', 'du', 'echo', 'env', 'find', 'git', 'grep', 'head', 'ls', 'pwd', 'tail', 'tree', 'wc', 'which', 'whoami',
+  'cat',
+  'cd',
+  'du',
+  'echo',
+  'env',
+  'find',
+  'git',
+  'grep',
+  'head',
+  'ls',
+  'pwd',
+  'tail',
+  'tree',
+  'wc',
+  'which',
+  'whoami',
 ])
 
 const NETWORK_COMMANDS = new Set([
-  'curl', 'dig', 'host', 'nc', 'netcat', 'ping', 'rsync', 'scp', 'sftp', 'ssh', 'telnet', 'wget',
+  'curl',
+  'dig',
+  'host',
+  'nc',
+  'netcat',
+  'ping',
+  'rsync',
+  'scp',
+  'sftp',
+  'ssh',
+  'telnet',
+  'wget',
 ])
 
 const WRITE_COMMANDS = new Set([
-  'brew', 'cp', 'gem', 'go', 'mkdir', 'mv', 'npm', 'pip', 'pip3', 'pnpm', 'python', 'python3', 'touch', 'yarn',
+  'brew',
+  'cp',
+  'gem',
+  'go',
+  'mkdir',
+  'mv',
+  'npm',
+  'pip',
+  'pip3',
+  'pnpm',
+  'python',
+  'python3',
+  'touch',
+  'yarn',
 ])
 
 const DESTRUCTIVE_COMMANDS = new Set([
-  'dd', 'docker', 'dropdb', 'kill', 'killall', 'mkfs', 'pkill', 'reboot', 'rm', 'rmdir', 'shutdown', 'truncate',
+  'dd',
+  'docker',
+  'dropdb',
+  'kill',
+  'killall',
+  'mkfs',
+  'pkill',
+  'reboot',
+  'rm',
+  'rmdir',
+  'shutdown',
+  'truncate',
 ])
 
 const PRIVILEGED_COMMANDS = new Set([
-  'chmod', 'chown', 'launchctl', 'security', 'su', 'sudo', 'systemctl',
+  'chmod',
+  'chown',
+  'launchctl',
+  'security',
+  'su',
+  'sudo',
+  'systemctl',
 ])
 
 const SAFE_GIT_SUBCOMMANDS = new Set(['branch', 'diff', 'log', 'show', 'status'])
-const WRITE_GIT_SUBCOMMANDS = new Set(['add', 'apply', 'checkout', 'cherry-pick', 'clean', 'commit', 'merge', 'pull', 'push', 'rebase', 'reset', 'restore', 'switch'])
-const PACKAGE_INSTALL_ARGS = new Set(['add', 'install', 'i', 'remove', 'rm', 'uninstall', 'update', 'upgrade'])
+const WRITE_GIT_SUBCOMMANDS = new Set([
+  'add',
+  'apply',
+  'checkout',
+  'cherry-pick',
+  'clean',
+  'commit',
+  'merge',
+  'pull',
+  'push',
+  'rebase',
+  'reset',
+  'restore',
+  'switch',
+])
+const PACKAGE_INSTALL_ARGS = new Set([
+  'add',
+  'install',
+  'i',
+  'remove',
+  'rm',
+  'uninstall',
+  'update',
+  'upgrade',
+])
 
 export function classifyTerminalCommand(command: string): TerminalPermissionRisk {
   const segments = splitCommandSegments(command)
@@ -128,7 +207,9 @@ function classifyPackageCommand(args: string[]): TerminalPermissionRisk {
 }
 
 function isPackageManager(command: string): boolean {
-  return ['brew', 'gem', 'go', 'npm', 'pip', 'pip3', 'pnpm', 'python', 'python3', 'yarn'].includes(command)
+  return ['brew', 'gem', 'go', 'npm', 'pip', 'pip3', 'pnpm', 'python', 'python3', 'yarn'].includes(
+    command,
+  )
 }
 
 function splitCommandSegments(command: string): string[] {
@@ -144,7 +225,9 @@ function tokenizeShellSegment(segment: string): string[] {
 }
 
 function firstExecutableTokenIndex(tokens: string[]): number {
-  return tokens.findIndex((token) => !isEnvironmentAssignment(token) && token !== 'time' && token !== 'command')
+  return tokens.findIndex(
+    (token) => !isEnvironmentAssignment(token) && token !== 'time' && token !== 'command',
+  )
 }
 
 function isEnvironmentAssignment(token: string): boolean {
@@ -172,7 +255,8 @@ function findMatchingRule(command: string, rules?: string[]): string | null {
   for (const rule of rules) {
     const normalizedRule = normalizeCommand(rule)
     if (!normalizedRule) continue
-    if (command === normalizedRule || command.startsWith(`${normalizedRule} `)) return normalizedRule
+    if (command === normalizedRule || command.startsWith(`${normalizedRule} `))
+      return normalizedRule
   }
   return null
 }

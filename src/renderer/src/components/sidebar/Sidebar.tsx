@@ -28,7 +28,6 @@ import {
   IconProjects,
   IconRefresh,
   IconChevronDown,
-  IconRobot,
   IconPlus,
   IconTerminal,
 } from '../common/Icons'
@@ -202,7 +201,6 @@ function ProjectsSidebarView({
   projectTabsCount,
   activeWorkspaceKey,
   activeWorkspaceKind,
-  activatingWorkspace,
   openWorkspacePicker,
   openRecentWorkspace,
   closeWorkspace,
@@ -263,7 +261,6 @@ function ProjectsSidebarView({
           projectTabsCount={projectTabsCount}
           activeWorkspaceKey={activeWorkspaceKey}
           activeWorkspaceKind={activeWorkspaceKind}
-          activatingWorkspace={activatingWorkspace}
           openWorkspacePicker={openWorkspacePicker}
           openRecentWorkspace={openRecentWorkspace}
           closeWorkspace={closeWorkspace}
@@ -698,8 +695,11 @@ function TerminalSidebarView({
                   {TERMINAL_STATUS_LABEL[session.status]} · 查看记录
                 </span>
                 <span className="project-panel-row-meta">
-                  {session.lastCommand ?? session.errorMessage ?? session.runtime.cwd ?? session.sessionId} ·{' '}
-                  {formatTerminalTime(session.updatedAt)}
+                  {session.lastCommand ??
+                    session.errorMessage ??
+                    session.runtime.cwd ??
+                    session.sessionId}{' '}
+                  · {formatTerminalTime(session.updatedAt)}
                 </span>
               </span>
             </button>
@@ -783,7 +783,6 @@ function ProjectListSection({
   projectTabsCount,
   activeWorkspaceKey,
   activeWorkspaceKind,
-  activatingWorkspace,
   openWorkspacePicker,
   openRecentWorkspace,
   closeWorkspace,
@@ -798,7 +797,6 @@ function ProjectListSection({
   projectTabsCount?: number
   activeWorkspaceKey: string | null
   activeWorkspaceKind: 'local' | 'remote' | 'global'
-  activatingWorkspace: boolean
   openWorkspacePicker: () => Promise<void>
   openRecentWorkspace: (path: string) => Promise<void>
   closeWorkspace: () => Promise<void>

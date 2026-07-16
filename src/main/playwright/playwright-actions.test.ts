@@ -9,29 +9,62 @@ describe('PLAYWRIGHT_ACTION_TYPES', () => {
   it('包含所有关键操作', () => {
     const expected = [
       // 基础操作
-      'navigate', 'click', 'fill', 'screenshot', 'extract',
-      'select', 'check', 'uncheck', 'press', 'waitForSelector',
-      'evaluate', 'goBack', 'goForward', 'reload', 'title', 'inputValue',
+      'navigate',
+      'click',
+      'fill',
+      'screenshot',
+      'extract',
+      'select',
+      'check',
+      'uncheck',
+      'press',
+      'waitForSelector',
+      'evaluate',
+      'goBack',
+      'goForward',
+      'reload',
+      'title',
+      'inputValue',
       // 高级交互
-      'hover', 'scroll', 'uploadFile', 'waitForNavigation', 'pressKey', 'dragDrop',
+      'hover',
+      'scroll',
+      'uploadFile',
+      'waitForNavigation',
+      'pressKey',
+      'dragDrop',
       // 对话框处理
-      'handleDialog', 'setAutoDialog',
+      'handleDialog',
+      'setAutoDialog',
       // Cookie 管理
-      'getCookies', 'setCookie', 'clearCookies',
+      'getCookies',
+      'setCookie',
+      'clearCookies',
       // 网络拦截
-      'interceptRequest', 'mockResponse', 'getNetworkLogs', 'clearIntercepts',
+      'interceptRequest',
+      'mockResponse',
+      'getNetworkLogs',
+      'clearIntercepts',
       // 多 Tab 管理
-      'newTab', 'closeTab', 'listTabs', 'switchTab', 'getTabInfo',
+      'newTab',
+      'closeTab',
+      'listTabs',
+      'switchTab',
+      'getTabInfo',
       // 文件下载
-      'waitForDownload', 'downloadInfo', 'saveDownload',
+      'waitForDownload',
+      'downloadInfo',
+      'saveDownload',
       // iframe / Frame
-      'listFrames', 'frameExecute', 'frameContent',
+      'listFrames',
+      'frameExecute',
+      'frameContent',
       // 控制台日志
       'getConsoleLogs',
       // 弹窗处理
       'waitForPopup',
       // 坐标鼠标操作
-      'mouseClick', 'mouseMove',
+      'mouseClick',
+      'mouseMove',
     ]
     for (const action of expected) {
       expect(PLAYWRIGHT_ACTION_TYPES).toContain(action)

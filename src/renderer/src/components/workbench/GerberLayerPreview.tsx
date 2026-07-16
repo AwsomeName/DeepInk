@@ -245,7 +245,11 @@ export function GerberLayerPreview({
 
     const handleMove = (moveEvent: MouseEvent): void => {
       setLayerPanelWidth(
-        clamp(startWidth + moveEvent.clientX - startX, MIN_LAYER_PANEL_WIDTH, MAX_LAYER_PANEL_WIDTH),
+        clamp(
+          startWidth + moveEvent.clientX - startX,
+          MIN_LAYER_PANEL_WIDTH,
+          MAX_LAYER_PANEL_WIDTH,
+        ),
       )
     }
     const handleUp = (): void => {
@@ -271,7 +275,11 @@ export function GerberLayerPreview({
 
     const handleMove = (moveEvent: MouseEvent): void => {
       setRenderPanelHeight(
-        clamp(startHeight + moveEvent.clientY - startY, MIN_RENDER_PANEL_HEIGHT, MAX_RENDER_PANEL_HEIGHT),
+        clamp(
+          startHeight + moveEvent.clientY - startY,
+          MIN_RENDER_PANEL_HEIGHT,
+          MAX_RENDER_PANEL_HEIGHT,
+        ),
       )
     }
     const handleUp = (): void => {
@@ -325,7 +333,12 @@ export function GerberLayerPreview({
     return () => {
       cancelled = true
     }
-  }, [hardwareGerber.entry, hardwareGerber.packagePath, hardwareGerber.workspacePath, standaloneGerberFile])
+  }, [
+    hardwareGerber.entry,
+    hardwareGerber.packagePath,
+    hardwareGerber.workspacePath,
+    standaloneGerberFile,
+  ])
 
   useEffect(() => {
     if (!selectedEntry) return
@@ -531,9 +544,7 @@ export function GerberLayerPreview({
         ))}
 
         <pre className="gerber-preview-code">
-          {loadingPreview
-            ? '正在读取 Gerber 层内容...'
-            : preview?.content || '暂无内容。'}
+          {loadingPreview ? '正在读取 Gerber 层内容...' : preview?.content || '暂无内容。'}
         </pre>
       </div>
     </div>

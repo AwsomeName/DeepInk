@@ -1,6 +1,6 @@
 ---
 name: Bug Report
-about: Report a bug to help improve DeepInk
+about: Report a bug to help improve CCLink Studio
 title: ''
 labels: bug
 assignees: ''
@@ -23,7 +23,7 @@ If applicable, add screenshots or error logs.
 
 ## Environment
 - OS: [e.g. macOS 14.5]
-- DeepInk Version: [e.g. 0.1.1, or commit hash]
+- CCLink Studio Version: [e.g. 0.1.1, or commit hash]
 - AI Backend: [e.g. Claude Code / HTTP API / None]
 
 ## Additional Context

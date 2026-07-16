@@ -12,7 +12,10 @@ import type {
 export interface DataSourceAdapter {
   readonly type: DataSourceConfig['type']
   test(config: DataSourceConfig, secret: DataSourceSecret | null): Promise<ConnectionTestResult>
-  listCollections(config: DataSourceConfig, secret: DataSourceSecret | null): Promise<DataCollection[]>
+  listCollections(
+    config: DataSourceConfig,
+    secret: DataSourceSecret | null,
+  ): Promise<DataCollection[]>
   query(
     input: RunDataQueryInput,
     config: DataSourceConfig,

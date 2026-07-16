@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { globalWorkspaceRef, localWorkspaceRef } from '../../../shared/workspace-ref'
 import {
-  getWorkspaceStateKey,
   getWorkspaceStateOwnerKey,
   persistWorkspaceSection,
   setWorkspaceStatePath,
@@ -63,7 +62,9 @@ function updateRecentWorkspacePaths(paths: string[], path: string): string[] {
 function loadRecentWorkspaceFallback(): string[] {
   try {
     if (typeof localStorage === 'undefined') return []
-    return mergeRecentWorkspacePaths(JSON.parse(localStorage.getItem(RECENT_WORKSPACES_STORAGE_KEY) ?? '[]'))
+    return mergeRecentWorkspacePaths(
+      JSON.parse(localStorage.getItem(RECENT_WORKSPACES_STORAGE_KEY) ?? '[]'),
+    )
   } catch {
     return []
   }
@@ -93,7 +94,9 @@ function confirmProjectSwitch(currentPath: string | null, nextPath?: string | nu
   persistWorkspaceSection('editorDrafts', { files: useEditorStore.getState().files }, currentPath)
   if (typeof window === 'undefined') return true
   const action = nextPath === null ? '切换到未归档后' : '切换工作空间后'
-  return window.confirm(`当前工作空间有未保存草稿。${action}，草稿会保留在当前工作空间，稍后切回可继续。是否继续？`)
+  return window.confirm(
+    `当前工作空间有未保存草稿。${action}，草稿会保留在当前工作空间，稍后切回可继续。是否继续？`,
+  )
 }
 
 function loadFsPanelState(): { expandedPaths: string[]; selectedPath: string | null } {
@@ -103,7 +106,9 @@ function loadFsPanelState(): { expandedPaths: string[]; selectedPath: string | n
     if (!raw) return { expandedPaths: [], selectedPath: null }
     const parsed = JSON.parse(raw) as { expandedPaths?: string[]; selectedPath?: string | null }
     return {
-      expandedPaths: Array.isArray(parsed.expandedPaths) ? parsed.expandedPaths.filter(Boolean) : [],
+      expandedPaths: Array.isArray(parsed.expandedPaths)
+        ? parsed.expandedPaths.filter(Boolean)
+        : [],
       selectedPath: parsed.selectedPath ?? null,
     }
   } catch {
@@ -122,7 +127,9 @@ function getRecentWorkspacePathsFromSettings(settings: {
   )
 }
 
-function normalizeFileTreeState(value: unknown): { expandedPaths: string[]; selectedPath: string | null } | null {
+function normalizeFileTreeState(
+  value: unknown,
+): { expandedPaths: string[]; selectedPath: string | null } | null {
   if (!value || typeof value !== 'object') return null
   const parsed = value as { expandedPaths?: string[]; selectedPath?: string | null }
   return {
@@ -131,17 +138,27 @@ function normalizeFileTreeState(value: unknown): { expandedPaths: string[]; sele
   }
 }
 
-function saveFsPanelState(state: Pick<FsState, 'expandedPaths' | 'selectedPath'>, workspacePath?: string | null): void {
+function saveFsPanelState(
+  state: Pick<FsState, 'expandedPaths' | 'selectedPath'>,
+  workspacePath?: string | null,
+): void {
   try {
     if (typeof localStorage === 'undefined') return
-    localStorage.setItem(FS_STORAGE_KEY, JSON.stringify({
-      expandedPaths: state.expandedPaths,
-      selectedPath: state.selectedPath,
-    }))
-    persistWorkspaceSection('fileTree', {
-      expandedPaths: state.expandedPaths,
-      selectedPath: state.selectedPath,
-    }, workspacePath)
+    localStorage.setItem(
+      FS_STORAGE_KEY,
+      JSON.stringify({
+        expandedPaths: state.expandedPaths,
+        selectedPath: state.selectedPath,
+      }),
+    )
+    persistWorkspaceSection(
+      'fileTree',
+      {
+        expandedPaths: state.expandedPaths,
+        selectedPath: state.selectedPath,
+      },
+      workspacePath,
+    )
   } catch {
     // localStorage 可能不可用，忽略持久化失败。
   }
@@ -211,7 +228,10 @@ interface FsState {
   /** 搜索文件 */
   searchFiles: (query: string) => Promise<FileTreeNode[]>
   /** 进入内联编辑模式（新建文件/文件夹 或 重命名节点） */
-  startEditing: (editPath: string | 'new-folder' | 'new-file', parentForNewFolder?: string | null) => void
+  startEditing: (
+    editPath: string | 'new-folder' | 'new-file',
+    parentForNewFolder?: string | null,
+  ) => void
   /** 退出内联编辑模式 */
   cancelEditing: () => void
   /** 确认重命名 */
@@ -244,7 +264,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     const seq = ++setWorkspaceSeq
     set({ loading: true, error: null })
     // 不在开头设 workspacePath：readDir 成功后才赋值，避免非法路径作为中间态
-    // 泄露给 SyncPanel/SearchPanel 等消费方（loading=true 期间它们通常已禁用，仍求稳妥）
+    // 泄露给侧栏等消费方（loading=true 期间它们通常已禁用，仍求稳妥）
     try {
       const entries = await window.cclinkStudio.fs.readDir(path)
       // 并发守卫：若期间又发起了新的 setWorkspace，丢弃本次过期结果
@@ -265,7 +285,10 @@ export const useFsStore = create<FsState>((set, get) => ({
         recentWorkspacePaths: updateRecentWorkspacePaths(state.recentWorkspacePaths, path),
       }))
       saveRecentWorkspaceFallback(get().recentWorkspacePaths)
-      saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: get().selectedPath }, path)
+      saveFsPanelState(
+        { expandedPaths: get().expandedPaths, selectedPath: get().selectedPath },
+        path,
+      )
       await restoreExpandedDirs(path, get, set)
       return true
     } catch (err) {
@@ -289,7 +312,9 @@ export const useFsStore = create<FsState>((set, get) => ({
       saveRecentWorkspaceFallback(recentWorkspacePaths)
       if (
         JSON.stringify(recentWorkspacePaths) !==
-        JSON.stringify(Array.isArray(settings.recentWorkspacePaths) ? settings.recentWorkspacePaths : [])
+        JSON.stringify(
+          Array.isArray(settings.recentWorkspacePaths) ? settings.recentWorkspacePaths : [],
+        )
       ) {
         void window.cclinkStudio.settings.set({ recentWorkspacePaths }).catch(() => {})
       }
@@ -332,14 +357,18 @@ export const useFsStore = create<FsState>((set, get) => ({
       if (result.canceled || result.filePaths.length === 0) return
       const path = result.filePaths[0]!
       const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef(path))
-      if (transition.snapshot) get().hydrateFromWorkspaceState(transition.snapshot.sections.fileTree)
+      if (transition.snapshot)
+        get().hydrateFromWorkspaceState(transition.snapshot.sections.fileTree)
       const ok = await get().setWorkspace(path)
       if (ok) {
         useWorkspaceStore.getState().activateLocalWorkspace(path)
         applyWorkspaceRuntimeTransition(transition)
         const recentWorkspacePaths = get().recentWorkspacePaths
         saveRecentWorkspaceFallback(recentWorkspacePaths)
-        const r = await window.cclinkStudio.settings.set({ lastWorkspacePath: path, recentWorkspacePaths })
+        const r = await window.cclinkStudio.settings.set({
+          lastWorkspacePath: path,
+          recentWorkspacePaths,
+        })
         // 持久化失败不阻断当前会话（workspacePath 已生效），仅提示下次不会记住
         if (!r.success) {
           set({ error: '无法记住此工作空间，下次启动需重新选择' })
@@ -354,7 +383,11 @@ export const useFsStore = create<FsState>((set, get) => ({
 
   openRecentWorkspace: async (path) => {
     if (!path) return
-    if (path === get().workspacePath && useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local') return
+    if (
+      path === get().workspacePath &&
+      useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local'
+    )
+      return
     if (!confirmProjectSwitch(get().workspacePath, path)) return
     const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef(path))
     if (transition.snapshot) get().hydrateFromWorkspaceState(transition.snapshot.sections.fileTree)
@@ -364,7 +397,9 @@ export const useFsStore = create<FsState>((set, get) => ({
       applyWorkspaceRuntimeTransition(transition)
       const recentWorkspacePaths = get().recentWorkspacePaths
       saveRecentWorkspaceFallback(recentWorkspacePaths)
-      await window.cclinkStudio.settings.set({ lastWorkspacePath: path, recentWorkspacePaths }).catch(() => {})
+      await window.cclinkStudio.settings
+        .set({ lastWorkspacePath: path, recentWorkspacePaths })
+        .catch(() => {})
     }
   },
 
@@ -374,7 +409,10 @@ export const useFsStore = create<FsState>((set, get) => ({
     if (!confirmProjectSwitch(currentPath, null)) return
 
     set({ loading: true, error: null })
-    saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: get().selectedPath }, currentPath)
+    saveFsPanelState(
+      { expandedPaths: get().expandedPaths, selectedPath: get().selectedPath },
+      currentPath,
+    )
 
     try {
       const transition = await prepareWorkspaceRuntimeTransition(globalWorkspaceRef())
@@ -390,12 +428,17 @@ export const useFsStore = create<FsState>((set, get) => ({
         editingPath: null,
         newFolderParent: null,
       })
-      saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: get().selectedPath }, null)
+      saveFsPanelState(
+        { expandedPaths: get().expandedPaths, selectedPath: get().selectedPath },
+        null,
+      )
       saveRecentWorkspaceFallback(get().recentWorkspacePaths)
-      await window.cclinkStudio.settings.set({
-        lastWorkspacePath: '',
-        recentWorkspacePaths: get().recentWorkspacePaths,
-      }).catch(() => {})
+      await window.cclinkStudio.settings
+        .set({
+          lastWorkspacePath: '',
+          recentWorkspacePaths: get().recentWorkspacePaths,
+        })
+        .catch(() => {})
     } catch (err) {
       set({ loading: false, error: describeError(err) })
     }
@@ -471,7 +514,10 @@ export const useFsStore = create<FsState>((set, get) => ({
 
   setSelectedPath: (path) => {
     set({ selectedPath: path })
-    saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: path }, get().workspacePath)
+    saveFsPanelState(
+      { expandedPaths: get().expandedPaths, selectedPath: path },
+      get().workspacePath,
+    )
   },
 
   searchFiles: async (query) => {
@@ -548,7 +594,10 @@ export const useFsStore = create<FsState>((set, get) => ({
       await window.cclinkStudio.fs.writeFile(newPath, '')
       await get().refreshDir(parentPath)
       set({ selectedPath: newPath })
-      saveFsPanelState({ expandedPaths: get().expandedPaths, selectedPath: newPath }, get().workspacePath)
+      saveFsPanelState(
+        { expandedPaths: get().expandedPaths, selectedPath: newPath },
+        get().workspacePath,
+      )
     } catch (err) {
       set({ error: '新建文件失败: ' + describeError(err) })
     }
@@ -582,8 +631,7 @@ async function restoreExpandedDirs(
   set: (partial: Partial<FsState> | ((state: FsState) => Partial<FsState>)) => void,
 ): Promise<void> {
   const paths = get()
-    .expandedPaths
-    .filter((p) => p !== workspacePath && p.startsWith(workspacePath + '/'))
+    .expandedPaths.filter((p) => p !== workspacePath && p.startsWith(workspacePath + '/'))
     .sort((a, b) => a.split('/').length - b.split('/').length)
 
   for (const dirPath of paths) {

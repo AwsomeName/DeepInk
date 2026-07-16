@@ -12,7 +12,11 @@
 import { ipcMain, app, shell, net, type BrowserWindow } from 'electron'
 import { createWriteStream } from 'fs'
 import { join } from 'path'
-import { checkForUpdates, startPeriodicCheck, type UpdateCheckResult } from '../updater/update-checker'
+import {
+  checkForUpdates,
+  startPeriodicCheck,
+  type UpdateCheckResult,
+} from '../updater/update-checker'
 
 /** 缓存最近一次发现的更新（供 download 通道使用） */
 let latestResult: UpdateCheckResult | null = null

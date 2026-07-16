@@ -11,7 +11,11 @@
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
 import type { ToolModule, ToolDefinition } from '../../types'
-import type { EditorContentUpdate, EditorReadRequest, EditorSaveRequest } from '../../../../shared/ipc/editor'
+import type {
+  EditorContentUpdate,
+  EditorReadRequest,
+  EditorSaveRequest,
+} from '../../../../shared/ipc/editor'
 
 /** 等待中的编辑器操作 */
 interface PendingOperation {
@@ -53,8 +57,7 @@ const EDITOR_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'editor_append',
-    description:
-      '在编辑器文档末尾追加 Markdown 内容。适用于逐步构建文档。',
+    description: '在编辑器文档末尾追加 Markdown 内容。适用于逐步构建文档。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -93,8 +96,7 @@ const EDITOR_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'editor_read',
-    description:
-      '读取当前编辑器文档的 Markdown 内容。返回完整的 Markdown 字符串。',
+    description: '读取当前编辑器文档的 Markdown 内容。返回完整的 Markdown 字符串。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -108,8 +110,7 @@ const EDITOR_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'editor_save',
-    description:
-      '保存当前编辑器内容到磁盘。文件必须已关联文件路径。',
+    description: '保存当前编辑器内容到磁盘。文件必须已关联文件路径。',
     inputSchema: {
       type: 'object',
       properties: {

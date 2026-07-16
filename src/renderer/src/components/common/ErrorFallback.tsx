@@ -8,10 +8,7 @@
 import type { CSSProperties } from 'react'
 
 /** 根级回退：全屏暗色页面，包含"重新加载"按钮 */
-export function RootErrorFallback(
-  error: Error,
-  retry: () => void,
-): React.ReactElement {
+export function RootErrorFallback(error: Error, retry: () => void): React.ReactElement {
   // 参数已解构为 error 和 retry，直接使用
   return (
     <div style={rootStyle}>
@@ -59,9 +56,7 @@ export function PanelErrorFallback({
       <div style={{ color: '#f48771', fontWeight: 600, marginBottom: 4 }}>
         {title ? `${title}遇到错误` : '此面板遇到错误'}
       </div>
-      <pre style={{ ...preStyle, maxHeight: 80, margin: '4px 0 12px' }}>
-        {error.message}
-      </pre>
+      <pre style={{ ...preStyle, maxHeight: 80, margin: '4px 0 12px' }}>{error.message}</pre>
       <button onClick={retry} style={buttonSecondaryStyle}>
         重试
       </button>

@@ -1,11 +1,10 @@
 import type { ConversationTabRef, Tab } from '../types'
 
-export type ResolvedConversationTab =
-  {
-    kind: 'local-agent'
-    tabId: string
-    conversationId: string
-  }
+export type ResolvedConversationTab = {
+  kind: 'local-agent'
+  tabId: string
+  conversationId: string
+}
 
 function resolveConversationRef(
   tabId: string,

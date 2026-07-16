@@ -123,7 +123,6 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
       editor.commands.setContent(md, { contentType: 'markdown' })
     }
     // 仅在 loading 从 true 变为 false 时执行
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editor, fileState?.loading])
 
   // --- 处理 Agent IPC 事件（读取请求、保存请求） ---
@@ -182,9 +181,7 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
     if (!editor || pendingCount === 0) return
 
     // 消费当前文件的待处理更新
-    const updates = useEditorStore.getState().consumePendingUpdates(
-      filePath ?? undefined,
-    )
+    const updates = useEditorStore.getState().consumePendingUpdates(filePath ?? undefined)
 
     for (const update of updates) {
       // 跳过已应用的更新
@@ -289,15 +286,8 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
 
   return (
     <div className="markdown-editor-wrapper">
-      <EditorToolbar
-        editor={editor}
-        filePath={filePath}
-        dirty={dirty}
-        onSave={handleSave}
-      />
-      <div className="tiptap-editor">
-        {editor && <EditorContent editor={editor} />}
-      </div>
+      <EditorToolbar editor={editor} filePath={filePath} dirty={dirty} onSave={handleSave} />
+      <div className="tiptap-editor">{editor && <EditorContent editor={editor} />}</div>
     </div>
   )
 }

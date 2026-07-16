@@ -66,7 +66,9 @@ export function BrowserToolbar({
           <IconZoomIn size={16} />
         </button>
         <button
-          className={browserState?.zoomMode === 'fit' && browserState?.viewMode === 'desktop' ? 'active' : ''}
+          className={
+            browserState?.zoomMode === 'fit' && browserState?.viewMode === 'desktop' ? 'active' : ''
+          }
           onClick={() => window.cclinkStudio.browser.fitWidth(tabId)}
           title="适应宽度（自动缩放以显示整页）"
         >

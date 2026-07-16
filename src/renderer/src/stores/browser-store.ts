@@ -82,9 +82,10 @@ function normalizeBrowserTabsSnapshot(value: unknown): Record<string, BrowserTab
       zoomMode: tab.zoomMode === 'manual' ? 'manual' : 'fit',
       zoomFactor: typeof tab.zoomFactor === 'number' ? tab.zoomFactor : 1,
       history,
-      historyIndex: typeof tab.historyIndex === 'number'
-        ? Math.min(Math.max(tab.historyIndex, 0), Math.max(history.length - 1, 0))
-        : 0,
+      historyIndex:
+        typeof tab.historyIndex === 'number'
+          ? Math.min(Math.max(tab.historyIndex, 0), Math.max(history.length - 1, 0))
+          : 0,
       ready: false,
     }
   }
@@ -142,7 +143,8 @@ export const useBrowserStore = create<BrowserState>((set, get) => ({
             url,
             urlInput: url,
             history: nav?.history?.length ? nav.history : tab.history,
-            historyIndex: typeof nav?.historyIndex === 'number' ? nav.historyIndex : tab.historyIndex,
+            historyIndex:
+              typeof nav?.historyIndex === 'number' ? nav.historyIndex : tab.historyIndex,
           },
         },
       }

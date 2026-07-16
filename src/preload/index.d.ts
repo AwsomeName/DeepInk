@@ -9,6 +9,7 @@ import type { FsApiContract } from '../shared/ipc/fs'
 import type { HardwareApiContract } from '../shared/ipc/hardware'
 import type { IdentityApiContract } from '../shared/ipc/identity'
 import type { MeshyApiContract } from '../shared/ipc/meshy'
+import type { OfficialApiContract } from '../shared/ipc/official'
 import type { ProjectOpsApiContract } from '../shared/ipc/project-ops'
 import type { SettingsApiContract } from '../shared/ipc/settings'
 import type { TerminalApiContract } from '../shared/ipc/terminal'
@@ -29,6 +30,8 @@ export interface CCLinkStudioAPI {
   dataSource: DataSourceApiContract
 
   identity: IdentityApiContract
+
+  official: OfficialApiContract
 
   agent: AgentApiContract
 

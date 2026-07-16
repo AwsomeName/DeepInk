@@ -1,7 +1,11 @@
 import { existsSync } from 'node:fs'
 import type { IPty, IPtyForkOptions } from 'node-pty'
 import * as pty from 'node-pty'
-import type { TerminalBackend, TerminalExecutionErrorInfo, TerminalExecutionEvent } from '../../shared/terminal'
+import type {
+  TerminalBackend,
+  TerminalExecutionErrorInfo,
+  TerminalExecutionEvent,
+} from '../../shared/terminal'
 import type {
   TerminalExecutionAdapter,
   TerminalExecutionEventListener,

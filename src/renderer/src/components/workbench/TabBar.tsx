@@ -1,13 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Tab } from '../../types'
-import {
-  IconClose,
-  IconFile,
-  IconGlobe,
-  IconPlus,
-  IconRobot,
-  IconTerminal,
-} from '../common/Icons'
+import { IconClose, IconFile, IconGlobe, IconPlus, IconRobot, IconTerminal } from '../common/Icons'
 
 const TAB_ICONS: Record<string, string> = {
   browser: '🌐',

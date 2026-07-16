@@ -1,7 +1,4 @@
-import type {
-  TerminalSubmitCommandInput,
-  TerminalSubmitCommandResult,
-} from '@shared/ipc/terminal'
+import type { TerminalSubmitCommandInput, TerminalSubmitCommandResult } from '@shared/ipc/terminal'
 import type { TerminalCommandActor, TerminalTabRef } from '@shared/terminal'
 import { workspaceRefKey } from '../../../shared/workspace-ref'
 import { recordTerminalLifecycleEvent } from './terminal-lifecycle'

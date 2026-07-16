@@ -88,10 +88,14 @@ export class ScrcpyBridge {
     // 1. 验证 scrcpy-server.jar 存在
     const jarPath = getServerJarPath()
     if (!existsSync(jarPath)) {
-      throw new Error(`scrcpy-server.jar 未找到: ${jarPath}。请确保 resources/scrcpy-server.jar 已放置。`)
+      throw new Error(
+        `scrcpy-server.jar 未找到: ${jarPath}。请确保 resources/scrcpy-server.jar 已放置。`,
+      )
     }
     const jarSize = statSync(jarPath).size
-    console.log(`[ScrcpyBridge] scrcpy-server.jar: ${jarPath} (${(jarSize / 1024 / 1024).toFixed(1)}MB)`)
+    console.log(
+      `[ScrcpyBridge] scrcpy-server.jar: ${jarPath} (${(jarSize / 1024 / 1024).toFixed(1)}MB)`,
+    )
 
     // 2. 通过 AdbServerClient 连接到本地 adb server
     const adbClient = new AdbServerClient(new NodeAdbServerConnector())
@@ -153,7 +157,6 @@ export class ScrcpyBridge {
    * - Uint8Array → ArrayBuffer（零拷贝转移）
    * - bigint → string（IPC 不原生支持 bigint）
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private forwardVideoFrames(stream: any): void {
     const reader = stream.getReader()
 
@@ -214,7 +217,10 @@ export class ScrcpyBridge {
     if (!controller) return
 
     // 将 action number 映射为 AndroidMotionEventAction 枚举值
-    const actionMap: Record<number, (typeof AndroidMotionEventAction)[keyof typeof AndroidMotionEventAction]> = {
+    const actionMap: Record<
+      number,
+      (typeof AndroidMotionEventAction)[keyof typeof AndroidMotionEventAction]
+    > = {
       0: AndroidMotionEventAction.Down,
       1: AndroidMotionEventAction.Up,
       2: AndroidMotionEventAction.Move,

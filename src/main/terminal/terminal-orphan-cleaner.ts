@@ -48,14 +48,24 @@ export async function cleanupTerminalOrphans(
     const pid = normalizePid(session.processId)
     if (!pid) {
       summary.missing += 1
-      await markUnrecoverable(store, session.sessionId, now(), 'CCLink Studio 已重启，原 Terminal 进程不可恢复')
+      await markUnrecoverable(
+        store,
+        session.sessionId,
+        now(),
+        'CCLink Studio 已重启，原 Terminal 进程不可恢复',
+      )
       continue
     }
 
     const alive = await isProcessAlive(pid)
     if (!alive) {
       summary.missing += 1
-      await markUnrecoverable(store, session.sessionId, now(), 'CCLink Studio 已重启，原 Terminal 进程不可恢复')
+      await markUnrecoverable(
+        store,
+        session.sessionId,
+        now(),
+        'CCLink Studio 已重启，原 Terminal 进程不可恢复',
+      )
       continue
     }
 
@@ -99,7 +109,8 @@ function isPossiblyLiveSession(session: TerminalSessionRecord): boolean {
 }
 
 function normalizePid(processId: string | number | undefined): number | null {
-  if (typeof processId === 'number' && Number.isSafeInteger(processId) && processId > 0) return processId
+  if (typeof processId === 'number' && Number.isSafeInteger(processId) && processId > 0)
+    return processId
   if (typeof processId !== 'string' || !/^\d+$/.test(processId.trim())) return null
   const pid = Number(processId)
   return Number.isSafeInteger(pid) && pid > 0 ? pid : null

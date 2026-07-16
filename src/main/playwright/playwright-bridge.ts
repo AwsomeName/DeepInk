@@ -1,4 +1,10 @@
-import { chromium, type Browser, type BrowserContext, type Page, type Download } from 'playwright-core'
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type Page,
+  type Download,
+} from 'playwright-core'
 import { randomUUID } from 'node:crypto'
 import type { WebContents } from 'electron'
 import { BROWSER_STEALTH_INIT_SCRIPT } from '../browser/browser-stealth'
@@ -231,7 +237,9 @@ export class PlaywrightBridge {
     // 对话框自动处理
     page.on('dialog', async (dialog) => {
       if (this.dialogAutoAction) {
-        console.log(`[CCLink Studio] 自动处理对话框: type=${dialog.type()}, message=${dialog.message()}`)
+        console.log(
+          `[CCLink Studio] 自动处理对话框: type=${dialog.type()}, message=${dialog.message()}`,
+        )
         if (this.dialogAutoAction === 'accept') {
           await dialog.accept(this.dialogAutoText ?? undefined)
         } else {
@@ -251,7 +259,9 @@ export class PlaywrightBridge {
     const tabId = this.getTabIdForPage(page) ?? this.activeTabId ?? 'browser'
     const task = this.browserTaskRuntime?.getActiveTaskForTab(tabId)
 
-    console.log(`[CCLink Studio] 下载已捕获: id=${downloadId}, filename=${download.suggestedFilename()}`)
+    console.log(
+      `[CCLink Studio] 下载已捕获: id=${downloadId}, filename=${download.suggestedFilename()}`,
+    )
 
     if (!this.browserDownloadStore) {
       return downloadId
@@ -367,7 +377,11 @@ export class PlaywrightBridge {
    * @param webContents 该 view 的 webContents
    * @param expectedUrl 该 view 预期加载的 URL（URL 兜底匹配 + 轮询用）
    */
-  async claimPageForView(tabId: string, webContents: WebContents, expectedUrl?: string): Promise<Page> {
+  async claimPageForView(
+    tabId: string,
+    webContents: WebContents,
+    expectedUrl?: string,
+  ): Promise<Page> {
     const context = this.context
     if (!context) throw new Error('Playwright context 未就绪，无法 claim page')
 
@@ -414,13 +428,15 @@ export class PlaywrightBridge {
     if (!page) {
       throw new Error(
         `claimPageForView 找不到匹配的 Playwright Page（tabId=${tabId}, url=${expectedUrl ?? 'n/a'}）` +
-        `。当前 context.pages()=${context.pages().length} 个`,
+          `。当前 context.pages()=${context.pages().length} 个`,
       )
     }
 
     // 用 tabId 注册（覆盖旧 key），监听 + 关闭清理由 registerPage 负责
     this.registerPage(page, tabId)
-    console.log(`[CCLink Studio] view 已 claim 为 Playwright Page: tabId=${tabId}, url=${page.url()}`)
+    console.log(
+      `[CCLink Studio] view 已 claim 为 Playwright Page: tabId=${tabId}, url=${page.url()}`,
+    )
     return page
   }
 
@@ -439,7 +455,7 @@ export class PlaywrightBridge {
   private pageTargetId(page: Page): string | null {
     try {
       // Playwright Page 暴露的 target 信息（不同版本字段位置略不同，尽力取）
-      const unparsed = (page as unknown as { _guid?: string; _target?: { _targetId?: string } })
+      const unparsed = page as unknown as { _guid?: string; _target?: { _targetId?: string } }
       return unparsed._target?._targetId ?? unparsed._guid ?? null
     } catch {
       return null
@@ -567,7 +583,8 @@ export class PlaywrightBridge {
       }))
     const recentNetwork = this.networkLog
       .filter((entry) => {
-        const statusIssue = typeof entry.status === 'number' && (entry.status >= 400 || entry.status === 0)
+        const statusIssue =
+          typeof entry.status === 'number' && (entry.status >= 400 || entry.status === 0)
         return Boolean(entry.failed || statusIssue)
       })
       .filter((entry) => !host || safeHost(entry.url) === host)
@@ -582,7 +599,9 @@ export class PlaywrightBridge {
         errorText: entry.errorText,
       }))
 
-    const textSample = await page.evaluate(() => document.body?.innerText?.slice(0, 3000) ?? '').catch(() => '')
+    const textSample = await page
+      .evaluate(() => document.body?.innerText?.slice(0, 3000) ?? '')
+      .catch(() => '')
     return {
       tabId: this.getTabIdForPage(page) ?? tabId ?? this.activeTabId ?? 'browser',
       url,
@@ -721,9 +740,15 @@ function detectPageChallenges(text: string): string[] {
       'auth_required',
       /\/(?:login|signin)\b|登录页|账号登录|密码登录|手机号登录|请输入(?:账号|密码|手机号|验证码)|sign\s*in|log\s*in|扫码登录/iu,
     ],
-    ['captcha_or_bot_check', /验证码|安全验证|人机验证|滑块|captcha|verify you are human|robot|bot check/iu],
+    [
+      'captcha_or_bot_check',
+      /验证码|安全验证|人机验证|滑块|captcha|verify you are human|robot|bot check/iu,
+    ],
     ['qr_login', /二维码|扫码登录|微信扫码|scan qr/iu],
-    ['rate_limited_or_blocked', /访问受限|操作频繁|请求过于频繁|429|too many requests|forbidden|403|风控/iu],
+    [
+      'rate_limited_or_blocked',
+      /访问受限|操作频繁|请求过于频繁|429|too many requests|forbidden|403|风控/iu,
+    ],
   ]
   return signals.flatMap(([label, pattern]) => (pattern.test(normalized) ? [label] : []))
 }

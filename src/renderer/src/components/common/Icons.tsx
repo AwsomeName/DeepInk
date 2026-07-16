@@ -206,7 +206,12 @@ export function IconClipboard(p: IconProps = defaults): React.ReactElement {
         strokeLinecap="round"
         opacity="0.72"
       />
-      <path d="M3 5.5H2.5A1.2 1.2 0 0 0 1.3 6.7v5.8" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" />
+      <path
+        d="M3 5.5H2.5A1.2 1.2 0 0 0 1.3 6.7v5.8"
+        stroke="currentColor"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+      />
     </>,
   )
 }

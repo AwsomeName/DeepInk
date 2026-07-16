@@ -22,7 +22,12 @@ interface ToolbarButton {
   onClick: () => void
 }
 
-export function EditorToolbar({ editor, filePath, dirty, onSave }: EditorToolbarProps): React.ReactElement {
+export function EditorToolbar({
+  editor,
+  filePath,
+  dirty,
+  onSave,
+}: EditorToolbarProps): React.ReactElement {
   if (!editor) return <></>
 
   const buttons: ToolbarButton[] = [

@@ -85,18 +85,35 @@ describe('TerminalAuditStore', () => {
       kind: 'created',
     })
 
-    expect((await store.listEvents({ terminalSessionId: 'terminal-local' })).map((event) => event.id))
-      .toEqual(['local'])
-    expect((await store.listEvents({ workspaceKey: 'official://agent/ws' })).map((event) => event.id))
-      .toEqual(['namespaced'])
+    expect(
+      (await store.listEvents({ terminalSessionId: 'terminal-local' })).map((event) => event.id),
+    ).toEqual(['local'])
+    expect(
+      (await store.listEvents({ workspaceKey: 'official://agent/ws' })).map((event) => event.id),
+    ).toEqual(['namespaced'])
   })
 
   it('limits to the latest events while keeping chronological order', async () => {
     const store = new TerminalAuditStore()
 
-    await store.recordEvent({ id: '1', terminalSessionId: 'terminal-1', timestamp: 1, kind: 'output' })
-    await store.recordEvent({ id: '2', terminalSessionId: 'terminal-1', timestamp: 2, kind: 'output' })
-    await store.recordEvent({ id: '3', terminalSessionId: 'terminal-1', timestamp: 3, kind: 'output' })
+    await store.recordEvent({
+      id: '1',
+      terminalSessionId: 'terminal-1',
+      timestamp: 1,
+      kind: 'output',
+    })
+    await store.recordEvent({
+      id: '2',
+      terminalSessionId: 'terminal-1',
+      timestamp: 2,
+      kind: 'output',
+    })
+    await store.recordEvent({
+      id: '3',
+      terminalSessionId: 'terminal-1',
+      timestamp: 3,
+      kind: 'output',
+    })
 
     expect((await store.listEvents({ limit: 2 })).map((event) => event.id)).toEqual(['2', '3'])
   })
@@ -104,8 +121,18 @@ describe('TerminalAuditStore', () => {
   it('clears one session without deleting other audit events', async () => {
     const store = new TerminalAuditStore()
 
-    await store.recordEvent({ id: 'a', terminalSessionId: 'terminal-a', timestamp: 1, kind: 'created' })
-    await store.recordEvent({ id: 'b', terminalSessionId: 'terminal-b', timestamp: 2, kind: 'created' })
+    await store.recordEvent({
+      id: 'a',
+      terminalSessionId: 'terminal-a',
+      timestamp: 1,
+      kind: 'created',
+    })
+    await store.recordEvent({
+      id: 'b',
+      terminalSessionId: 'terminal-b',
+      timestamp: 2,
+      kind: 'created',
+    })
 
     await store.clearSession('terminal-a')
 

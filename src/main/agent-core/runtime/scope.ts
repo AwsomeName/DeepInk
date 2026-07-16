@@ -18,21 +18,21 @@ export const DEFAULT_SCOPE: AgentScope = { kind: 'all' }
 /**
  * 把作用域映射为 Claude Code 的 --allowedTools glob 列表
  *
- * 服务端（单 MCP server `deepink`）照常广播全部 70 个工具；
+ * 服务端（单 MCP server `cclink_studio`）照常广播全部工具；
  * CLI 的客户端 allowlist 只把匹配的暴露给模型。
  * 注意：agent-device 模块的模块名是 `agent-device`，但工具前缀是 `agent_device_`（下划线）。
  */
 export function scopeToAllowedTools(scope: AgentScope): string[] {
   switch (scope.kind) {
     case 'all':
-      return ['mcp__deepink__*']
+      return ['mcp__cclink_studio__*']
     case 'browser':
-      return ['mcp__deepink__browser_*']
+      return ['mcp__cclink_studio__browser_*']
     case 'android':
       // android_* 与 agent_device_* 并存（互补：语义 UI 感知 + 坐标操作）
-      return ['mcp__deepink__android_*', 'mcp__deepink__agent_device_*']
+      return ['mcp__cclink_studio__android_*', 'mcp__cclink_studio__agent_device_*']
     case 'editor':
-      return ['mcp__deepink__editor_*']
+      return ['mcp__cclink_studio__editor_*']
   }
 }
 

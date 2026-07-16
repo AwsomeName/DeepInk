@@ -1,4 +1,8 @@
-import type { TerminalBackend, TerminalExecutionErrorInfo, TerminalExecutionEvent } from '../../shared/terminal'
+import type {
+  TerminalBackend,
+  TerminalExecutionErrorInfo,
+  TerminalExecutionEvent,
+} from '../../shared/terminal'
 import type {
   TerminalExecutionAdapter,
   TerminalExecutionEventListener,
@@ -57,7 +61,10 @@ export class NoopTerminalExecutionAdapter implements TerminalExecutionAdapter {
     }
   }
 
-  private createUnavailableError(sessionId: string, operation: string): TerminalExecutionAdapterUnavailableError {
+  private createUnavailableError(
+    sessionId: string,
+    operation: string,
+  ): TerminalExecutionAdapterUnavailableError {
     const executionError: TerminalExecutionErrorInfo = {
       layer: 'execution-backend',
       code: 'EXECUTION_BACKEND_UNAVAILABLE',

@@ -121,7 +121,15 @@ export function WorkbenchAgentConversation({
         savedQueries,
         query: resourceQuery ?? '',
       }),
-    [composerWorkspaceRef, dataSources, editorFiles, resourceQuery, savedQueries, selectedPath, tabs],
+    [
+      composerWorkspaceRef,
+      dataSources,
+      editorFiles,
+      resourceQuery,
+      savedQueries,
+      selectedPath,
+      tabs,
+    ],
   )
   const skillCandidates = useMemo(() => buildSkillCandidates(skillQuery ?? ''), [skillQuery])
   const updateMentionQueryFromInput = useCallback((text: string) => {

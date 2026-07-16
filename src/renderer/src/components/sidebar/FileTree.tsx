@@ -128,7 +128,11 @@ export function FileTree(): React.ReactElement {
       <div className="file-tree-empty">
         <div className="file-tree-empty-title">无法打开工作空间</div>
         <div className="file-tree-empty-hint">{error}</div>
-        <button className="file-tree-empty-btn" onClick={() => openWorkspacePicker()} disabled={loading || picking}>
+        <button
+          className="file-tree-empty-btn"
+          onClick={() => openWorkspacePicker()}
+          disabled={loading || picking}
+        >
           重新选择工作空间文件夹
         </button>
       </div>
@@ -141,7 +145,11 @@ export function FileTree(): React.ReactElement {
         <IconFolder size={28} />
         <div className="file-tree-empty-title">尚未打开工作空间</div>
         <div className="file-tree-empty-hint">打开一个文件夹作为工作空间</div>
-        <button className="file-tree-empty-btn" onClick={() => openWorkspacePicker()} disabled={loading || picking}>
+        <button
+          className="file-tree-empty-btn"
+          onClick={() => openWorkspacePicker()}
+          disabled={loading || picking}
+        >
           打开工作空间文件夹
         </button>
       </div>
@@ -239,14 +247,19 @@ function FileTreeNodeView({
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         onClick={() => {
           if (!isRenaming) {
-            isDir ? onDirClick(node) : onFileClick(node)
+            if (isDir) onDirClick(node)
+            else onFileClick(node)
           }
         }}
-        onContextMenu={(e) => { e.preventDefault(); showMenu(node, e.clientX, e.clientY) }}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          showMenu(node, e.clientX, e.clientY)
+        }}
       >
         {/* 展开/折叠箭头（目录才有） */}
         <span className="file-tree-arrow">
-          {isDir && (node.expanded ? <IconChevronDown size={10} /> : <IconChevronRight size={10} />)}
+          {isDir &&
+            (node.expanded ? <IconChevronDown size={10} /> : <IconChevronRight size={10} />)}
         </span>
 
         {/* 图标 */}
@@ -326,21 +339,21 @@ function InlineInput({
     inputRef.current?.focus()
   }, [])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      onConfirm(value)
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
-    }
-  }, [value, onConfirm, onCancel])
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onConfirm(value)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+    },
+    [value, onConfirm, onCancel],
+  )
 
   return (
-    <div
-      className="file-tree-item inline-editing"
-      style={{ paddingLeft: `${depth * 16 + 8}px` }}
-    >
+    <div className="file-tree-item inline-editing" style={{ paddingLeft: `${depth * 16 + 8}px` }}>
       <span className="file-tree-icon">{icon}</span>
       <input
         ref={inputRef}
@@ -378,15 +391,18 @@ function InlineInputBox({
     inputRef.current?.setSelectionRange(0, selEnd)
   }, [initialValue])
 
-  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      onConfirm(value)
-    } else if (e.key === 'Escape') {
-      e.preventDefault()
-      onCancel()
-    }
-  }, [value, onConfirm, onCancel])
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        onConfirm(value)
+      } else if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+    },
+    [value, onConfirm, onCancel],
+  )
 
   return (
     <input

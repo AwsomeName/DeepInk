@@ -13,6 +13,18 @@ export default tseslint.config(
         allowDefaultProject: ['src/preload/index.d.ts'],
       },
     },
+    rules: {
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+          destructuredArrayIgnorePattern: '^_',
+        },
+      ],
+    },
   },
   {
     files: ['src/**/*.test.ts', 'src/**/*.test.tsx'],

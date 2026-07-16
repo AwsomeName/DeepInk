@@ -35,7 +35,9 @@ function firstStringArray(source: unknown, paths: string[] | undefined): string[
     const value = getByPath(source, path)
     if (Array.isArray(value)) {
       const strings = value
-        .filter((item): item is string | number => typeof item === 'string' || typeof item === 'number')
+        .filter(
+          (item): item is string | number => typeof item === 'string' || typeof item === 'number',
+        )
         .map(String)
         .filter(Boolean)
       if (strings.length > 0) return strings

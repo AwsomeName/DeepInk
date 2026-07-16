@@ -45,7 +45,7 @@ CCLink Studio 的 Android 能力是本地真机能力，只面向用户自有 US
 - `pnpm test` 通过。
 - `pnpm build` 通过。
 - `bash scripts/restart.sh restart` 可以在没有官方仓库、没有 adb 的机器上启动 Studio。
-- 扫描不到 SDK/AVD/模拟器生命周期 API：`android:setup`、`android:listAvds`、`android:launch`、`EmulatorState`、`avdName`、`avdList`。
+- 扫描不到 SDK 下载、虚拟设备生命周期或托管设备服务的 IPC / preload / renderer 状态。
 
 ## 拷问
 

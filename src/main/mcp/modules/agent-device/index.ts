@@ -63,7 +63,8 @@ const AGENT_DEVICE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'agent_device_swipe',
-    description: '滑动手势（坐标式）。agent-device 的 swipe 仅支持坐标，与 android_swipe 功能相同，提供统一入口。',
+    description:
+      '滑动手势（坐标式）。agent-device 的 swipe 仅支持坐标，与 android_swipe 功能相同，提供统一入口。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -132,7 +133,10 @@ export class AgentDeviceToolModule implements ToolModule {
       nodeCount: nodes.length,
       hint: 'ref 仅在下次 agent_device_snapshot 前有效。操作后界面若变，须重新 snapshot 获取新 ref。',
       ...(truncated
-        ? { truncationHint: '节点数已达上限，未展示全部。可传 interactiveOnly:true 收窄，或聚焦特定区域。' }
+        ? {
+            truncationHint:
+              '节点数已达上限，未展示全部。可传 interactiveOnly:true 收窄，或聚焦特定区域。',
+          }
         : {}),
     }
   }
@@ -164,11 +168,7 @@ export class AgentDeviceToolModule implements ToolModule {
       throw new Error('agent_device_swipe 需要 fromX/fromY/toX/toY')
     }
     const durationMs = this.toNum(params.durationMs)
-    const ok = await this.manager.swipe(
-      { x: fromX, y: fromY },
-      { x: toX, y: toY },
-      durationMs,
-    )
+    const ok = await this.manager.swipe({ x: fromX, y: fromY }, { x: toX, y: toY }, durationMs)
     if (!ok) {
       throw new Error(
         'agent_device_swipe 失败（agent-device 不可用）。可改用 android_swipe 按坐标滑动。',
@@ -195,9 +195,10 @@ export class AgentDeviceToolModule implements ToolModule {
 
   // ─── 裁剪：去纯结构噪音，省 token ───
 
-  private trimNodes(
-    nodes: Array<Record<string, unknown>>,
-  ): { nodes: TrimmedNode[]; truncated: boolean } {
+  private trimNodes(nodes: Array<Record<string, unknown>>): {
+    nodes: TrimmedNode[]
+    truncated: boolean
+  } {
     const trimmed: TrimmedNode[] = []
     let hitLimit = false
     for (const node of nodes) {

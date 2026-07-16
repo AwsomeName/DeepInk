@@ -30,11 +30,13 @@ export async function restoreWorkspaceState(deps: WorkspaceBootstrapDeps): Promi
     deps.hydrateBrowserTabs(sections.browserTabs ?? { tabs: {} })
     deps.hydrateTabs(sections.tabs ?? { tabs: [], activeTabId: null })
     deps.hydrateEditorDrafts(sections.editorDrafts ?? { files: {} })
-    deps.hydrateAgentConversations(sections.agentConversations ?? {
-      conversations: {},
-      conversationOrder: [],
-      activeConversationId: null,
-    })
+    deps.hydrateAgentConversations(
+      sections.agentConversations ?? {
+        conversations: {},
+        conversationOrder: [],
+        activeConversationId: null,
+      },
+    )
   } catch (error) {
     deps.warn('[WorkspaceBootstrap] 全局工作台状态恢复失败:', error)
   } finally {

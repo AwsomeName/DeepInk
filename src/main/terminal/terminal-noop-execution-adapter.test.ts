@@ -51,7 +51,9 @@ describe('NoopTerminalExecutionAdapter', () => {
   it('preserves the execution error on rejected operations', async () => {
     const adapter = new NoopTerminalExecutionAdapter({ backend: 'custom' })
 
-    await expect(adapter.write({ sessionId: 'terminal-2', data: 'pwd', actor: 'user' })).rejects.toMatchObject({
+    await expect(
+      adapter.write({ sessionId: 'terminal-2', data: 'pwd', actor: 'user' }),
+    ).rejects.toMatchObject({
       executionError: {
         layer: 'execution-backend',
         code: 'EXECUTION_BACKEND_UNAVAILABLE',

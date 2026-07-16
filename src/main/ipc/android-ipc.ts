@@ -158,9 +158,12 @@ export function registerAndroidIpc(
   })
 
   /** 触摸事件（渲染进程 → 主进程，用于注入到设备） */
-  ipcMain.on('scrcpy:touch', (_event, data: { action: number; x: number; y: number; pressure: number }) => {
-    scrcpyBridge.injectTouch(data.action, data.x, data.y, data.pressure).catch((err: Error) => {
-      console.warn('[AndroidIpc] injectTouch 失败:', err.message)
-    })
-  })
+  ipcMain.on(
+    'scrcpy:touch',
+    (_event, data: { action: number; x: number; y: number; pressure: number }) => {
+      scrcpyBridge.injectTouch(data.action, data.x, data.y, data.pressure).catch((err: Error) => {
+        console.warn('[AndroidIpc] injectTouch 失败:', err.message)
+      })
+    },
+  )
 }

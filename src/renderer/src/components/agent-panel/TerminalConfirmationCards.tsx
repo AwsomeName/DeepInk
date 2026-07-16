@@ -47,9 +47,7 @@ export function TerminalConfirmationCards(): React.ReactElement | null {
               </div>
               <div className="confirmation-row">
                 <span className="confirmation-label">位置:</span>
-                <span className="confirmation-value">
-                  {formatTerminalRuntime(request.runtime)}
-                </span>
+                <span className="confirmation-value">{formatTerminalRuntime(request.runtime)}</span>
               </div>
               {request.cwd && (
                 <div className="confirmation-row">

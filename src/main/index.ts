@@ -1,7 +1,11 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
 import { cleanupIpcHandlers } from './ipc/ipc-cleanup'
-import { configureAppCommandLine, ensureSingleInstance, registerProcessErrorHandlers } from './runtime/app-lifecycle'
+import {
+  configureAppCommandLine,
+  ensureSingleInstance,
+  registerProcessErrorHandlers,
+} from './runtime/app-lifecycle'
 import { createRuntimeState } from './runtime/app-runtime'
 import { createWindowRuntime } from './runtime/window-runtime'
 import { bootstrapRuntime } from './runtime/bootstrap-runtime'

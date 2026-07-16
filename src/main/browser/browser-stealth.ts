@@ -82,7 +82,7 @@ export const BROWSER_STEALTH_INIT_SCRIPT = String.raw`
 
 export function normalizeDesktopUserAgent(userAgent: string): string {
   return userAgent
-    .replace(/\s+(Electron|deepink)\/[\d.]+/gi, '')
+    .replace(/\s+(Electron|cclink-studio|cclinkstudio)\/[\d.]+/gi, '')
     .replace(/\s{2,}/g, ' ')
     .trim()
 }

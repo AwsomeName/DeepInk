@@ -51,9 +51,7 @@ function getConversationRuntime(conversation?: ConversationTabRef): {
   }
 }
 
-function getConversationKey(
-  tab: Pick<Tab, 'type' | 'conversation'>,
-): string | null {
+function getConversationKey(tab: Pick<Tab, 'type' | 'conversation'>): string | null {
   if (tab.type === 'conversation') {
     const runtime = getConversationRuntime(tab.conversation)
     return runtime ? `${runtime.location}:${runtime.transport}:${runtime.sessionId}` : null
@@ -257,7 +255,8 @@ export const useTabStore = create<TabState>((set, get) => ({
           const targetKey = getDataSourceQueryKey(dataSourceQuery)
           const existing = state.tabs.find(
             (t) =>
-              t.type === 'data-source-query' && getDataSourceQueryKey(t.dataSourceQuery) === targetKey,
+              t.type === 'data-source-query' &&
+              getDataSourceQueryKey(t.dataSourceQuery) === targetKey,
           )
           if (existing) {
             return { activeTabId: existing.id }

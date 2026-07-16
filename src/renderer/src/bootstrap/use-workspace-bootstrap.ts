@@ -1,5 +1,12 @@
 import { useEffect, useState } from 'react'
-import { useAgentStore, useBrowserStore, useEditorStore, useFsStore, useTabStore, useUIStore } from '../stores'
+import {
+  useAgentStore,
+  useBrowserStore,
+  useEditorStore,
+  useFsStore,
+  useTabStore,
+  useUIStore,
+} from '../stores'
 import {
   beginWorkspaceStateRestore,
   endWorkspaceStateRestore,

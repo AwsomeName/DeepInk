@@ -32,8 +32,10 @@ bash scripts/restart.sh status
 
 ```bash
 pnpm typecheck
+pnpm lint
 pnpm test
 pnpm build
+pnpm verify
 git diff --check
 ```
 
@@ -47,8 +49,10 @@ cclink-studio/
 │   ├── README.md
 │   ├── architecture.md
 │   ├── development.md
-│   └── official-integration-contract.md
+│   ├── official-integration-contract.md
+│   └── ops/cclink-dev-official-integration-handoff.md
 ├── scripts/
+│   ├── verify-oss-boundary.mjs
 │   ├── package.sh
 │   ├── restart.sh
 │   └── baidu-login.mjs
@@ -56,7 +60,7 @@ cclink-studio/
 │   ├── main/
 │   │   ├── agent/              # Agent bridge and conversation context
 │   │   ├── agent-core/         # local Claude Code backend and tools
-│   │   ├── android/            # local device / emulator integration
+│   │   ├── android/            # local physical-device integration
 │   │   ├── browser/            # WebContentsView browser shell
 │   │   ├── cdp/                # CDP port discovery
 │   │   ├── editor/             # markdown editor services

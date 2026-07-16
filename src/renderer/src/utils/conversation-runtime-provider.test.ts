@@ -80,5 +80,4 @@ describe('conversation-runtime-provider', () => {
     expect(cancelStreaming).toHaveBeenCalledWith('agent-1')
     expect(addSystemMessage).toHaveBeenCalledWith('已手动中止当前任务', 'agent-1')
   })
-
 })

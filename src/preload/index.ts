@@ -137,6 +137,11 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
     getLocalIdentity: () => ipcRenderer.invoke('identity:getLocalIdentity'),
   },
 
+  // 官方集成探针：OSS 默认返回未安装，不暴露账号/凭证/消息网络能力。
+  official: {
+    getStatus: () => ipcRenderer.invoke('official:getStatus'),
+  },
+
   // Agent / Playwright / AI 后端
   agent: {
     // ─── AI 对话 ────────────────────────────────

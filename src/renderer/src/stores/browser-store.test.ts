@@ -100,11 +100,11 @@ describe('useBrowserStore', () => {
         tabs: {
           browser: browserTab('https://example.com'),
           'browser-2': {
-            ...browserTab('https://deepink.app'),
+            ...browserTab('https://cclink.studio'),
             viewMode: 'mobile',
             zoomMode: 'manual',
             zoomFactor: 0.8,
-            history: ['https://a.test', 'https://deepink.app'],
+            history: ['https://a.test', 'https://cclink.studio'],
             historyIndex: 1,
             ready: true,
           },
@@ -116,7 +116,7 @@ describe('useBrowserStore', () => {
       expect(state.tabs['browser-2'].viewMode).toBe('mobile')
       expect(state.tabs['browser-2'].zoomMode).toBe('manual')
       expect(state.tabs['browser-2'].zoomFactor).toBe(0.8)
-      expect(state.tabs['browser-2'].history).toEqual(['https://a.test', 'https://deepink.app'])
+      expect(state.tabs['browser-2'].history).toEqual(['https://a.test', 'https://cclink.studio'])
       expect(state.tabs['browser-2'].historyIndex).toBe(1)
       expect(state.tabs['browser-2'].ready).toBe(false)
     })

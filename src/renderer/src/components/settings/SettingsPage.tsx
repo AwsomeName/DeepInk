@@ -436,7 +436,9 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
                     className="settings-select"
                     value={settings.defaultZoomMode}
                     onChange={(event) =>
-                      update({ defaultZoomMode: event.target.value as AppSettings['defaultZoomMode'] })
+                      update({
+                        defaultZoomMode: event.target.value as AppSettings['defaultZoomMode'],
+                      })
                     }
                   >
                     <option value="fit">适应宽度</option>
@@ -569,7 +571,8 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
                 <div className="settings-label">
                   <span>当前阶段</span>
                   <span className="settings-description">
-                    官方账号、同步、发布和网络运行时由 cclink-dev 与 chat-cc 承接，本仓库保留本地 Agent、浏览器、编辑器、文件和终端能力。
+                    官方账号、同步、发布和网络运行时由 cclink-dev 与 chat-cc 承接，本仓库保留本地
+                    Agent、浏览器、编辑器、文件和终端能力。
                   </span>
                 </div>
               </div>

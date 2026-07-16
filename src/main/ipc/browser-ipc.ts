@@ -28,12 +28,7 @@ export function registerBrowserIpc(
   // opts.restore：从快照重建时传入，恢复 viewMode/zoom
   ipcMain.handle(
     'browser:createView',
-    (
-      _event,
-      tabId: string,
-      initialUrl?: string,
-      opts?: BrowserCreateViewOptions,
-    ) => {
+    (_event, tabId: string, initialUrl?: string, opts?: BrowserCreateViewOptions) => {
       browserManager.createView(tabId, initialUrl, opts)
     },
   )

@@ -535,7 +535,7 @@ src/renderer/src/components/data-sources/
 | 文件 | 改动 |
 |------|------|
 | `src/main/index.ts` | 注册 DataSourceService、IPC、MCP module |
-| `src/preload/index.ts` | 暴露 `deepink.dataSource` |
+| `src/preload/index.ts` | 暴露 `cclinkStudio.dataSource` |
 | `src/preload/index.d.ts` | 补充 DataSource API 类型 |
 | `src/renderer/src/types/index.ts` | 增加 Data Source Tab 类型 |
 | `src/renderer/src/stores/ui-store.ts` | 增加 Activity Bar data-sources 状态 |

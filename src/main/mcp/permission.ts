@@ -47,7 +47,7 @@ export class PermissionManager {
   setMode(mode: PermissionMode): void {
     this.mode = mode
     // 切换模式时清除所有等待中的确认（全部拒绝）
-    for (const [id, pending] of this.pending) {
+    for (const pending of this.pending.values()) {
       clearTimeout(pending.timeout)
       pending.resolve(false)
     }
@@ -147,7 +147,9 @@ export class PermissionManager {
       console.log(`[PermissionManager] 始终允许: ${pending.request.toolName}`)
     }
 
-    console.log(`[PermissionManager] 确认结果: ${pending.request.toolName} → ${approved ? '允许' : '拒绝'}`)
+    console.log(
+      `[PermissionManager] 确认结果: ${pending.request.toolName} → ${approved ? '允许' : '拒绝'}`,
+    )
     pending.resolve(approved)
   }
 

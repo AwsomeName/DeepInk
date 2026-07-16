@@ -16,7 +16,12 @@ interface ToggleProps {
   className?: string
 }
 
-export function Toggle({ checked, onChange, disabled = false, className = '' }: ToggleProps): React.ReactElement {
+export function Toggle({
+  checked,
+  onChange,
+  disabled = false,
+  className = '',
+}: ToggleProps): React.ReactElement {
   return (
     <button
       type="button"

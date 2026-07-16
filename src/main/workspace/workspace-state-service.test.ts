@@ -57,8 +57,12 @@ describe('WorkspaceStateService', () => {
     await service.setSection('/tmp/a', 'fileTree', { selectedPath: '/tmp/a/one.md' })
     await service.setSection('/tmp/b', 'fileTree', { selectedPath: '/tmp/b/two.md' })
 
-    expect(service.getSnapshot('/tmp/a').sections.fileTree).toEqual({ selectedPath: '/tmp/a/one.md' })
-    expect(service.getSnapshot('/tmp/b').sections.fileTree).toEqual({ selectedPath: '/tmp/b/two.md' })
+    expect(service.getSnapshot('/tmp/a').sections.fileTree).toEqual({
+      selectedPath: '/tmp/a/one.md',
+    })
+    expect(service.getSnapshot('/tmp/b').sections.fileTree).toEqual({
+      selectedPath: '/tmp/b/two.md',
+    })
   })
 
   it('keeps owner scoped state isolated for the same workspace', async () => {
@@ -201,7 +205,9 @@ describe('WorkspaceStateService', () => {
 
     await Promise.all([
       service.setSection('/tmp/a', 'tabs', { activeTabId: 'tab-a' }),
-      service.setSection('/tmp/a', 'browserTabs', { tabs: { browser: { url: 'https://example.com' } } }),
+      service.setSection('/tmp/a', 'browserTabs', {
+        tabs: { browser: { url: 'https://example.com' } },
+      }),
       service.setSection('/tmp/a', 'editorDrafts', { files: { draft: { dirty: true } } }),
       service.setSection('/tmp/a', 'agentConversations', { conversationOrder: ['agent-a'] }),
     ])

@@ -62,7 +62,7 @@ export function registerSettingsIpc(
 
       // API 配置变更：热重载后端
       const agentBridge = getAgentBridge()
-      if (agentBridge && Object.keys(partial).some(k => AGENT_SETTING_KEYS.has(k))) {
+      if (agentBridge && Object.keys(partial).some((k) => AGENT_SETTING_KEYS.has(k))) {
         try {
           agentBridge.reconfigure(updated)
         } catch (err) {

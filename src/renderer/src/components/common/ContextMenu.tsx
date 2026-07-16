@@ -57,7 +57,12 @@ export function ContextMenu(): React.ReactElement | null {
   /** 新建文件夹 */
   const handleNewFolder = (): void => {
     if (!node) return
-    const parentPath = node.type === 'directory' ? node.path : (node.path.lastIndexOf('/') > 0 ? node.path.slice(0, node.path.lastIndexOf('/')) : '/')
+    const parentPath =
+      node.type === 'directory'
+        ? node.path
+        : node.path.lastIndexOf('/') > 0
+          ? node.path.slice(0, node.path.lastIndexOf('/'))
+          : '/'
     if (node.type === 'directory' && !node.expanded) void toggleDir(node.path)
     startEditing('new-folder', parentPath)
     hide()
@@ -66,7 +71,12 @@ export function ContextMenu(): React.ReactElement | null {
   /** 新建文件 */
   const handleNewFile = (): void => {
     if (!node) return
-    const parentPath = node.type === 'directory' ? node.path : (node.path.lastIndexOf('/') > 0 ? node.path.slice(0, node.path.lastIndexOf('/')) : '/')
+    const parentPath =
+      node.type === 'directory'
+        ? node.path
+        : node.path.lastIndexOf('/') > 0
+          ? node.path.slice(0, node.path.lastIndexOf('/'))
+          : '/'
     if (node.type === 'directory' && !node.expanded) void toggleDir(node.path)
     startEditing('new-file', parentPath)
     hide()

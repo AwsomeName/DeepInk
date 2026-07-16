@@ -113,9 +113,7 @@ export function CommandPalette(): React.ReactElement {
 
         {/* 命令列表（按分类分组） */}
         <div className="command-palette-list">
-          {filtered.length === 0 && (
-            <div className="command-palette-empty">没有匹配的命令</div>
-          )}
+          {filtered.length === 0 && <div className="command-palette-empty">没有匹配的命令</div>}
           {grouped.map((group) => (
             <div key={group.category} className="command-palette-group">
               <div className="command-palette-category-header">{group.category}</div>
@@ -131,9 +129,7 @@ export function CommandPalette(): React.ReactElement {
                     onMouseEnter={() => setSelectedIndex(idx)}
                   >
                     <span className="command-palette-label">{cmd.label}</span>
-                    {cmd.shortcut && (
-                      <kbd className="command-palette-shortcut">{cmd.shortcut}</kbd>
-                    )}
+                    {cmd.shortcut && <kbd className="command-palette-shortcut">{cmd.shortcut}</kbd>}
                   </div>
                 )
               })}

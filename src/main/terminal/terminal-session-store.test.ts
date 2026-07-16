@@ -87,7 +87,12 @@ describe('TerminalSessionStore', () => {
   it('marks exited sessions as non-attachable', async () => {
     const store = new TerminalSessionStore()
 
-    await store.upsertSession({ sessionId: 'terminal-1', runtime, status: 'running', attachable: true })
+    await store.upsertSession({
+      sessionId: 'terminal-1',
+      runtime,
+      status: 'running',
+      attachable: true,
+    })
     await store.appendExecutionEvent({
       kind: 'exit',
       sessionId: 'terminal-1',

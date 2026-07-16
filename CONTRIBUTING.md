@@ -1,6 +1,6 @@
-# Contributing to DeepInk
+# Contributing to CCLink Studio
 
-First off, thank you for considering contributing to DeepInk! 🎉
+Thank you for considering a contribution to CCLink Studio.
 
 ## Code of Conduct
 
@@ -9,8 +9,8 @@ This project and everyone participating in it is governed by the [Contributor Co
 ## Quick Start
 
 ```bash
-git clone https://github.com/deepink-app/deepink.git
-cd deepink
+git clone https://github.com/AwsomeName/cclink-studio.git
+cd cclink-studio
 pnpm install
 pnpm dev
 ```
@@ -21,24 +21,21 @@ pnpm dev
 - Node.js 20+
 - pnpm 9+
 
-### AI Backend (BYOK)
+### Agent Backend
 
-DeepInk **does not provide** AI services. You'll need to bring your own:
+CCLink Studio OSS does not provide model services. Use a local or user-owned Agent backend.
 
-**Option A: Claude Code CLI (recommended)**
+**Local Claude Code CLI**
 ```bash
 npm install -g @anthropic-ai/claude-code
-claude config set apiKey sk-ant-xxxxx
+claude login
 ```
-
-**Option B: OpenAI-compatible HTTP API**
-Configure provider, API key, and model in the DeepInk Settings page.
 
 ## How to Contribute
 
 ### 1. Find or Create an Issue
 
-- Check [existing issues](https://github.com/deepink-app/deepink/issues) for something you'd like to work on
+- Check [existing issues](https://github.com/AwsomeName/cclink-studio/issues) for something you'd like to work on
 - If you're adding a new feature, please open a feature request issue first to discuss the approach
 
 ### 2. Branch
@@ -53,7 +50,7 @@ Use prefix `feat/` for features, `fix/` for bug fixes, `docs/` for documentation
 
 - Write code following the project conventions (see below)
 - Keep commits clean and focused
-- Run `pnpm lint` and `pnpm test` before submitting
+- Run `pnpm verify` before submitting
 
 ### 4. Commit
 
@@ -99,20 +96,18 @@ Main process is organized by domain:
 - `agent/` — AI Agent backend (Claude Code CLI / HTTP API)
 - `android/` — ADB + scrcpy device control
 - `mcp/` — Modular MCP tool system (browser/editor/android)
-- `auth/` — Auth HTTP client (cloud service)
-- `subscription/` — Subscription HTTP client (cloud service)
-- `sync/` — WebDAV sync engine
 - `settings/` — Settings persistence
 - `fs/` — File system service
 
 See [docs/architecture.md](docs/architecture.md) for full details.
 
-## Cloud Services Note
+## Boundary
 
-DeepInk follows the VSCode model:
+CCLink Studio is the open source desktop shell. It must run without official production endpoints or official account services.
 
-- **Core desktop app**: Fully open source (GPL v3). Build and run from source with `pnpm install && pnpm dev`.
-- **Cloud services** (authentication, subscription, payment): Server-side code is in a **separate private repository** (`private-serv`). The client-side HTTP code for these services is open source and designed for graceful degradation — all core features work without the cloud backend.
+Do not add official account, subscription, quota, payment, message-network, cloud-sync, network-workspace, signing, notarization, artifact-upload, Android SDK download, AVD management, emulator launch, or hosted-device implementations to the OSS default path.
+
+Official integration belongs to `/Users/apple/Desktop/cclink-dev` and `/Users/apple/Desktop/chat-cc`.
 
 ## Testing
 

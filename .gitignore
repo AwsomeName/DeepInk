@@ -7,9 +7,6 @@ dist/
 release/
 *.tsbuildinfo
 
-# 云函数打包产物（由 cloud/build-zip.sh 生成，不入库）
-cloud/*.zip
-
 # ─── Electron 打包输出 ─────────────────────────────
 *.dmg
 *.app

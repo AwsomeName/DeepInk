@@ -6,7 +6,11 @@ import {
   useWorkspaceStore,
 } from '../../stores'
 import { IconLink, IconRobot, IconCircle } from '../common/Icons'
-import { workspaceRefKey, workspaceRefLabel, workspaceRefSourceLabel } from '../../../../shared/workspace-ref'
+import {
+  workspaceRefKey,
+  workspaceRefLabel,
+  workspaceRefSourceLabel,
+} from '../../../../shared/workspace-ref'
 
 /** Agent 状态 → 显示文本 */
 const AGENT_STATUS_MAP: Record<string, { text: string; color: string }> = {
@@ -36,7 +40,7 @@ export function StatusBar(): React.ReactElement {
   const { hasUpdate, latestVersion, downloading, setDownloading, clear } = useUpdateStore()
 
   const agentStatus = AGENT_STATUS_MAP[backendState] ?? AGENT_STATUS_MAP.disconnected
-  const tabLabel = activeTab ? TAB_TYPE_LABEL[activeTab.type] ?? activeTab.title : ''
+  const tabLabel = activeTab ? (TAB_TYPE_LABEL[activeTab.type] ?? activeTab.title) : ''
 
   const handleDownloadUpdate = async (): Promise<void> => {
     setDownloading(true)
@@ -58,11 +62,7 @@ export function StatusBar(): React.ReactElement {
       </span>
 
       {/* 活跃 Tab 信息 */}
-      {tabLabel && (
-        <span className="status-bar-item">
-          {tabLabel}
-        </span>
-      )}
+      {tabLabel && <span className="status-bar-item">{tabLabel}</span>}
 
       <span className="status-bar-item" title={workspaceRefKey(activeWorkspaceRef) ?? '未归档'}>
         {workspaceRefSourceLabel(activeWorkspaceRef)} · {workspaceRefLabel(activeWorkspaceRef)}
@@ -90,9 +90,7 @@ export function StatusBar(): React.ReactElement {
       )}
 
       {/* 右侧：版本 */}
-      <span className="status-bar-item">
-        CCLink Studio v0.1.0
-      </span>
+      <span className="status-bar-item">CCLink Studio v0.1.0</span>
     </div>
   )
 }

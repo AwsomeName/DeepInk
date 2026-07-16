@@ -76,9 +76,7 @@ function DefaultErrorFallback({
       }}
     >
       <div style={{ fontSize: 32, marginBottom: 12 }}>⚠️</div>
-      <h3 style={{ margin: '0 0 8px', color: '#fff', fontWeight: 600 }}>
-        出了点问题
-      </h3>
+      <h3 style={{ margin: '0 0 8px', color: '#fff', fontWeight: 600 }}>出了点问题</h3>
       <pre
         style={{
           maxWidth: '100%',

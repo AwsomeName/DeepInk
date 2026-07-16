@@ -186,16 +186,26 @@ describe('useTabStore', () => {
         type: 'data-source-query',
         title: '最近文章',
         icon: '🗄️',
-        dataSourceQuery: { sourceId: 'source-1', collection: 'articles-*', savedQueryId: 'saved-1' },
+        dataSourceQuery: {
+          sourceId: 'source-1',
+          collection: 'articles-*',
+          savedQueryId: 'saved-1',
+        },
       })
       useTabStore.getState().openTab({
         type: 'data-source-query',
         title: '热门文章',
         icon: '🗄️',
-        dataSourceQuery: { sourceId: 'source-1', collection: 'articles-*', savedQueryId: 'saved-2' },
+        dataSourceQuery: {
+          sourceId: 'source-1',
+          collection: 'articles-*',
+          savedQueryId: 'saved-2',
+        },
       })
 
-      const dataSourceTabs = useTabStore.getState().tabs.filter((tab) => tab.type === 'data-source-query')
+      const dataSourceTabs = useTabStore
+        .getState()
+        .tabs.filter((tab) => tab.type === 'data-source-query')
       expect(dataSourceTabs).toHaveLength(3)
       expect(dataSourceTabs[0].id).toBe(adHocId)
     })

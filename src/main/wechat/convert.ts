@@ -311,9 +311,7 @@ md.renderer.rules.code_block = (tokens, idx) => {
  */
 export function convertMarkdownToWechatHTML(markdown: string): string {
   // 预处理：GFM task list → Unicode checkbox
-  let src = markdown
-    .replace(/^- \[x\] /gm, '- ☑ ')
-    .replace(/^- \[ \] /gm, '- ☐ ')
+  const src = markdown.replace(/^- \[x\] /gm, '- ☑ ').replace(/^- \[ \] /gm, '- ☐ ')
 
   // 1. Markdown → HTML
   let html = md.render(src)

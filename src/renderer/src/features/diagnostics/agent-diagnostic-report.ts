@@ -13,7 +13,11 @@ import type {
   PermissionMode,
 } from '../../types'
 import type { AgentConversationState } from '../../stores/agent-store'
-import { workspaceRefKey, workspaceRefLabel, workspaceRefSourceLabel } from '../../../../shared/workspace-ref'
+import {
+  workspaceRefKey,
+  workspaceRefLabel,
+  workspaceRefSourceLabel,
+} from '../../../../shared/workspace-ref'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
 
 const MAX_TIMELINE_ITEMS = 100
@@ -24,7 +28,8 @@ const SENSITIVE_ASSIGNMENT_RE =
   /((?:password|passwd|pwd|token|secret|cookie|authorization|api[-_]?key|session|验证码|校验码|短信验证码|code|密码)\s*[:：=]\s*)(?!\[redacted\])([^\s,;，。]+)/gi
 const PHONE_RE = /(?<!\d)(1[3-9]\d)(\d{4})(\d{4})(?!\d)/g
 const EMAIL_RE = /\b([A-Z0-9._%+-]{2})[A-Z0-9._%+-]*(@[A-Z0-9.-]+\.[A-Z]{2,})\b/gi
-const QUERY_SECRET_RE = /([?&](?:token|access_token|auth|authorization|session|code|key|secret)=)[^&#\s]+/gi
+const QUERY_SECRET_RE =
+  /([?&](?:token|access_token|auth|authorization|session|code|key|secret)=)[^&#\s]+/gi
 
 export interface BrowserDiagnosticSnapshot {
   tabId: string | null
@@ -164,7 +169,9 @@ function buildTimeline(input: AgentDiagnosticReportInput): TimelineEvent[] {
     summary: `${download.status} ${download.suggestedFilename} (${download.trigger}/${download.retention})`,
   }))
 
-  return [...messageEvents, ...actionEvents, ...downloadEvents].sort((a, b) => a.timestamp - b.timestamp)
+  return [...messageEvents, ...actionEvents, ...downloadEvents].sort(
+    (a, b) => a.timestamp - b.timestamp,
+  )
 }
 
 function messageToEvents(message: AgentMessage): TimelineEvent[] {
@@ -184,7 +191,8 @@ function messageToEvents(message: AgentMessage): TimelineEvent[] {
 }
 
 function actionLogToEvents(log: BrowserActionLog): TimelineEvent[] {
-  const duration = typeof log.endedAt === 'number' ? `${Math.max(0, log.endedAt - log.startedAt)}ms` : 'running'
+  const duration =
+    typeof log.endedAt === 'number' ? `${Math.max(0, log.endedAt - log.startedAt)}ms` : 'running'
   const base = `${log.action} ${duration} ${redactText(log.paramsSummary)}`
   const events: TimelineEvent[] = [
     {
@@ -197,9 +205,10 @@ function actionLogToEvents(log: BrowserActionLog): TimelineEvent[] {
     events.push({
       timestamp: log.endedAt,
       kind: log.status === 'failed' ? 'browser_action_fail' : 'browser_action_done',
-      summary: log.status === 'failed'
-        ? `${log.action} failed reason=${log.failureReason ?? 'unknown'} error=${redactText(log.errorMessage ?? '-')}`
-        : `${log.action} ${log.status} ${duration}`,
+      summary:
+        log.status === 'failed'
+          ? `${log.action} failed reason=${log.failureReason ?? 'unknown'} error=${redactText(log.errorMessage ?? '-')}`
+          : `${log.action} ${log.status} ${duration}`,
     })
   }
   return events
@@ -258,18 +267,24 @@ function formatPageDiagnostics(summary?: BrowserPageDiagnosticSummary | null): s
   ]
   if (summary.consoleErrors.length > 0) {
     lines.push('- Console：')
-    lines.push(...summary.consoleErrors.slice(-5).map((entry) => {
-      return `  - [${formatTime(entry.timestamp)}] ${entry.type}: ${redactText(entry.text)}`
-    }))
+    lines.push(
+      ...summary.consoleErrors.slice(-5).map((entry) => {
+        return `  - [${formatTime(entry.timestamp)}] ${entry.type}: ${redactText(entry.text)}`
+      }),
+    )
   } else {
     lines.push('- Console：无 error/warn')
   }
   if (summary.networkIssues.length > 0) {
     lines.push('- Network：')
-    lines.push(...summary.networkIssues.slice(-8).map((entry) => {
-      const status = entry.failed ? `failed:${entry.errorText ?? 'unknown'}` : `status:${entry.status ?? 'unknown'}`
-      return `  - [${formatTime(entry.timestamp)}] ${entry.method} ${status} ${redactUrl(entry.url)}`
-    }))
+    lines.push(
+      ...summary.networkIssues.slice(-8).map((entry) => {
+        const status = entry.failed
+          ? `failed:${entry.errorText ?? 'unknown'}`
+          : `status:${entry.status ?? 'unknown'}`
+        return `  - [${formatTime(entry.timestamp)}] ${entry.method} ${status} ${redactUrl(entry.url)}`
+      }),
+    )
   } else {
     lines.push('- Network：无失败/4xx/5xx')
   }

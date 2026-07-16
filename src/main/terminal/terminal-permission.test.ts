@@ -108,7 +108,9 @@ describe('evaluateTerminalPermission', () => {
       allowlist: ['curl https://internal.example/health'],
     }
 
-    expect(evaluateTerminalPermission('curl https://internal.example/health', policy)).toMatchObject({
+    expect(
+      evaluateTerminalPermission('curl https://internal.example/health', policy),
+    ).toMatchObject({
       action: 'allow',
       risk: 'network',
       matchedRule: 'curl https://internal.example/health',

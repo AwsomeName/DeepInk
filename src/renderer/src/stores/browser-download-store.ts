@@ -10,12 +10,13 @@ interface BrowserDownloadState {
 export const useBrowserDownloadStore = create<BrowserDownloadState>((set) => ({
   downloads: {},
 
-  upsertDownload: (download) => set((state) => ({
-    downloads: {
-      ...state.downloads,
-      [download.id]: download,
-    },
-  })),
+  upsertDownload: (download) =>
+    set((state) => ({
+      downloads: {
+        ...state.downloads,
+        [download.id]: download,
+      },
+    })),
 
   refresh: async () => {
     const downloads = await window.cclinkStudio.browser.listDownloads()
@@ -24,4 +25,3 @@ export const useBrowserDownloadStore = create<BrowserDownloadState>((set) => ({
     })
   },
 }))
-

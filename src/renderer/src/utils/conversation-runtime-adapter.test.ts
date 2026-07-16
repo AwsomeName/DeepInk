@@ -66,5 +66,4 @@ describe('conversation-runtime-adapter', () => {
     expect(meta.badge).toBe('已归档')
     expect(meta.status).toBe('archived')
   })
-
 })

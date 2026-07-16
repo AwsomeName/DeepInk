@@ -82,37 +82,46 @@ describe('restoreWorkspaceState', () => {
   })
 
   it('工作区快照为空时清空运行态，不保留上一个项目的内存种子', async () => {
-    useBrowserStore.setState({
-      ...useBrowserStore.getInitialState(),
-      tabs: {
-        stale: {
-          url: 'https://stale.example',
-          urlInput: 'https://stale.example',
-          viewMode: 'desktop',
-          zoomMode: 'fit',
-          zoomFactor: 1,
-          history: ['https://stale.example'],
-          historyIndex: 0,
-          ready: false,
+    useBrowserStore.setState(
+      {
+        ...useBrowserStore.getInitialState(),
+        tabs: {
+          stale: {
+            url: 'https://stale.example',
+            urlInput: 'https://stale.example',
+            viewMode: 'desktop',
+            zoomMode: 'fit',
+            zoomFactor: 1,
+            history: ['https://stale.example'],
+            historyIndex: 0,
+            ready: false,
+          },
         },
       },
-    }, true)
-    useTabStore.setState({
-      ...useTabStore.getInitialState(),
-      tabs: [{ id: 'stale-tab', type: 'browser', title: 'Stale', icon: '🌐' }],
-      activeTabId: 'stale-tab',
-    }, true)
-    useEditorStore.setState({
-      ...useEditorStore.getInitialState(),
-      files: {
-        'virtual:stale': {
-          savedContent: '',
-          currentContent: 'stale draft',
-          dirty: true,
-          loading: false,
+      true,
+    )
+    useTabStore.setState(
+      {
+        ...useTabStore.getInitialState(),
+        tabs: [{ id: 'stale-tab', type: 'browser', title: 'Stale', icon: '🌐' }],
+        activeTabId: 'stale-tab',
+      },
+      true,
+    )
+    useEditorStore.setState(
+      {
+        ...useEditorStore.getInitialState(),
+        files: {
+          'virtual:stale': {
+            savedContent: '',
+            currentContent: 'stale draft',
+            dirty: true,
+            loading: false,
+          },
         },
       },
-    }, true)
+      true,
+    )
     useAgentStore.setState(useAgentStore.getInitialState(), true)
     const staleConversationId = useAgentStore.getState().createConversation({ activate: true })
 
@@ -165,7 +174,7 @@ describe('restoreWorkspaceState', () => {
     useAgentStore.setState(useAgentStore.getInitialState(), true)
     const now = Date.now()
     const conversationId = 'agent-work-restore'
-    const workspacePath = '/workspace/deepink'
+    const workspacePath = '/workspace/cclink-studio'
 
     const deps = createDeps({
       getSettings: vi.fn().mockResolvedValue({ lastWorkspacePath: workspacePath } as any),

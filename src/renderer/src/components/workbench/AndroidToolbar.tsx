@@ -40,7 +40,11 @@ export function AndroidToolbar(): React.JSX.Element {
       <ToolbarButton title="桌面 (Home)" onClick={() => handleKey('home')} disabled={!isConnected}>
         ●
       </ToolbarButton>
-      <ToolbarButton title="最近任务 (Recent)" onClick={() => handleKey('recent')} disabled={!isConnected}>
+      <ToolbarButton
+        title="最近任务 (Recent)"
+        onClick={() => handleKey('recent')}
+        disabled={!isConnected}
+      >
         ■
       </ToolbarButton>
 

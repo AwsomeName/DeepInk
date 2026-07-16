@@ -69,19 +69,24 @@ describe('BrowserTaskRuntime', () => {
   })
 
   it('redacts sensitive browser action params', () => {
-    expect(summarizeBrowserActionParams('fill', {
-      selector: 'input[type=password]',
-      value: 'secret-value',
-    })).toContain('[redacted:12 chars]')
+    expect(
+      summarizeBrowserActionParams('fill', {
+        selector: 'input[type=password]',
+        value: 'secret-value',
+      }),
+    ).toContain('[redacted:12 chars]')
 
-    expect(summarizeBrowserActionParams('evaluate', {
-      expression: 'localStorage.getItem("token")',
-    })).toContain('[javascript:29 chars]')
+    expect(
+      summarizeBrowserActionParams('evaluate', {
+        expression: 'localStorage.getItem("token")',
+      }),
+    ).toContain('[javascript:29 chars]')
 
-    expect(summarizeBrowserActionParams('setCookie', {
-      name: 'session',
-      value: 'cookie-value',
-    })).toContain('[redacted]')
+    expect(
+      summarizeBrowserActionParams('setCookie', {
+        name: 'session',
+        value: 'cookie-value',
+      }),
+    ).toContain('[redacted]')
   })
 })
-

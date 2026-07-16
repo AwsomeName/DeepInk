@@ -68,7 +68,7 @@ export class McpClientManager {
   /**
    * 合成 --mcp-config JSON
    *
-   * 合并内部 deepink server + 所有已启用的外部 server
+   * 合并内部 cclink_studio server + 所有已启用的外部 server
    */
   composeMcpConfig(internalPort: number, sessionToken?: string): Record<string, unknown> {
     const internalUrl = new URL(`http://127.0.0.1:${internalPort}/mcp`)
@@ -77,10 +77,10 @@ export class McpClientManager {
     }
 
     const mcpServers: Record<string, unknown> = {
-      // 内部 deepink server
+      // 内部 cclink_studio server
       // 关键：Claude Code 的 MCP schema 要求 HTTP server 必须显式带 `type: 'http'`，
       // 否则报 "Does not adhere to MCP server configuration schema" 并 exit 1。
-      cclinkStudio: {
+      cclink_studio: {
         type: 'http',
         url: internalUrl.toString(),
       },
@@ -113,8 +113,8 @@ export class McpClientManager {
    */
   addServer(server: ExternalMcpServer): void {
     // 不允许覆盖内部 server 名称
-    if (server.name === 'deepink') {
-      throw new Error('不允许使用保留名称 "deepink"')
+    if (server.name === 'cclink_studio') {
+      throw new Error('不允许使用保留名称 "cclink_studio"')
     }
     // 检查重名
     if (this.servers.some((s) => s.name === server.name)) {
@@ -144,9 +144,9 @@ export class McpClientManager {
     const server = this.servers.find((s) => s.name === name)
     if (!server) return false
 
-    // 不允许改名到 deepink 或已存在的名称
+    // 不允许改名到 cclink_studio 或已存在的名称
     if (updates.name && updates.name !== name) {
-      if (updates.name === 'deepink') return false
+      if (updates.name === 'cclink_studio') return false
       if (this.servers.some((s) => s.name === updates.name)) return false
     }
 

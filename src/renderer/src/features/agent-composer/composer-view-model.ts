@@ -30,7 +30,9 @@ export const PERMISSION_MODE_OPTIONS: PermissionModeOption[] = [
 ]
 
 export function getPermissionModeOption(mode: PermissionMode): PermissionModeOption {
-  return PERMISSION_MODE_OPTIONS.find((option) => option.value === mode) ?? PERMISSION_MODE_OPTIONS[0]
+  return (
+    PERMISSION_MODE_OPTIONS.find((option) => option.value === mode) ?? PERMISSION_MODE_OPTIONS[0]
+  )
 }
 
 export function getRuntimeLabel(settings: AppSettings): string {

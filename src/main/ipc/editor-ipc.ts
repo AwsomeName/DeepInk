@@ -20,24 +20,18 @@ export function registerEditorIpc(editorModule: EditorToolModule): void {
   })
 
   // 编辑器内容读取响应（renderer → main）
-  ipcMain.handle(
-    'editor:readResponse',
-    (_event, id: string, content: string) => {
-      editorModule.resolveOperation(id, { content })
-    },
-  )
+  ipcMain.handle('editor:readResponse', (_event, id: string, content: string) => {
+    editorModule.resolveOperation(id, { content })
+  })
 
   // 编辑器保存结果（renderer → main）
-  ipcMain.handle(
-    'editor:saveResult',
-    (_event, id: string, success: boolean, error?: string) => {
-      if (success) {
-        editorModule.resolveOperation(id, { success: true })
-      } else {
-        editorModule.rejectOperation(id, error ?? '保存失败')
-      }
-    },
-  )
+  ipcMain.handle('editor:saveResult', (_event, id: string, success: boolean, error?: string) => {
+    if (success) {
+      editorModule.resolveOperation(id, { success: true })
+    } else {
+      editorModule.rejectOperation(id, error ?? '保存失败')
+    }
+  })
 
   console.log('[CCLink Studio] 编辑器 IPC 已注册')
 }

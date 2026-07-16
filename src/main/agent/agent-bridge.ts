@@ -117,7 +117,7 @@ export class AgentBridge {
         getWorkspacePath: this.getWorkspacePath,
         hostContext: {
           hostName: 'CCLink Studio',
-          mcpServerName: 'deepink',
+          mcpServerName: 'cclink_studio',
           androidControllerName: 'CCLink Studio',
         },
       },
@@ -166,7 +166,7 @@ export class AgentBridge {
     const scopedBrowserTabId = scope.kind === 'browser' ? scope.instanceId : null
     const visibleBrowserTabId =
       scope.kind === 'all' && looksLikeBrowserTask(message)
-        ? this.deps.browserManager?.getActiveViewId?.() ?? null
+        ? (this.deps.browserManager?.getActiveViewId?.() ?? null)
         : null
     const browserTabId = explicitBrowserTabId ?? scopedBrowserTabId ?? visibleBrowserTabId
     const forceVisibleBrowser = Boolean(browserTabId)

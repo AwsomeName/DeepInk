@@ -308,9 +308,7 @@ export function AndroidDisplay(): React.JSX.Element {
       {mirrorStatus === 'error' && (
         <CenterOverlay>
           <div style={{ color: '#f48771', marginBottom: '8px' }}>❌ 连接失败</div>
-          <div style={{ fontSize: '12px', color: '#888', marginBottom: '12px' }}>
-            {mirrorError}
-          </div>
+          <div style={{ fontSize: '12px', color: '#888', marginBottom: '12px' }}>{mirrorError}</div>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={connectMirror}

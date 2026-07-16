@@ -93,7 +93,13 @@ export interface AndroidApiContract {
   retryStoreInstall(): Promise<StoreInstallResult>
 
   tap(x: number, y: number): Promise<AndroidActionSuccess>
-  swipe(x1: number, y1: number, x2: number, y2: number, duration?: number): Promise<AndroidActionSuccess>
+  swipe(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+    duration?: number,
+  ): Promise<AndroidActionSuccess>
   pressKey(key: string): Promise<AndroidActionSuccess>
   typeText(text: string): Promise<AndroidTypeTextResult>
   screenshot(): Promise<AndroidScreenshotResult>

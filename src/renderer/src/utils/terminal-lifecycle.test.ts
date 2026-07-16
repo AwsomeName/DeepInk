@@ -53,7 +53,9 @@ describe('recordTerminalLifecycleEvent', () => {
   })
 
   it('does not throw when audit recording fails', async () => {
-    vi.mocked(window.cclinkStudio.terminal.recordLifecycleEvent).mockRejectedValueOnce(new Error('boom'))
+    vi.mocked(window.cclinkStudio.terminal.recordLifecycleEvent).mockRejectedValueOnce(
+      new Error('boom'),
+    )
 
     await expect(recordTerminalLifecycleEvent(terminal, 'terminated')).resolves.toBeUndefined()
   })

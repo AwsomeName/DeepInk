@@ -1,6 +1,6 @@
 ---
 name: Feature Request
-about: Suggest an idea for DeepInk
+about: Suggest an idea for CCLink Studio
 title: ''
 labels: enhancement
 assignees: ''

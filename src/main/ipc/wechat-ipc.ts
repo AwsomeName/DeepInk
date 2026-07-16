@@ -6,15 +6,12 @@ import { ipcMain } from 'electron'
 import { convertMarkdownToWechatHTML } from '../wechat/convert'
 
 export function registerWechatIPC(): void {
-  ipcMain.handle(
-    'wechat:convert',
-    async (_event, { markdown }: { markdown: string }) => {
-      try {
-        const html = convertMarkdownToWechatHTML(markdown)
-        return { html }
-      } catch (error) {
-        return { error: String(error) }
-      }
-    },
-  )
+  ipcMain.handle('wechat:convert', async (_event, { markdown }: { markdown: string }) => {
+    try {
+      const html = convertMarkdownToWechatHTML(markdown)
+      return { html }
+    } catch (error) {
+      return { error: String(error) }
+    }
+  })
 }

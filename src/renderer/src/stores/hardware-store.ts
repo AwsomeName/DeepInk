@@ -75,7 +75,8 @@ export const useHardwareStore = create<HardwareState>((set) => ({
   prepareFpcShapeContext: async (workspacePath) => {
     set({ workspacePath, preparingFpcShapeContext: true, error: null })
     try {
-      const fpcShapeContext = await window.cclinkStudio.hardware.prepareFpcShapeContext(workspacePath)
+      const fpcShapeContext =
+        await window.cclinkStudio.hardware.prepareFpcShapeContext(workspacePath)
       set({ fpcShapeContext, preparingFpcShapeContext: false })
       return fpcShapeContext
     } catch (error) {

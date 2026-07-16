@@ -8,6 +8,8 @@
 - `AGENTS.md`：给 Codex/Agent 的项目边界和协作规则。
 - `docs/architecture.md`：当前架构事实源。
 - `docs/development.md`：当前开发事实源。
+- `docs/official-integration-contract.md`：Studio 暴露给官方构建层的接口边界。
+- `docs/ops/cclink-dev-official-integration-handoff.md`：发给 `cclink-dev` 的 official loader 接入清单。
 - `docs/features/project-system.md`：当前 OSS 本地工作空间模型。
 - `docs/features/agent-device.md`：Android 真机和 agent-device 边界。
 
@@ -29,7 +31,7 @@ Studio 默认可单仓库独立启动，不要求 `cclink-dev`、`chat-cc/deploy
 ## 当前文档集
 
 - 架构与开发：`docs/architecture.md`、`docs/development.md`。
-- 官方集成：`docs/official-integration-contract.md`。
+- 官方集成：`docs/official-integration-contract.md`、`docs/ops/cclink-dev-official-integration-handoff.md`。
 - 工作台能力：`docs/features/project-system.md`、`docs/features/agent-system.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/terminal-tab-model.md`、`docs/features/agent-device.md`。
 - 行业能力：数据源、硬件工作区、FPC 改版、CAD 转换、项目内运营助手。
 

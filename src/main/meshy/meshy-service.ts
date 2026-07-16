@@ -88,14 +88,22 @@ export class MeshyService {
     })
   }
 
-  async waitForTask(taskId: string, options?: { pollIntervalMs?: number; timeoutMs?: number }): Promise<MeshyTask> {
+  async waitForTask(
+    taskId: string,
+    options?: { pollIntervalMs?: number; timeoutMs?: number },
+  ): Promise<MeshyTask> {
     const pollIntervalMs = this.normalizeDuration(
       options?.pollIntervalMs,
       DEFAULT_POLL_INTERVAL_MS,
       1_000,
       60_000,
     )
-    const timeoutMs = this.normalizeDuration(options?.timeoutMs, DEFAULT_TIMEOUT_MS, 30_000, 20 * 60_000)
+    const timeoutMs = this.normalizeDuration(
+      options?.timeoutMs,
+      DEFAULT_TIMEOUT_MS,
+      30_000,
+      20 * 60_000,
+    )
     const startedAt = Date.now()
 
     while (Date.now() - startedAt <= timeoutMs) {
@@ -202,7 +210,10 @@ export class MeshyService {
     return { previewTask, refineTask, savedAsset }
   }
 
-  private async request<T>(path: string, options: { method: 'GET' | 'POST'; body?: Record<string, unknown> }): Promise<T> {
+  private async request<T>(
+    path: string,
+    options: { method: 'GET' | 'POST'; body?: Record<string, unknown> },
+  ): Promise<T> {
     const apiKey = this.getApiKey()
     const response = await fetch(`${MESHY_API_BASE_URL}${path}`, {
       method: options.method,
@@ -260,7 +271,12 @@ export class MeshyService {
     return value
   }
 
-  private normalizeDuration(value: number | undefined, fallback: number, min: number, max: number): number {
+  private normalizeDuration(
+    value: number | undefined,
+    fallback: number,
+    min: number,
+    max: number,
+  ): number {
     if (typeof value !== 'number' || Number.isNaN(value)) {
       return fallback
     }
@@ -269,8 +285,11 @@ export class MeshyService {
 
   private resolveOutputDir(outputDir?: string): string {
     const workspacePath = this.getSettings().lastWorkspacePath
-    const candidate = outputDir?.trim()
-      || (workspacePath ? join(workspacePath, 'assets', 'meshy') : join(app.getPath('desktop'), 'CCLink Studio Meshy Assets'))
+    const candidate =
+      outputDir?.trim() ||
+      (workspacePath
+        ? join(workspacePath, 'assets', 'meshy')
+        : join(app.getPath('desktop'), 'CCLink Studio Meshy Assets'))
     return this.validateWritablePath(candidate)
   }
 
@@ -287,8 +306,15 @@ export class MeshyService {
   private validateWritablePath(targetPath: string): string {
     const resolved = resolve(targetPath)
     const home = app.getPath('home')
-    const allowedRoots = [home, app.getPath('desktop'), app.getPath('documents'), app.getPath('downloads')]
-    const isAllowed = allowedRoots.some((root) => resolved === root || resolved.startsWith(root + sep))
+    const allowedRoots = [
+      home,
+      app.getPath('desktop'),
+      app.getPath('documents'),
+      app.getPath('downloads'),
+    ]
+    const isAllowed = allowedRoots.some(
+      (root) => resolved === root || resolved.startsWith(root + sep),
+    )
     if (!isAllowed) {
       throw new Error(`路径不在允许范围内: ${resolved}`)
     }

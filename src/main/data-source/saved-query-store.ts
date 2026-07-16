@@ -45,7 +45,8 @@ export class SavedQueryStore {
       this.state = {
         version: 1,
         queries: Array.isArray(parsed.queries) ? parsed.queries.filter(isSavedDataQuery) : [],
-        updatedAt: typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
+        updatedAt:
+          typeof parsed.updatedAt === 'string' ? parsed.updatedAt : new Date().toISOString(),
       }
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {

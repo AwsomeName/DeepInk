@@ -1,6 +1,12 @@
 export type MeshyFormat = 'glb' | 'obj' | 'fbx' | 'stl' | 'usdz' | '3mf'
 
-export type MeshyTaskStatus = 'PENDING' | 'IN_PROGRESS' | 'SUCCEEDED' | 'FAILED' | 'EXPIRED' | string
+export type MeshyTaskStatus =
+  | 'PENDING'
+  | 'IN_PROGRESS'
+  | 'SUCCEEDED'
+  | 'FAILED'
+  | 'EXPIRED'
+  | string
 
 export interface MeshyTask {
   id: string
@@ -72,7 +78,10 @@ export interface MeshySavedAsset {
   task: MeshyTask
 }
 
-export interface MeshyGenerateAndSaveOptions extends Omit<MeshyCreatePreviewOptions, 'targetFormats'> {
+export interface MeshyGenerateAndSaveOptions extends Omit<
+  MeshyCreatePreviewOptions,
+  'targetFormats'
+> {
   format?: MeshyFormat
   refine?: boolean
   texturePrompt?: string
@@ -101,5 +110,7 @@ export interface MeshyApiContract {
   createRefine(options: MeshyCreateRefineOptions): Promise<MeshyApiResponse<{ taskId: string }>>
   getTask(taskId: string): Promise<MeshyApiResponse<MeshyTask>>
   saveAsset(options: MeshySaveAssetOptions): Promise<MeshyApiResponse<MeshySavedAsset>>
-  generateAndSave(options: MeshyGenerateAndSaveOptions): Promise<MeshyApiResponse<MeshyGenerateAndSaveResult>>
+  generateAndSave(
+    options: MeshyGenerateAndSaveOptions,
+  ): Promise<MeshyApiResponse<MeshyGenerateAndSaveResult>>
 }

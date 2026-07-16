@@ -60,7 +60,9 @@ export async function buildAgentResourceContext(
       defaultBrowserZoomMode: options.settings.defaultZoomMode,
     },
     task: inferTaskIntent(options.message),
-    mountedResourceIds: (options.context?.resources ?? []).map((resource) => resource.id).slice(0, 20),
+    mountedResourceIds: (options.context?.resources ?? [])
+      .map((resource) => resource.id)
+      .slice(0, 20),
     notes: buildContextNotes(activeBrowser, inferTaskIntent(options.message)),
   }
 }
@@ -143,7 +145,9 @@ function buildContextNotes(
   return notes
 }
 
-function detectTargetSite(text: string): { name: string; hosts: string[]; homeUrl: string; loginUrl?: string } | null {
+function detectTargetSite(
+  text: string,
+): { name: string; hosts: string[]; homeUrl: string; loginUrl?: string } | null {
   if (/知乎|zhihu/.test(text)) {
     return {
       name: 'zhihu',
