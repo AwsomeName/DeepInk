@@ -1,4 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import {
   useAgentStore,
   useDataSourceStore,
@@ -29,11 +37,10 @@ import {
   type AgentSkillCandidate,
 } from '../../features/agent-conversations/view-model'
 import {
+  buildAgentSendPayload,
   stripTrailingMentionToken,
   toMountedResource,
   toMountedSkill,
-  toSendResources,
-  toSendSkills,
 } from '../../features/agent-conversations/payload'
 import {
   getLocalAgentConversationMeta,
@@ -75,8 +82,10 @@ export function WorkbenchAgentConversation({
   const loadDataSources = useDataSourceStore((state) => state.loadSources)
   const loadSavedQueries = useDataSourceStore((state) => state.loadSavedQueries)
   const listRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   const [resourceQuery, setResourceQuery] = useState<string | null>(null)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
 
   useEffect(() => {
     const list = listRef.current
@@ -132,10 +141,28 @@ export function WorkbenchAgentConversation({
     ],
   )
   const skillCandidates = useMemo(() => buildSkillCandidates(skillQuery ?? ''), [skillQuery])
+  const activeMentionKind =
+    resourceQuery !== null ? 'resource' : skillQuery !== null ? 'skill' : null
+  const activeMentionCount =
+    activeMentionKind === 'resource'
+      ? resourceCandidates.length
+      : activeMentionKind === 'skill'
+        ? skillCandidates.length
+        : 0
+
+  useEffect(() => {
+    if (activeMentionCount === 0) {
+      setMentionSelectedIndex(0)
+      return
+    }
+    setMentionSelectedIndex((index) => Math.min(index, activeMentionCount - 1))
+  }, [activeMentionCount])
+
   const updateMentionQueryFromInput = useCallback((text: string) => {
     const match = /(?:^|\s)([@/])([^\s@/]*)$/.exec(text)
     setResourceQuery(match?.[1] === '@' ? match[2] : null)
     setSkillQuery(match?.[1] === '/' ? match[2] : null)
+    setMentionSelectedIndex(0)
   }, [])
   const handleInputChange = useCallback(
     (text: string) => {
@@ -150,6 +177,8 @@ export function WorkbenchAgentConversation({
       setInput(stripTrailingMentionToken(conversationInput), conversationId)
       setResourceQuery(null)
       setSkillQuery(null)
+      setMentionSelectedIndex(0)
+      requestAnimationFrame(() => inputRef.current?.focus())
     },
     [addMountedResource, conversationId, conversationInput, setInput],
   )
@@ -165,6 +194,8 @@ export function WorkbenchAgentConversation({
       setInput(stripTrailingMentionToken(conversationInput), conversationId)
       setResourceQuery(null)
       setSkillQuery(null)
+      setMentionSelectedIndex(0)
+      requestAnimationFrame(() => inputRef.current?.focus())
     },
     [addMountedSkill, conversationId, conversationInput, setInput],
   )
@@ -224,17 +255,53 @@ export function WorkbenchAgentConversation({
     cancelStreaming,
     buildSendInput: (content) => {
       const current = useAgentStore.getState().conversations[conversationId]
-      const resources = current?.mountedResources ?? []
-      const skills = current?.mountedSkills ?? []
-      return {
-        message: content,
-        resources: toSendResources(resources),
-        skills: toSendSkills(skills),
-      }
+      return buildAgentSendPayload(content, current)
     },
     sendMessage: window.cclinkStudio.agent.sendMessage,
     abortMessage: window.cclinkStudio.agent.abort,
   })
+  const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
+    if (event.nativeEvent.isComposing) return
+
+    if (activeMentionKind && activeMentionCount > 0) {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault()
+        setMentionSelectedIndex((index) => (index + 1) % activeMentionCount)
+        return
+      }
+      if (event.key === 'ArrowUp') {
+        event.preventDefault()
+        setMentionSelectedIndex((index) => (index - 1 + activeMentionCount) % activeMentionCount)
+        return
+      }
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault()
+        if (activeMentionKind === 'resource') {
+          const candidate = resourceCandidates[mentionSelectedIndex]
+          if (candidate) handleMountResource(candidate)
+        } else {
+          const candidate = skillCandidates[mentionSelectedIndex]
+          if (candidate) handleMountSkill(candidate)
+        }
+        return
+      }
+    }
+
+    if (activeMentionKind && event.key === 'Escape') {
+      event.preventDefault()
+      setResourceQuery(null)
+      setSkillQuery(null)
+      setMentionSelectedIndex(0)
+      return
+    }
+
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault()
+      setResourceQuery(null)
+      setSkillQuery(null)
+      void provider.send(conversation.input)
+    }
+  }
 
   return (
     <ConversationShell
@@ -269,26 +336,29 @@ export function WorkbenchAgentConversation({
         ) : (
           <ConversationComposer>
             {resourceQuery !== null && (
-              <ResourceCandidateMenu candidates={resourceCandidates} onPick={handleMountResource} />
+              <ResourceCandidateMenu
+                candidates={resourceCandidates}
+                selectedIndex={mentionSelectedIndex}
+                onActiveIndexChange={setMentionSelectedIndex}
+                onPick={handleMountResource}
+              />
             )}
             {skillQuery !== null && (
-              <SkillCandidateMenu candidates={skillCandidates} onPick={handleMountSkill} />
+              <SkillCandidateMenu
+                candidates={skillCandidates}
+                selectedIndex={mentionSelectedIndex}
+                onActiveIndexChange={setMentionSelectedIndex}
+                onPick={handleMountSkill}
+              />
             )}
             <MountedSkillStrip skills={mountedSkills} onRemove={handleRemoveMountedSkill} />
             <div className="conversation-input-card">
               <textarea
+                ref={inputRef}
                 value={conversation.input}
                 onChange={(event) => handleInputChange(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
-                    event.preventDefault()
-                    setResourceQuery(null)
-                    setSkillQuery(null)
-                    void provider.send(conversation.input)
-                  }
-                }}
+                onKeyDown={handleComposerKeyDown}
                 placeholder="发送到这个工作会话，@ 挂资源，/ 挂技能。Cmd/Ctrl + Enter 发送。"
-                disabled={conversation.loading}
               />
               <AgentComposerToolbar
                 permissionMode={permissionMode}

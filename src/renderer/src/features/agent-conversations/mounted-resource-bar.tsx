@@ -4,6 +4,7 @@ import {
   IconClose,
   IconDatabase,
   IconFile,
+  IconFolder,
   IconGlobe,
   IconMobile,
   IconRobot,
@@ -43,8 +44,10 @@ function resourceIcon(kind: AgentMountedResourceKind): ReactElement {
     case 'file':
     case 'tab':
     case 'artifact':
-    case 'project':
       return <IconFile size={12} />
+    case 'folder':
+    case 'project':
+      return <IconFolder size={12} />
     case 'browser':
       return <IconGlobe size={12} />
     case 'android':

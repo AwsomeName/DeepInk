@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { useAgentStore } from './agent-store'
 import type { ContentBlock } from '../types'
 
@@ -6,6 +6,10 @@ beforeEach(() => {
   // 重置 store 到初始状态
   const initial = useAgentStore.getInitialState()
   useAgentStore.setState(initial, true)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
 })
 
 describe('useAgentStore', () => {
@@ -675,6 +679,38 @@ describe('useAgentStore', () => {
 
       expect(useAgentStore.getState().activeConversationId).toBe('active')
       expect(useAgentStore.getState().conversations.archived.archivedAt).toBe(now)
+    })
+  })
+
+  describe('workspace persistence', () => {
+    it('不会把启动时的空白种子会话写回并覆盖已有历史', () => {
+      const setSection = vi.fn().mockResolvedValue({ success: true })
+      vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
+
+      useAgentStore.getState().setBackendState('connected')
+
+      expect(setSection).not.toHaveBeenCalled()
+    })
+
+    it('会在用户产生真实消息后持久化会话历史', () => {
+      const setSection = vi.fn().mockResolvedValue({ success: true })
+      vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
+
+      useAgentStore.getState().addUserMessage('继续处理这件事')
+
+      expect(setSection).toHaveBeenCalledWith(
+        null,
+        'agentConversations',
+        expect.objectContaining({
+          activeConversationId: 'agent-default',
+          conversationOrder: ['agent-default'],
+        }),
+        null,
+      )
+      const payload = setSection.mock.calls[0][2]
+      expect(payload.conversations['agent-default'].messages.at(-1)?.rawText).toBe(
+        '继续处理这件事',
+      )
     })
   })
 })

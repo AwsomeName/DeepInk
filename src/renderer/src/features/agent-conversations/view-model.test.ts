@@ -7,6 +7,7 @@ import {
   buildAssistantPanelSessionStats,
   buildAssistantPanelSessionGroups,
   buildProjectAssistantSessions,
+  buildQuickThreadList,
   buildResourceCandidates,
   buildSkillCandidates,
   buildSessionDetail,
@@ -121,7 +122,7 @@ describe('agent conversation view model', () => {
     ])
   })
 
-  it('groups workbench conversations for the left session sidebar', () => {
+  it('groups project conversations for the left session sidebar', () => {
     const otherWorkspace: WorkspaceRef = { kind: 'local', path: '/Users/apple/other' }
     const conversations = {
       current: conversation({
@@ -151,6 +152,7 @@ describe('agent conversation view model', () => {
         id: 'assistant',
         title: '即时助手',
         surface: 'assistant-panel',
+        updatedAt: now + 1000,
       }),
     }
 
@@ -160,7 +162,7 @@ describe('agent conversation view model', () => {
       workspace,
     )
 
-    expect(groups.current.map((item) => item.id)).toEqual(['current'])
+    expect(groups.current.map((item) => item.id)).toEqual(['assistant', 'current'])
     expect(groups.unbound.map((item) => item.id)).toEqual(['unbound'])
     expect(groups.closed.map((item) => item.id)).toEqual(['closed'])
   })
@@ -217,6 +219,153 @@ describe('agent conversation view model', () => {
 
     expect(sessions.active.map((session) => session.id)).toEqual(['active'])
     expect(sessions.closed.map((session) => session.id)).toEqual(['closed'])
+  })
+
+  it('builds the right rail quick thread list from current, attention, and recent threads', () => {
+    const conversations = {
+      active: conversation({
+        id: 'active',
+        title: '当前会话',
+        updatedAt: now - 60 * 60 * 1000,
+      }),
+      running: conversation({
+        id: 'running',
+        title: '运行中',
+        updatedAt: now - 20 * 60 * 1000,
+        loading: true,
+      }),
+      error: conversation({
+        id: 'error',
+        title: '报错会话',
+        updatedAt: now - 10 * 60 * 1000,
+        backendState: 'error',
+      }),
+      recent: conversation({
+        id: 'recent',
+        title: '最近会话',
+        updatedAt: now - 2 * 60 * 1000,
+      }),
+      old: conversation({
+        id: 'old',
+        title: '旧会话',
+        updatedAt: now - 2 * 24 * 60 * 60 * 1000,
+      }),
+      overflow: conversation({
+        id: 'overflow',
+        title: '第六个',
+        updatedAt: now - 3 * 24 * 60 * 60 * 1000,
+      }),
+      other: conversation({
+        id: 'other',
+        title: '其他项目',
+        workspaceRef: { kind: 'local', path: '/Users/apple/other' },
+        updatedAt: now,
+      }),
+    }
+
+    const quickThreads = buildQuickThreadList({
+      conversations,
+      conversationOrder: ['overflow', 'old', 'recent', 'error', 'running', 'other', 'active'],
+      activeConversationId: 'active',
+      activeWorkspaceRef: workspace,
+      now,
+    })
+
+    expect(quickThreads.map((thread) => thread.id)).toEqual([
+      'active',
+      'running',
+      'error',
+      'recent',
+      'old',
+    ])
+    expect(quickThreads.map((thread) => thread.statusKind)).toEqual([
+      'idle',
+      'running',
+      'error',
+      'idle',
+      'idle',
+    ])
+    expect(quickThreads[0]).toMatchObject({
+      detail: '当前',
+      workspaceLabel: 'project',
+      messageCount: 0,
+    })
+
+    const expanded = buildQuickThreadList({
+      conversations,
+      conversationOrder: ['overflow', 'old', 'recent', 'error', 'running', 'other', 'active'],
+      activeConversationId: 'active',
+      activeWorkspaceRef: workspace,
+      expanded: true,
+      now,
+    })
+
+    expect(expanded.map((thread) => thread.id)).toEqual([
+      'active',
+      'running',
+      'error',
+      'recent',
+      'old',
+      'overflow',
+    ])
+  })
+
+  it('marks the active quick thread as waiting when confirmations are pending', () => {
+    const conversations = {
+      active: conversation({
+        id: 'active',
+        title: '需要确认',
+      }),
+    }
+
+    const quickThreads = buildQuickThreadList({
+      conversations,
+      conversationOrder: ['active'],
+      activeConversationId: 'active',
+      activeWorkspaceRef: workspace,
+      pendingConfirmationCount: 1,
+      now,
+    })
+
+    expect(quickThreads[0]).toMatchObject({
+      id: 'active',
+      statusKind: 'waiting',
+      statusLabel: '等待确认',
+      detail: '等待确认',
+    })
+  })
+
+  it('keeps unbound local quick threads visible after switching to a workspace thread', () => {
+    const conversations = {
+      workspaceThread: conversation({
+        id: 'workspaceThread',
+        title: '项目会话',
+        workspaceRef: workspace,
+        updatedAt: now - 2 * 60 * 1000,
+      }),
+      unboundThread: conversation({
+        id: 'unboundThread',
+        title: '未绑定会话',
+        workspaceRef: null,
+        updatedAt: now - 60 * 1000,
+      }),
+      otherWorkspace: conversation({
+        id: 'otherWorkspace',
+        title: '其他项目',
+        workspaceRef: { kind: 'local', path: '/Users/apple/other' },
+        updatedAt: now,
+      }),
+    }
+
+    const quickThreads = buildQuickThreadList({
+      conversations,
+      conversationOrder: ['unboundThread', 'otherWorkspace', 'workspaceThread'],
+      activeConversationId: 'workspaceThread',
+      activeWorkspaceRef: workspace,
+      now,
+    })
+
+    expect(quickThreads.map((thread) => thread.id)).toEqual(['workspaceThread', 'unboundThread'])
   })
 
   it('builds visible context chips from workspace, scope, and active tab', () => {
@@ -464,6 +613,7 @@ function conversation({
   messages = [],
   workspaceRef = workspace,
   loading = false,
+  backendState,
 }: {
   id: string
   title: string
@@ -473,6 +623,7 @@ function conversation({
   messages?: string[]
   workspaceRef?: WorkspaceRef | null
   loading?: boolean
+  backendState?: AgentConversationState['backendState']
 }): AgentConversationState {
   return {
     id,
@@ -502,7 +653,7 @@ function conversation({
     ],
     input: '',
     loading,
-    backendState: loading ? 'streaming' : 'connected',
+    backendState: backendState ?? (loading ? 'streaming' : 'connected'),
     sessionId: null,
     streamingMessageId: null,
     lastCost: null,

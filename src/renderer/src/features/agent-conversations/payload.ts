@@ -1,4 +1,9 @@
-import type { AgentSendResource, AgentSendSkill } from '@shared/ipc/agent'
+import type {
+  AgentSendMessagePayload,
+  AgentSendResource,
+  AgentSendSkill,
+} from '@shared/ipc/agent'
+import type { AgentConversationState } from '../../stores/agent-store'
 import type { AgentMountedResource, AgentMountedSkill } from '../../types'
 import type { AgentResourceCandidate, AgentSkillCandidate } from './view-model'
 
@@ -40,6 +45,21 @@ export function toSendSkills(skills: AgentMountedSkill[]): AgentSendSkill[] {
     description: skill.description,
     source: skill.source,
   }))
+}
+
+export function buildAgentSendPayload(
+  message: string,
+  conversation: AgentConversationState | undefined,
+): AgentSendMessagePayload {
+  return {
+    message,
+    resources: toSendResources(conversation?.mountedResources ?? []),
+    skills: toSendSkills(conversation?.mountedSkills ?? []),
+    sessionId: conversation?.sessionId ?? null,
+    ...(conversation?.runtime.workspaceRef
+      ? { workspaceRef: conversation.runtime.workspaceRef }
+      : {}),
+  }
 }
 
 export function stripTrailingMentionToken(text: string): string {

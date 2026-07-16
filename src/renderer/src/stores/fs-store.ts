@@ -21,6 +21,17 @@ function parentDir(filePath: string): string {
   return i > 0 ? filePath.slice(0, i) : '/'
 }
 
+function hasPathSeparator(name: string): boolean {
+  return name.includes('/') || name.includes('\\')
+}
+
+function replacePathPrefix(path: string | null, oldPrefix: string, newPrefix: string): string | null {
+  if (!path) return path
+  if (path === oldPrefix) return newPrefix
+  if (path.startsWith(oldPrefix + '/')) return newPrefix + path.slice(oldPrefix.length)
+  return path
+}
+
 /** 把任意错误归一化为用户可读文案，并友好化沙箱越界等常见错误 */
 function describeError(err: unknown): string {
   const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)
@@ -119,12 +130,21 @@ function loadFsPanelState(): { expandedPaths: string[]; selectedPath: string | n
 function getRecentWorkspacePathsFromSettings(settings: {
   recentWorkspacePaths?: unknown
   lastWorkspacePath?: unknown
-}): string[] {
+}, workspaceStatePaths: unknown[] = []): string[] {
   return mergeRecentWorkspacePaths(
     settings.recentWorkspacePaths,
     settings.lastWorkspacePath,
     loadRecentWorkspaceFallback(),
+    workspaceStatePaths,
   )
+}
+
+async function filterExistingWorkspacePaths(paths: string[]): Promise<string[]> {
+  const result: string[] = []
+  for (const path of paths) {
+    if (await window.cclinkStudio.fs.isDirectory(path).catch(() => false)) result.push(path)
+  }
+  return result
 }
 
 function normalizeFileTreeState(
@@ -197,6 +217,8 @@ interface FsState {
   picking: boolean
   /** 错误信息 */
   error: string | null
+  /** 文件操作错误，不影响工作区加载态 */
+  operationError: string | null
   /** 内联编辑状态：null = 未编辑，'new-folder'/'new-file' = 正在新建，path = 正在重命名该节点 */
   editingPath: string | null
   /** 新建文件/文件夹的目标父目录 */
@@ -221,6 +243,8 @@ interface FsState {
   closeWorkspace: () => Promise<void>
   /** 刷新指定目录 */
   refreshDir: (dirPath: string) => Promise<void>
+  /** 刷新整个工作区文件树，并恢复已展开目录 */
+  refreshWorkspace: () => Promise<void>
   /** 展开/折叠目录 */
   toggleDir: (dirPath: string) => Promise<void>
   /** 设置当前选中路径 */
@@ -234,6 +258,8 @@ interface FsState {
   ) => void
   /** 退出内联编辑模式 */
   cancelEditing: () => void
+  /** 清除文件操作错误 */
+  clearOperationError: () => void
   /** 确认重命名 */
   confirmRename: (oldPath: string, newName: string) => Promise<void>
   /** 确认新建文件夹（从 state.newFolderParent 读取父目录） */
@@ -252,6 +278,7 @@ export const useFsStore = create<FsState>((set, get) => ({
   loading: false,
   picking: false,
   error: null,
+  operationError: null,
   editingPath: null,
   newFolderParent: null,
   expandedPaths: initialFsPanelState.expandedPaths,
@@ -262,7 +289,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     // 保存调用前快照：失败时回滚到这里（而非清空），保留用户当前可用的工作区
     const prev = { workspacePath: get().workspacePath, tree: get().tree }
     const seq = ++setWorkspaceSeq
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, operationError: null })
     // 不在开头设 workspacePath：readDir 成功后才赋值，避免非法路径作为中间态
     // 泄露给侧栏等消费方（loading=true 期间它们通常已禁用，仍求稳妥）
     try {
@@ -307,14 +334,22 @@ export const useFsStore = create<FsState>((set, get) => ({
   initWorkspace: async () => {
     try {
       const settings = await window.cclinkStudio.settings.getAll()
-      const recentWorkspacePaths = getRecentWorkspacePathsFromSettings(settings)
+      const workspaceStatePaths = await window.cclinkStudio.workspaceState
+        .listLocalWorkspaces(getWorkspaceStateOwnerKey())
+        .then((workspaces) => workspaces.map((workspace) => workspace.workspacePath))
+        .catch(() => [])
+      const recentWorkspacePaths = await filterExistingWorkspacePaths(
+        getRecentWorkspacePathsFromSettings(settings, workspaceStatePaths),
+      )
+      const settingsRecentWorkspacePaths = Array.isArray(settings.recentWorkspacePaths)
+        ? settings.recentWorkspacePaths
+        : []
       set({ recentWorkspacePaths })
       saveRecentWorkspaceFallback(recentWorkspacePaths)
       if (
+        recentWorkspacePaths.length > 0 &&
         JSON.stringify(recentWorkspacePaths) !==
-        JSON.stringify(
-          Array.isArray(settings.recentWorkspacePaths) ? settings.recentWorkspacePaths : [],
-        )
+          JSON.stringify(settingsRecentWorkspacePaths)
       ) {
         void window.cclinkStudio.settings.set({ recentWorkspacePaths }).catch(() => {})
       }
@@ -348,7 +383,7 @@ export const useFsStore = create<FsState>((set, get) => ({
   openWorkspacePicker: async () => {
     if (get().picking) return // 防重入：避免叠加多个模态对话框（macOS 会抛错）
     if (!confirmProjectSwitch(get().workspacePath)) return
-    set({ picking: true, error: null })
+    set({ picking: true, error: null, operationError: null })
     try {
       const result = await window.cclinkStudio.dialog.showOpenDialog({
         selectDirectory: true,
@@ -408,7 +443,7 @@ export const useFsStore = create<FsState>((set, get) => ({
     if (!currentPath) return
     if (!confirmProjectSwitch(currentPath, null)) return
 
-    set({ loading: true, error: null })
+    set({ loading: true, error: null, operationError: null })
     saveFsPanelState(
       { expandedPaths: get().expandedPaths, selectedPath: get().selectedPath },
       currentPath,
@@ -469,11 +504,20 @@ export const useFsStore = create<FsState>((set, get) => ({
           return node
         })
 
-      set((state) => ({ tree: updateChildren(state.tree) }))
+      set((state) => ({
+        tree: dirPath === state.workspacePath ? newChildren : updateChildren(state.tree),
+      }))
     } catch (err) {
       // 子目录加载失败（如无权限）不应污染全局 error（会让 FileTree 切错误态隐藏整棵树），静默即可
       console.warn('[fs-store] refreshDir 失败:', dirPath, err)
     }
+  },
+
+  refreshWorkspace: async () => {
+    const workspacePath = get().workspacePath
+    if (!workspacePath) return
+    await get().refreshDir(workspacePath)
+    await restoreExpandedDirs(workspacePath, get, set)
   },
 
   toggleDir: async (dirPath) => {
@@ -553,53 +597,88 @@ export const useFsStore = create<FsState>((set, get) => ({
   },
 
   startEditing: (editPath, parentForNewFolder) =>
-    set({ editingPath: editPath, newFolderParent: parentForNewFolder ?? null }),
+    set({
+      editingPath: editPath,
+      newFolderParent: parentForNewFolder ?? null,
+      operationError: null,
+    }),
 
   cancelEditing: () => set({ editingPath: null, newFolderParent: null }),
 
+  clearOperationError: () => set({ operationError: null }),
+
   confirmRename: async (oldPath, newName) => {
-    if (!newName.trim()) return
+    const trimmedName = newName.trim()
+    if (!trimmedName) return
+    if (hasPathSeparator(trimmedName)) {
+      set({ operationError: '重命名失败: 文件名不能包含路径分隔符' })
+      return
+    }
     const parent = parentDir(oldPath)
-    const newPath = parent + '/' + newName.trim()
+    const newPath = parent === '/' ? '/' + trimmedName : parent + '/' + trimmedName
     set({ editingPath: null })
+    if (newPath === oldPath) return
     try {
       await window.cclinkStudio.fs.rename(oldPath, newPath)
       await get().refreshDir(parent)
+      set((state) => {
+        const expandedPaths = state.expandedPaths.map((path) =>
+          replacePathPrefix(path, oldPath, newPath) ?? path,
+        )
+        const selectedPath = replacePathPrefix(state.selectedPath, oldPath, newPath)
+        return { expandedPaths, selectedPath, operationError: null }
+      })
+      saveFsPanelState(
+        { expandedPaths: get().expandedPaths, selectedPath: get().selectedPath },
+        get().workspacePath,
+      )
     } catch (err) {
-      set({ error: '重命名失败: ' + describeError(err) })
+      await get().refreshDir(parent)
+      set({ operationError: '重命名失败: ' + describeError(err) })
     }
   },
 
   confirmNewFolder: async (name) => {
-    if (!name.trim()) return
+    const trimmedName = name.trim()
+    if (!trimmedName) return
+    if (hasPathSeparator(trimmedName)) {
+      set({ operationError: '新建文件夹失败: 文件夹名不能包含路径分隔符' })
+      return
+    }
     const parentPath = get().newFolderParent
     if (!parentPath) return
-    const newPath = parentPath + '/' + name.trim()
+    const newPath = parentPath === '/' ? '/' + trimmedName : parentPath + '/' + trimmedName
     set({ editingPath: null, newFolderParent: null })
     try {
       await window.cclinkStudio.fs.mkdir(newPath)
       await get().refreshDir(parentPath)
+      set({ operationError: null })
     } catch (err) {
-      set({ error: '新建文件夹失败: ' + describeError(err) })
+      set({ operationError: '新建文件夹失败: ' + describeError(err) })
     }
   },
 
   confirmNewFile: async (name) => {
-    if (!name.trim()) return
+    const trimmedName = name.trim()
+    if (!trimmedName) return
+    if (hasPathSeparator(trimmedName)) {
+      set({ operationError: '新建文件失败: 文件名不能包含路径分隔符' })
+      return
+    }
     const parentPath = get().newFolderParent
     if (!parentPath) return
-    const newPath = parentPath + '/' + name.trim()
+    const newPath = parentPath === '/' ? '/' + trimmedName : parentPath + '/' + trimmedName
     set({ editingPath: null, newFolderParent: null })
     try {
       await window.cclinkStudio.fs.writeFile(newPath, '')
       await get().refreshDir(parentPath)
-      set({ selectedPath: newPath })
+      set({ selectedPath: newPath, operationError: null })
       saveFsPanelState(
         { expandedPaths: get().expandedPaths, selectedPath: newPath },
         get().workspacePath,
       )
     } catch (err) {
-      set({ error: '新建文件失败: ' + describeError(err) })
+      set({ operationError: '新建文件失败: ' + describeError(err) })
     }
   },
 

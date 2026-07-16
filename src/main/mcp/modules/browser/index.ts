@@ -9,6 +9,7 @@ import type { ToolModule, ToolDefinition } from '../../types'
 import type { PlaywrightBridge } from '../../../playwright/playwright-bridge'
 import { executePlaywrightAction } from '../../../playwright/playwright-actions'
 import type { BrowserTaskRuntime } from '../../../browser/browser-task-runtime'
+import type { BrowserManager } from '../../../browser/browser-manager'
 import { classifyBrowserError } from '../../../browser/browser-task-errors'
 import { summarizeBrowserActionParams } from '../../../browser/browser-task-runtime'
 
@@ -634,16 +635,23 @@ export class BrowserToolModule implements ToolModule {
   constructor(
     private playwrightBridge: PlaywrightBridge,
     private browserTaskRuntime?: BrowserTaskRuntime | null,
+    private browserManager?: BrowserManager | null,
   ) {}
 
   async execute(toolName: string, params: Record<string, unknown>): Promise<unknown> {
+    const actionType = toolNameToActionType(toolName)
+    const visibleTabId =
+      this.browserManager?.getActiveViewId() ?? this.playwrightBridge.getActiveTabId()
+    if (visibleTabId) {
+      await this.syncVisibleTab(visibleTabId)
+    }
+
     const page = this.playwrightBridge.getPage()
     if (!page) {
       throw new Error('Playwright 页面未就绪，浏览器可能未启动')
     }
 
-    const actionType = toolNameToActionType(toolName)
-    const tabId = this.playwrightBridge.getActiveTabId()
+    const tabId = visibleTabId ?? this.playwrightBridge.getActiveTabId()
     let actionLogId: string | null = null
     if (tabId) {
       const task = this.browserTaskRuntime?.assertCanRunAction(tabId)
@@ -659,11 +667,7 @@ export class BrowserToolModule implements ToolModule {
     }
 
     try {
-      const result = await executePlaywrightAction(
-        page,
-        { type: actionType, ...params },
-        this.playwrightBridge,
-      )
+      const result = await this.executeVisibleBrowserAction(actionType, params, page, tabId)
       if (actionLogId) {
         this.browserTaskRuntime!.succeedActionLog(actionLogId)
       }
@@ -677,5 +681,93 @@ export class BrowserToolModule implements ToolModule {
       }
       throw error
     }
+  }
+
+  private async syncVisibleTab(tabId: string): Promise<void> {
+    this.browserManager?.setActive(tabId)
+    try {
+      await this.playwrightBridge.switchToPage(tabId)
+    } catch {
+      // Some older views may not be claimed by Playwright yet. Navigation and
+      // tab-info actions still use BrowserManager; interaction actions validate
+      // the URL before touching Playwright so they do not silently hit a hidden page.
+    }
+  }
+
+  private async executeVisibleBrowserAction(
+    actionType: string,
+    params: Record<string, unknown>,
+    page: NonNullable<ReturnType<PlaywrightBridge['getPage']>>,
+    tabId: string | null,
+  ): Promise<unknown> {
+    if (this.browserManager && tabId) {
+      switch (actionType) {
+        case 'navigate': {
+          const url = String(params.url ?? '')
+          if (!url) throw new Error('必须提供目标 URL')
+          await this.browserManager.navigate(tabId, url)
+          return {
+            tabId,
+            url: this.browserManager.getCurrentURL(tabId),
+            title: this.browserManager.getTitle(tabId),
+          }
+        }
+        case 'goBack':
+          this.browserManager.goBack(tabId)
+          return {
+            tabId,
+            url: this.browserManager.getCurrentURL(tabId),
+            title: this.browserManager.getTitle(tabId),
+          }
+        case 'goForward':
+          this.browserManager.goForward(tabId)
+          return {
+            tabId,
+            url: this.browserManager.getCurrentURL(tabId),
+            title: this.browserManager.getTitle(tabId),
+          }
+        case 'reload':
+          this.browserManager.reload(tabId)
+          return {
+            tabId,
+            url: this.browserManager.getCurrentURL(tabId),
+            title: this.browserManager.getTitle(tabId),
+          }
+        case 'getTabInfo':
+          return {
+            tabId,
+            url: this.browserManager.getCurrentURL(tabId),
+            title: this.browserManager.getTitle(tabId),
+          }
+        default:
+          this.assertPlaywrightMatchesVisibleTab(page, tabId)
+      }
+    }
+
+    return executePlaywrightAction(page, { type: actionType, ...params }, this.playwrightBridge)
+  }
+
+  private assertPlaywrightMatchesVisibleTab(
+    page: NonNullable<ReturnType<PlaywrightBridge['getPage']>>,
+    tabId: string,
+  ): void {
+    if (!this.browserManager) return
+    const visibleUrl = this.browserManager.getCurrentURL(tabId)
+    const playwrightUrl = page.url()
+    if (!visibleUrl || !playwrightUrl) return
+    if (normalizeComparableUrl(visibleUrl) === normalizeComparableUrl(playwrightUrl)) return
+    throw new Error(
+      `浏览器自动化目标与可视页面不一致：可视页面=${visibleUrl}，工具页面=${playwrightUrl}。请刷新或重新打开浏览器 Tab 后重试。`,
+    )
+  }
+}
+
+function normalizeComparableUrl(url: string): string {
+  try {
+    const parsed = new URL(url)
+    parsed.hash = ''
+    return parsed.toString().replace(/\/$/, '')
+  } catch {
+    return url.replace(/\/$/, '')
   }
 }

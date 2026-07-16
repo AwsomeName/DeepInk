@@ -18,19 +18,19 @@ import {
   SkillCandidateMenu,
 } from '../../features/agent-conversations/context-candidate-menu'
 import {
+  buildAgentSendPayload,
   stripTrailingMentionToken,
   toMountedResource,
   toMountedSkill,
-  toSendResources,
-  toSendSkills,
 } from '../../features/agent-conversations/payload'
 import {
   buildResourceCandidates,
   buildSkillCandidates,
-  buildProjectAssistantSessions,
+  buildQuickThreadList,
   createConversationRuntimeForWorkspace,
   type AgentResourceCandidate,
   type AgentSkillCandidate,
+  type QuickThreadSummary,
 } from '../../features/agent-conversations/view-model'
 import type { PermissionMode } from '../../types'
 import type { BrowserActionLog, BrowserDownloadRecord, BrowserTaskRun } from '@shared/ipc/browser'
@@ -52,6 +52,7 @@ import {
   IconFile,
   IconClipboard,
   IconPlus,
+  IconHistory,
 } from '../common/Icons'
 
 interface AgentPanelProps {
@@ -82,6 +83,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const scope = useAgentStore((s) => s.scope)
   const createConversation = useAgentStore((s) => s.createConversation)
   const switchConversation = useAgentStore((s) => s.switchConversation)
+  const renameConversation = useAgentStore((s) => s.renameConversation)
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
   const openTab = useTabStore((s) => s.openTab)
@@ -104,11 +106,13 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const loadSavedQueries = useDataSourceStore((s) => s.loadSavedQueries)
   const showToast = useToastStore((s) => s.show)
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const restoredConversationIdsRef = useRef<Set<string>>(new Set())
+  const inputRef = useRef<HTMLTextAreaElement | null>(null)
   /** 中止重入守卫：防止快速连点产生重复的中止提示 */
   const abortingRef = useRef(false)
   const [resourceQuery, setResourceQuery] = useState<string | null>(null)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
+  const [quickThreadsExpanded, setQuickThreadsExpanded] = useState(false)
 
   useEffect(() => {
     void refreshBrowserTasks()
@@ -149,7 +153,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   // 发送消息
   const handleSend = useCallback(async () => {
     const text = input.trim()
-    if (!text) return
+    if (!text || loading) return
     const conversationId = activeConversationId
     setInput('', conversationId)
     setResourceQuery(null)
@@ -157,22 +161,20 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     addUserMessage(text, conversationId)
     try {
       const conversation = useAgentStore.getState().conversations[conversationId]
-      const resources = conversation?.mountedResources ?? []
-      const skills = conversation?.mountedSkills ?? []
-      await window.cclinkStudio.agent.sendMessage(conversationId, {
-        message: text,
-        resources: toSendResources(resources),
-        skills: toSendSkills(skills),
-      })
+      await window.cclinkStudio.agent.sendMessage(
+        conversationId,
+        buildAgentSendPayload(text, conversation),
+      )
     } catch (err) {
       addSystemMessage(`发送失败: ${String(err)}`, conversationId)
     }
-  }, [activeConversationId, addSystemMessage, addUserMessage, input, setInput])
+  }, [activeConversationId, addSystemMessage, addUserMessage, input, loading, setInput])
 
   const updateMentionQueryFromInput = useCallback((text: string) => {
     const match = /(?:^|\s)([@/])([^\s@/]*)$/.exec(text)
     setResourceQuery(match?.[1] === '@' ? match[2] : null)
     setSkillQuery(match?.[1] === '/' ? match[2] : null)
+    setMentionSelectedIndex(0)
   }, [])
 
   const handleInputChange = useCallback(
@@ -189,6 +191,8 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
       setInput(stripTrailingMentionToken(input), activeConversationId)
       setResourceQuery(null)
       setSkillQuery(null)
+      setMentionSelectedIndex(0)
+      requestAnimationFrame(() => inputRef.current?.focus())
     },
     [activeConversationId, addMountedResource, input, setInput],
   )
@@ -206,6 +210,8 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
       setInput(stripTrailingMentionToken(input), activeConversationId)
       setResourceQuery(null)
       setSkillQuery(null)
+      setMentionSelectedIndex(0)
+      requestAnimationFrame(() => inputRef.current?.focus())
     },
     [activeConversationId, addMountedSkill, input, setInput],
   )
@@ -272,6 +278,15 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     setSkillQuery(null)
     void window.cclinkStudio.agent.resetSession(conversationId)
   }, [activeWorkspaceRef, createConversation])
+
+  const handleSwitchConversation = useCallback(
+    (conversationId: string) => {
+      switchConversation(conversationId)
+      setResourceQuery(null)
+      setSkillQuery(null)
+    },
+    [switchConversation],
+  )
 
   const handleCopyDiagnostics = useCallback(async () => {
     const conversation = useAgentStore.getState().conversations[activeConversationId] ?? null
@@ -358,44 +373,37 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     tabs,
   ])
 
-  const orderedConversations = useMemo(
+  const allQuickThreads = useMemo(
     () =>
-      conversationOrder.flatMap((id) => {
-        const conversation = conversations[id]
-        return conversation &&
-          conversation.surface === 'assistant-panel' &&
-          !conversation.archivedAt
-          ? [conversation]
-          : []
-      }),
-    [conversationOrder, conversations],
-  )
-  const projectSessions = useMemo(
-    () =>
-      buildProjectAssistantSessions({
+      buildQuickThreadList({
         conversations,
         conversationOrder,
         activeConversationId,
         activeWorkspaceRef,
+        pendingConfirmationCount: pendingConfirmations.length,
+        expanded: true,
       }),
-    [activeConversationId, activeWorkspaceRef, conversationOrder, conversations],
+    [
+      activeConversationId,
+      activeWorkspaceRef,
+      conversationOrder,
+      conversations,
+      pendingConfirmations.length,
+    ],
   )
-
-  useEffect(() => {
-    for (const conversation of orderedConversations) {
-      if (!conversation.sessionId || restoredConversationIdsRef.current.has(conversation.id))
-        continue
-      restoredConversationIdsRef.current.add(conversation.id)
-      void window.cclinkStudio.agent.restoreConversation(conversation.id, conversation.sessionId)
-    }
-  }, [orderedConversations])
+  const quickThreads = quickThreadsExpanded ? allQuickThreads : allQuickThreads.slice(0, 5)
 
   useEffect(() => {
     if (variant !== 'side') return
     const active = conversations[activeConversationId]
-    if (active?.surface === 'assistant-panel' && !active.archivedAt) return
-    if (projectSessions.active.some((session) => session.id === activeConversationId)) return
-    const fallback = projectSessions.active[0]
+    if (
+      active &&
+      !active.archivedAt &&
+      allQuickThreads.some((thread) => thread.id === activeConversationId)
+    ) {
+      return
+    }
+    const fallback = allQuickThreads.find((thread) => !conversations[thread.id]?.archivedAt)
     if (fallback) {
       switchConversation(fallback.id)
       return
@@ -406,23 +414,12 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   }, [
     activeConversationId,
     activeWorkspaceRef,
+    allQuickThreads,
     conversations,
     createConversation,
-    projectSessions.active,
     switchConversation,
     variant,
   ])
-
-  // 键盘事件（需跳过 IME 组合中的 Enter — 中文输入法确认单词）
-  const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
-      if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
-        e.preventDefault()
-        handleSend()
-      }
-    },
-    [handleSend],
-  )
 
   // 连接状态颜色
   const statusColor: Record<string, string> = {
@@ -492,6 +489,84 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     [activeWorkspaceRef, dataSources, editorFiles, resourceQuery, savedQueries, selectedPath, tabs],
   )
   const skillCandidates = useMemo(() => buildSkillCandidates(skillQuery ?? ''), [skillQuery])
+  const activeMentionKind =
+    resourceQuery !== null ? 'resource' : skillQuery !== null ? 'skill' : null
+  const activeMentionCount =
+    activeMentionKind === 'resource'
+      ? resourceCandidates.length
+      : activeMentionKind === 'skill'
+        ? skillCandidates.length
+        : 0
+  const handlePickSelectedMention = useCallback((): boolean => {
+    if (activeMentionKind === 'resource') {
+      const candidate = resourceCandidates[mentionSelectedIndex]
+      if (!candidate) return false
+      handleMountResource(candidate)
+      return true
+    }
+    if (activeMentionKind === 'skill') {
+      const candidate = skillCandidates[mentionSelectedIndex]
+      if (!candidate) return false
+      handleMountSkill(candidate)
+      return true
+    }
+    return false
+  }, [
+    activeMentionKind,
+    handleMountResource,
+    handleMountSkill,
+    mentionSelectedIndex,
+    resourceCandidates,
+    skillCandidates,
+  ])
+
+  useEffect(() => {
+    if (activeMentionCount === 0) {
+      setMentionSelectedIndex(0)
+      return
+    }
+    setMentionSelectedIndex((index) => Math.min(index, activeMentionCount - 1))
+  }, [activeMentionCount])
+
+  // 键盘事件：候选菜单优先；流式输出期间仍允许编辑草稿，但不提交。
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.nativeEvent.isComposing) return
+
+      if (activeMentionKind && activeMentionCount > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setMentionSelectedIndex((index) => (index + 1) % activeMentionCount)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setMentionSelectedIndex((index) => (index - 1 + activeMentionCount) % activeMentionCount)
+          return
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault()
+          handlePickSelectedMention()
+          return
+        }
+      }
+
+      if (activeMentionKind && e.key === 'Escape') {
+        e.preventDefault()
+        setResourceQuery(null)
+        setSkillQuery(null)
+        setMentionSelectedIndex(0)
+        return
+      }
+
+      if (loading) return
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault()
+        handleSend()
+      }
+    },
+    [activeMentionCount, activeMentionKind, handlePickSelectedMention, handleSend, loading],
+  )
   const isStartConversation =
     messages.every((msg) => msg.id === 'welcome') &&
     pendingConfirmations.length === 0 &&
@@ -518,19 +593,29 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
 
           <div className="agent-start-composer">
             {resourceQuery !== null && (
-              <ResourceCandidateMenu candidates={resourceCandidates} onPick={handleMountResource} />
+              <ResourceCandidateMenu
+                candidates={resourceCandidates}
+                selectedIndex={mentionSelectedIndex}
+                onActiveIndexChange={setMentionSelectedIndex}
+                onPick={handleMountResource}
+              />
             )}
             {skillQuery !== null && (
-              <SkillCandidateMenu candidates={skillCandidates} onPick={handleMountSkill} />
+              <SkillCandidateMenu
+                candidates={skillCandidates}
+                selectedIndex={mentionSelectedIndex}
+                onActiveIndexChange={setMentionSelectedIndex}
+                onPick={handleMountSkill}
+              />
             )}
             <MountedSkillStrip skills={mountedSkills} onRemove={handleRemoveMountedSkill} />
             <textarea
+              ref={inputRef}
               className="agent-start-input"
               value={input}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="随心输入"
-              disabled={loading}
               rows={3}
             />
             <AgentComposerToolbar
@@ -568,47 +653,17 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   return (
     <div className={`agent-panel agent-panel-${variant}`}>
       {variant === 'side' && (
-        <div className="agent-header">
-          <div className="agent-header-main">
-            <span className="agent-header-icon">
-              <IconSparkle size={14} />
-            </span>
-            <div className="agent-header-title-block">
-              <span className="agent-header-title" title={activeConversation?.title ?? '新会话'}>
-                {activeConversation?.title ?? '新会话'}
-              </span>
-              <span className="agent-header-subtitle">
-                {workspaceName}
-                <em>{activeConversationId.slice(0, 12)}</em>
-              </span>
-            </div>
-          </div>
-          <div className="agent-header-actions">
-            <button
-              type="button"
-              className="agent-header-btn"
-              onClick={handleNewConversation}
-              title="新建右侧 Agent 会话"
-            >
-              <IconPlus size={13} />
-              新建
-            </button>
-          </div>
-        </div>
+        <QuickThreadSwitcher
+          threads={quickThreads}
+          totalCount={allQuickThreads.length}
+          expanded={quickThreadsExpanded}
+          onToggleExpanded={() => setQuickThreadsExpanded((value) => !value)}
+          onNew={handleNewConversation}
+          onSwitch={handleSwitchConversation}
+          onRename={renameConversation}
+        />
       )}
       <div className="agent-conversation-main">
-        <div className="agent-resource-diagnostic-row">
-          <MountedResourceBar resources={mountedResources} onRemove={handleRemoveMountedResource} />
-          <button
-            type="button"
-            className="agent-copy-diagnostics-btn"
-            onClick={() => void handleCopyDiagnostics()}
-            title="复制当前会话诊断日志"
-          >
-            <IconClipboard size={13} />
-          </button>
-        </div>
-
         {activeBrowserTask && (
           <BrowserTaskCard
             task={activeBrowserTask}
@@ -696,20 +751,39 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
         {/* 输入区域 */}
         <div className="agent-composer-wrap">
           {resourceQuery !== null && (
-            <ResourceCandidateMenu candidates={resourceCandidates} onPick={handleMountResource} />
+            <ResourceCandidateMenu
+              candidates={resourceCandidates}
+              selectedIndex={mentionSelectedIndex}
+              onActiveIndexChange={setMentionSelectedIndex}
+              onPick={handleMountResource}
+            />
           )}
           {skillQuery !== null && (
-            <SkillCandidateMenu candidates={skillCandidates} onPick={handleMountSkill} />
+            <SkillCandidateMenu
+              candidates={skillCandidates}
+              selectedIndex={mentionSelectedIndex}
+              onActiveIndexChange={setMentionSelectedIndex}
+              onPick={handleMountSkill}
+            />
           )}
+          <MountedResourceBar resources={mountedResources} onRemove={handleRemoveMountedResource} />
           <MountedSkillStrip skills={mountedSkills} onRemove={handleRemoveMountedSkill} />
           <div className="agent-input-card">
+            <button
+              type="button"
+              className="agent-copy-diagnostics-btn"
+              onClick={() => void handleCopyDiagnostics()}
+              title="复制当前会话诊断日志"
+            >
+              <IconClipboard size={13} />
+            </button>
             <textarea
+              ref={inputRef}
               className="agent-input"
               value={input}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="输入消息，@ 挂资源，/ 挂技能..."
-              disabled={loading}
               rows={2}
             />
             <AgentComposerToolbar
@@ -741,6 +815,203 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function QuickThreadSwitcher({
+  threads,
+  totalCount,
+  expanded,
+  onToggleExpanded,
+  onNew,
+  onSwitch,
+  onRename,
+}: {
+  threads: QuickThreadSummary[]
+  totalCount: number
+  expanded: boolean
+  onToggleExpanded: () => void
+  onNew: () => void
+  onSwitch: (conversationId: string) => void
+  onRename: (conversationId: string, title: string) => void
+}): React.ReactElement {
+  const [contextMenu, setContextMenu] = useState<{
+    thread: QuickThreadSummary
+    x: number
+    y: number
+  } | null>(null)
+  const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null)
+  const [renameDraft, setRenameDraft] = useState('')
+  const contextMenuRef = useRef<HTMLDivElement | null>(null)
+  const renameInputRef = useRef<HTMLInputElement | null>(null)
+  const renameCancelledRef = useRef(false)
+  const hasOverflow = totalCount > 5
+
+  useEffect(() => {
+    if (!contextMenu) return
+
+    const handlePointerDown = (event: MouseEvent): void => {
+      if (!contextMenuRef.current?.contains(event.target as Node)) {
+        setContextMenu(null)
+      }
+    }
+    const handleKeyDown = (event: KeyboardEvent): void => {
+      if (event.key === 'Escape') setContextMenu(null)
+    }
+
+    const frame = requestAnimationFrame(() => {
+      document.addEventListener('mousedown', handlePointerDown)
+      document.addEventListener('keydown', handleKeyDown)
+    })
+
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [contextMenu])
+
+  useEffect(() => {
+    if (!renamingThreadId) return
+    renameInputRef.current?.focus()
+    renameInputRef.current?.select()
+  }, [renamingThreadId])
+
+  const beginRename = (): void => {
+    if (!contextMenu) return
+    const { thread } = contextMenu
+    setContextMenu(null)
+    renameCancelledRef.current = false
+    setRenameDraft(thread.title)
+    setRenamingThreadId(thread.id)
+  }
+
+  const commitRename = (threadId: string): void => {
+    if (renameCancelledRef.current) {
+      renameCancelledRef.current = false
+      return
+    }
+    const nextTitle = renameDraft.trim()
+    setRenamingThreadId(null)
+    setRenameDraft('')
+    if (!nextTitle) return
+    onRename(threadId, nextTitle)
+  }
+
+  return (
+    <div className="agent-quick-switcher">
+      <div className="agent-quick-switcher-head">
+        <div className="agent-quick-switcher-heading">
+          <IconHistory size={12} />
+          <span>会话列表</span>
+          <em>{totalCount}</em>
+        </div>
+        <button type="button" className="agent-quick-new-btn" onClick={onNew} title="新建会话">
+          <IconPlus size={14} />
+        </button>
+      </div>
+
+      <div className="agent-quick-thread-list" aria-label="会话列表">
+        {threads.map((thread) => (
+          <div
+            key={thread.id}
+            className={`agent-quick-thread-row ${thread.isActive ? 'active' : ''}`}
+            role="button"
+            tabIndex={0}
+            onClick={() => {
+              if (renamingThreadId !== thread.id) onSwitch(thread.id)
+            }}
+            onKeyDown={(event) => {
+              if (
+                event.target === event.currentTarget &&
+                (event.key === 'Enter' || event.key === ' ')
+              ) {
+                event.preventDefault()
+                onSwitch(thread.id)
+              }
+            }}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              event.stopPropagation()
+              setContextMenu({
+                thread,
+                x: event.clientX,
+                y: event.clientY,
+              })
+            }}
+            title={`${thread.title} · ${thread.statusLabel} · 右键重命名`}
+          >
+            <span className={`agent-quick-thread-dot status-${thread.statusKind}`} />
+            <span className="agent-quick-thread-copy">
+              {renamingThreadId === thread.id ? (
+                <input
+                  ref={renameInputRef}
+                  className="agent-quick-thread-rename-input"
+                  value={renameDraft}
+                  aria-label="重命名会话"
+                  onChange={(event) => setRenameDraft(event.target.value)}
+                  onClick={(event) => event.stopPropagation()}
+                  onKeyDown={(event) => {
+                    event.stopPropagation()
+                    if (event.key === 'Enter') {
+                      event.preventDefault()
+                      event.currentTarget.blur()
+                    } else if (event.key === 'Escape') {
+                      event.preventDefault()
+                      renameCancelledRef.current = true
+                      setRenamingThreadId(null)
+                      setRenameDraft('')
+                    }
+                  }}
+                  onBlur={() => commitRename(thread.id)}
+                />
+              ) : (
+                <span className="agent-quick-thread-title">{thread.title}</span>
+              )}
+              <span className="agent-quick-thread-meta">
+                {thread.workspaceLabel} · {thread.messageCount} 条消息
+              </span>
+            </span>
+            <span className="agent-quick-thread-detail">{thread.detail}</span>
+          </div>
+        ))}
+      </div>
+
+      {hasOverflow && (
+        <button
+          type="button"
+          className="agent-quick-expand-btn"
+          onClick={onToggleExpanded}
+          title={expanded ? '收起会话列表' : '展开更多会话'}
+        >
+          {expanded ? '收起' : `展开其余 ${totalCount - threads.length}`}
+        </button>
+      )}
+
+      {contextMenu && (
+        <div
+          ref={contextMenuRef}
+          className="context-menu agent-thread-context-menu"
+          role="menu"
+          style={{
+            left: Math.min(contextMenu.x, window.innerWidth - 170),
+            top: Math.min(contextMenu.y, window.innerHeight - 56),
+          }}
+        >
+          <div className="context-menu-items">
+            <button
+              type="button"
+              className="context-menu-item agent-thread-context-action"
+              role="menuitem"
+              onClick={beginRename}
+            >
+              <span className="context-menu-icon">✎</span>
+              <span>重命名</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

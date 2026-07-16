@@ -39,10 +39,8 @@ import { DataSourcesPanel } from '../data-sources/DataSourcesPanel'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   buildTerminalRecordTabDraft,
-  buildTerminalTabDraft,
   buildTerminalTabDraftFromSession,
 } from '../../utils/terminal-tab'
-import { recordTerminalLifecycleEvent } from '../../utils/terminal-lifecycle'
 
 function getProjectName(path: string): string {
   return path.split('/').filter(Boolean).pop() ?? path
@@ -88,11 +86,13 @@ export function Sidebar(): React.ReactElement {
 
   return (
     <div className="sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
-      <div className="sidebar-header">
-        <span className="sidebar-header-title" title={workspacePath ?? sidebarTitle}>
-          {sidebarTitle}
-        </span>
-      </div>
+      {activePanel !== 'projects' && activePanel !== 'files' && activePanel !== 'sessions' && (
+        <div className="sidebar-header">
+          <span className="sidebar-header-title" title={workspacePath ?? sidebarTitle}>
+            {sidebarTitle}
+          </span>
+        </div>
+      )}
 
       <div className="sidebar-content">
         <ProjectSidebarContent activePanel={activePanel} />
@@ -119,7 +119,6 @@ function ProjectSidebarContent({
   const conversationOrder = useAgentStore((s) => s.conversationOrder)
   const conversations = useAgentStore((s) => s.conversations)
   const activeConversationId = useAgentStore((s) => s.activeConversationId)
-  const createConversation = useAgentStore((s) => s.createConversation)
   const switchConversation = useAgentStore((s) => s.switchConversation)
   const archiveConversation = useAgentStore((s) => s.archiveConversation)
   const restoreArchivedConversation = useAgentStore((s) => s.restoreArchivedConversation)
@@ -166,7 +165,7 @@ function ProjectSidebarContent({
       )}
 
       {activePanel === 'terminal' && (
-        <TerminalSidebarView workspaceRef={activeWorkspaceRef} workspacePath={workspacePath} />
+        <TerminalSidebarView workspaceRef={activeWorkspaceRef} />
       )}
 
       {activePanel === 'operations' && (
@@ -178,7 +177,6 @@ function ProjectSidebarContent({
           workspaceRef={activeWorkspaceRef}
           sessionGroups={sessionGroups}
           activeConversationId={activeConversationId}
-          createConversation={createConversation}
           switchConversation={switchConversation}
           archiveConversation={archiveConversation}
           restoreArchivedConversation={restoreArchivedConversation}
@@ -228,9 +226,10 @@ function ProjectsSidebarView({
 
   return (
     <>
-      <div className="sidebar-section project-panel-section-primary">
+      <div className="project-panel-header">
+        <span className="project-panel-header-title">项目</span>
         <button
-          className="project-panel-row project-panel-row-compact"
+          className="project-panel-open-button"
           onClick={() => {
             void openWorkspacePicker().then(() => {
               if (useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local') {
@@ -241,18 +240,10 @@ function ProjectsSidebarView({
           disabled={loading || picking}
           title="打开项目"
         >
-          <IconPlus size={14} />
-          <span className="project-panel-row-main">
-            <span className="project-panel-row-title">打开项目</span>
-            <span className="project-panel-row-meta">选择一个本地项目文件夹</span>
-          </span>
+          打开项目
         </button>
       </div>
-      <div className="sidebar-section project-panel-section-primary">
-        <div className="sidebar-section-header expanded">
-          <IconChevronDown size={10} />
-          历史项目
-        </div>
+      <div className="sidebar-section project-panel-list-section">
         <ProjectListSection
           workspacePath={workspacePath}
           recentWorkspacePaths={recentWorkspacePaths}
@@ -276,7 +267,6 @@ function ProjectsSidebarView({
 function BrowserManagementView(): React.ReactElement {
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
-  const openTab = useTabStore((s) => s.openTab)
   const activateTab = useTabStore((s) => s.activateTab)
   const browserTabs = useBrowserStore((s) => s.tabs)
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
@@ -292,29 +282,7 @@ function BrowserManagementView(): React.ReactElement {
   }
 
   return (
-    <>
-      <div className="sidebar-section">
-        <div className="sidebar-section-header expanded">
-          <IconChevronDown size={10} />
-          浏览器管理
-        </div>
-        <button
-          className="project-panel-row"
-          onClick={() => openTab({ type: 'browser', title: '浏览器', icon: '🌐', forceNew: true })}
-          title="新建浏览器 Tab"
-        >
-          <IconPlus size={14} />
-          <span className="project-panel-row-main">
-            <span className="project-panel-row-title">新建浏览器</span>
-            <span className="project-panel-row-meta">打开一个独立浏览器现场</span>
-          </span>
-        </button>
-        <div className="project-panel-empty compact">
-          已打开 {browserWorkbenchTabs.length} 个浏览器现场
-        </div>
-      </div>
-
-      <div className="sidebar-section">
+    <div className="sidebar-section">
         <div className="sidebar-section-header expanded">
           <IconChevronDown size={10} />
           当前浏览器
@@ -386,8 +354,7 @@ function BrowserManagementView(): React.ReactElement {
         ) : (
           <div className="project-panel-empty">当前没有浏览器现场</div>
         )}
-      </div>
-    </>
+    </div>
   )
 }
 
@@ -408,10 +375,6 @@ function FilesSidebarView({
 
   return (
     <div className="sidebar-section project-files-section">
-      <div className="sidebar-section-header expanded">
-        <IconChevronDown size={10} />
-        文件
-      </div>
       {workspacePath ? <FileTree /> : <div className="project-panel-empty">尚未打开工作空间</div>}
     </div>
   )
@@ -461,11 +424,6 @@ function formatTerminalTime(timestamp: number): string {
   })
 }
 
-function getTerminalRuntimeLabel(workspaceRef: WorkspaceRef): string {
-  if (workspaceRef.kind === 'local') return '本地 shell'
-  return '本地临时 shell'
-}
-
 function getTerminalTabWorkspaceKey(
   tab: ReturnType<typeof useTabStore.getState>['tabs'][number],
 ): string | null {
@@ -474,10 +432,8 @@ function getTerminalTabWorkspaceKey(
 
 function TerminalSidebarView({
   workspaceRef,
-  workspacePath,
 }: {
   workspaceRef: WorkspaceRef
-  workspacePath: string | null
 }): React.ReactElement {
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
@@ -552,16 +508,6 @@ function TerminalSidebarView({
     void refreshTerminalInfo()
   }, [refreshTerminalInfo, terminalTabs.length])
 
-  const openNewTerminal = (): void => {
-    const draft = buildTerminalTabDraft(workspaceRef)
-    openTab(draft)
-    void recordTerminalLifecycleEvent(draft.terminal, 'created', 'Terminal Tab 已创建').finally(
-      () => {
-        void refreshTerminalInfo()
-      },
-    )
-  }
-
   const openRecoverableSession = (session: TerminalSessionSnapshot): void => {
     const existing = tabs.find((tab) => tab.terminal?.sessionId === session.sessionId)
     if (existing) {
@@ -577,46 +523,9 @@ function TerminalSidebarView({
 
   return (
     <>
-      <div className="sidebar-section project-panel-section-primary terminal-sidebar-summary">
-        <button
-          className="project-panel-row project-panel-row-compact"
-          onClick={openNewTerminal}
-          title="新建 Terminal Tab"
-        >
-          <IconPlus size={14} />
-          <span className="project-panel-row-main">
-            <span className="project-panel-row-title">新建 Terminal</span>
-            <span className="project-panel-row-meta">
-              {workspacePath ?? workspaceRefLabel(workspaceRef)} ·{' '}
-              {getTerminalRuntimeLabel(workspaceRef)}
-            </span>
-          </span>
-        </button>
-        <div className="project-panel-quick-actions project-panel-quick-actions-single">
-          <button
-            className="project-panel-quick-action"
-            onClick={() => void refreshTerminalInfo()}
-            disabled={loading}
-            title="刷新 Terminal 列表"
-          >
-            <IconRefresh size={14} />
-            刷新
-          </button>
-        </div>
-        {error && <div className="project-panel-empty terminal-sidebar-error">{error}</div>}
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-section-header expanded">
-          <IconChevronDown size={10} />
-          当前 Terminal
-        </div>
-        {terminalTabs.length === 0 ? (
-          <div className="project-panel-empty">
-            当前项目还没有 Terminal Tab，点击“新建 Terminal”开始。
-          </div>
-        ) : (
-          terminalTabs.map((tab) => {
+      {terminalTabs.length > 0 && (
+        <div className="sidebar-section">
+          {terminalTabs.map((tab) => {
             const sessionId = tab.terminal?.sessionId
             const session = sessionId ? sessionsById.get(sessionId) : undefined
             const status = session?.status ?? tab.terminal?.status ?? 'idle'
@@ -641,16 +550,12 @@ function TerminalSidebarView({
                 </span>
               </button>
             )
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
 
       {recoverableSessions.length > 0 && (
         <div className="sidebar-section">
-          <div className="sidebar-section-header expanded">
-            <IconChevronDown size={10} />
-            可恢复 Session
-          </div>
           {recoverableSessions.map((session) => (
             <button
               key={session.sessionId}
@@ -673,11 +578,9 @@ function TerminalSidebarView({
       )}
 
       <div className="sidebar-section">
-        <div className="sidebar-section-header expanded">
-          <IconChevronDown size={10} />
-          Terminal 记录
-        </div>
-        {loading && sessions.length === 0 ? (
+        {error ? (
+          <div className="project-panel-empty terminal-sidebar-error">{error}</div>
+        ) : loading && sessions.length === 0 ? (
           <div className="project-panel-empty">正在加载 Terminal 记录…</div>
         ) : recordSessions.length === 0 ? (
           <div className="project-panel-empty">暂无历史 Terminal 记录</div>
@@ -716,23 +619,18 @@ function OperationsSidebarView({
 }: {
   workspaceRef: WorkspaceRef
   workspacePath: string | null
-}): React.ReactElement {
+}): React.ReactElement | null {
   if (workspaceRef.kind === 'local' && workspacePath) {
     return <ProjectOperationsSection workspacePath={workspacePath} workspaceRef={workspaceRef} />
   }
 
-  return (
-    <div className="project-panel-empty project-files-empty">
-      未归档不启用项目运营。请选择或打开一个本地项目。
-    </div>
-  )
+  return null
 }
 
 function SessionsSidebarView({
   workspaceRef,
   sessionGroups,
   activeConversationId,
-  createConversation,
   switchConversation,
   archiveConversation,
   restoreArchivedConversation,
@@ -745,7 +643,6 @@ function SessionsSidebarView({
   workspaceRef: WorkspaceRef
   sessionGroups: ReturnType<typeof getWorkspaceConversationGroups>
   activeConversationId: string
-  createConversation: ReturnType<typeof useAgentStore.getState>['createConversation']
   switchConversation: (id: string) => void
   archiveConversation: ReturnType<typeof useAgentStore.getState>['archiveConversation']
   restoreArchivedConversation: ReturnType<
@@ -762,7 +659,6 @@ function SessionsSidebarView({
       workspaceRef={workspaceRef}
       sessionGroups={sessionGroups}
       activeConversationId={activeConversationId}
-      createConversation={createConversation}
       switchConversation={switchConversation}
       archiveConversation={archiveConversation}
       restoreArchivedConversation={restoreArchivedConversation}

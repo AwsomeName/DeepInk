@@ -1,8 +1,8 @@
 /**
  * IAgentBackend — 可插拔 AI 后端接口
  *
- * Claude Code CLI 是其中一种实现。
- * M9 起开源底座只保留本机 Claude Code CLI 完整工具模式。
+ * Claude Agent SDK 是其中一种实现。
+ * M9 起开源底座只保留本机 Claude Code agent 完整工具模式。
  * HTTP Chat / 多模型直连后续作为独立后端再接入。
  */
 
@@ -69,6 +69,8 @@ export interface IAgentBackend {
 export interface AgentSendOptions {
   /** 当前消息所属会话，用于把 MCP 工具确认等运行态回传到正确会话。 */
   conversationId?: string
+  /** 当前会话绑定的本地工作目录；优先级高于全局当前工作区。 */
+  workspacePath?: string
   /**
    * true 时强制走宿主可视浏览器：禁用 Claude Code 内置工具，避免 WebSearch/WebFetch 绕过 UI。
    */
@@ -82,11 +84,17 @@ export interface BackendConfig {
   type: 'local-claude-code'
   /** Claude Code 配置 */
   claudeCode?: {
-    /** Claude Code CLI 绝对路径；为空时由 spawn 按 PATH 解析。 */
+    /** Claude Code executable 绝对路径；为空时按 PATH 解析。 */
     claudeCodePath?: string
     maxBudgetUsd?: number
     /** 注入到子进程的环境变量。第一版默认交给 Claude Code 自身管理模型登录。 */
     env?: Record<string, string>
+    /** Anthropic-compatible API base URL for the SDK subprocess. */
+    apiBaseUrl?: string
+    /** Anthropic-compatible API key for the SDK subprocess. */
+    apiKey?: string
+    /** Model name passed to the Claude Agent SDK query. */
+    modelName?: string
     /** 获取当前工作区路径（用于把 Agent 的 cwd 绑定到工作区；空串=未选） */
     getWorkspacePath?: () => string
     /** 宿主产品/工具上下文标签；core 默认保持泛化，具体产品在宿主侧注入。 */

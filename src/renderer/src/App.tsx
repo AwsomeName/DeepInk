@@ -22,6 +22,7 @@ import { Toast } from './components/common/Toast'
 import LoadingScreen from './components/loading/LoadingScreen'
 import { useAgentWorkContext } from './bootstrap/use-agent-work-context'
 import { useAgentStreamEvents } from './bootstrap/use-agent-stream-events'
+import { useAgentConversationRestore } from './bootstrap/use-agent-conversation-restore'
 import { useAppSession } from './bootstrap/use-app-session'
 import { useGlobalShortcuts } from './bootstrap/use-global-shortcuts'
 import { useMainProcessEvents } from './bootstrap/use-main-process-events'
@@ -65,6 +66,7 @@ function MainLayout(): React.ReactElement {
   useGlobalShortcuts()
   useMainProcessEvents()
   useAgentStreamEvents()
+  useAgentConversationRestore(workspaceReady)
   useTerminalEvents()
   useAgentWorkContext()
 
@@ -203,7 +205,7 @@ function App(): React.ReactElement {
     typeof window !== 'undefined' &&
     Boolean(window.cclinkStudio?.identity && window.cclinkStudio?.settings)
 
-  useAppSession(cclinkStudioApiAvailable)
+  const appSessionReady = useAppSession(cclinkStudioApiAvailable)
 
   if (!cclinkStudioApiAvailable) {
     return (
@@ -217,6 +219,10 @@ function App(): React.ReactElement {
         </div>
       </div>
     )
+  }
+
+  if (!appSessionReady) {
+    return <LoadingScreen />
   }
 
   return <MainLayout />

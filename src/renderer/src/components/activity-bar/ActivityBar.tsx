@@ -18,13 +18,13 @@ const MAIN_ICONS: Array<{
   label: string
 }> = [
   { id: 'projects', Icon: IconProjects, label: '项目' },
+  { id: 'sessions', Icon: IconRobot, label: '会话' },
   { id: 'files', Icon: IconFiles, label: '文件' },
   { id: 'browser', Icon: IconGlobe, label: '浏览器' },
   { id: 'data-sources', Icon: IconDatabase, label: '数据源' },
   { id: 'terminal', Icon: IconTerminal, label: 'Terminal' },
   { id: 'operations', Icon: IconSparkle, label: '运营' },
   { id: 'production', Icon: IconTool, label: '生产' },
-  { id: 'sessions', Icon: IconRobot, label: '会话' },
 ]
 
 export function ActivityBar(): React.ReactElement {

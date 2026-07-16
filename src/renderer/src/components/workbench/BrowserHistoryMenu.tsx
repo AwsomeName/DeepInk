@@ -1,28 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { BrowserHistoryEntry, BrowserInstanceSnapshot } from '@shared/ipc/browser'
-import { IconFile, IconGlobe, IconHistory } from '../common/Icons'
+import type { BrowserHistoryEntry } from '@shared/ipc/browser'
+import { IconGlobe, IconHistory } from '../common/Icons'
 
 interface BrowserHistoryMenuProps {
   onOpenUrl: (url: string) => void
-  onRestoreSnapshot: (snapshot: BrowserInstanceSnapshot) => void | Promise<void>
 }
 
-export function BrowserHistoryMenu({
-  onOpenUrl,
-  onRestoreSnapshot,
-}: BrowserHistoryMenuProps): React.ReactElement {
+export function BrowserHistoryMenu({ onOpenUrl }: BrowserHistoryMenuProps): React.ReactElement {
   const [open, setOpen] = useState(false)
   const [history, setHistory] = useState<BrowserHistoryEntry[]>([])
-  const [snapshots, setSnapshots] = useState<BrowserInstanceSnapshot[]>([])
   const wrapRef = useRef<HTMLDivElement>(null)
 
   const load = useCallback(async (): Promise<void> => {
-    const [historyList, snapshotList] = await Promise.all([
-      window.cclinkStudio.browser.listHistory(20),
-      window.cclinkStudio.browser.listSnapshots(),
-    ])
+    const historyList = await window.cclinkStudio.browser.listHistory(20)
     setHistory(historyList)
-    setSnapshots(snapshotList)
   }, [])
 
   const toggle = useCallback((): void => {
@@ -78,30 +69,6 @@ export function BrowserHistoryMenu({
             )}
           </div>
 
-          <div className="browser-history-section">
-            <div className="browser-history-header">
-              <span>最近关闭</span>
-            </div>
-            {snapshots.length === 0 ? (
-              <div className="browser-history-empty">暂无页面</div>
-            ) : (
-              snapshots.slice(0, 10).map((snap) => (
-                <button
-                  key={snap.id}
-                  className="browser-history-item"
-                  onClick={() => {
-                    void onRestoreSnapshot(snap)
-                    setSnapshots((items) => items.filter((item) => item.id !== snap.id))
-                    setOpen(false)
-                  }}
-                  title={snap.url}
-                >
-                  <IconFile size={12} />
-                  <span>{snap.title || formatHistoryUrl(snap.url)}</span>
-                </button>
-              ))
-            )}
-          </div>
         </div>
       )}
     </div>

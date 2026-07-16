@@ -4,9 +4,11 @@ import type {
   AgentApiContract as CoreAgentApiContract,
   AgentCommandResult,
 } from '../agent-protocol'
+import type { WorkspaceRef } from '../workspace-ref'
 
 export type AgentSendResourceKind =
   | 'file'
+  | 'folder'
   | 'tab'
   | 'browser'
   | 'android'
@@ -55,6 +57,10 @@ export interface AgentSendMessagePayload {
   message: string
   resources?: AgentSendResource[]
   skills?: AgentSendSkill[]
+  /** 已持久化的 Claude session；主进程在发送前原子恢复，避免 UI 历史与后端脱节。 */
+  sessionId?: string | null
+  /** 会话绑定的工作空间；Agent cwd 必须跟随会话，而不是全局当前项目。 */
+  workspaceRef?: WorkspaceRef
 }
 
 export type AgentSendMessageInput = string | AgentSendMessagePayload

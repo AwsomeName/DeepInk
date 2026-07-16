@@ -24,11 +24,11 @@ function getExtension(filePath?: string): string | undefined {
 function normalizeFileTab(tab: Tab): Tab {
   const extension = getExtension(tab.filePath)
   const type = getTabTypeForFile(extension)
-  if (type !== 'model') return tab
+  if (type !== 'model' && type !== 'file-preview') return tab
   return {
     ...tab,
     type,
-    icon: getModelFileIcon(extension),
+    icon: type === 'model' ? getModelFileIcon(extension) : tab.icon,
     dirty: false,
     initialContent: undefined,
   }
@@ -210,7 +210,8 @@ export const useTabStore = create<TabState>((set, get) => ({
                     title,
                     icon,
                     dirty: false,
-                    initialContent: type === 'model' ? undefined : tab.initialContent,
+                    initialContent:
+                      type === 'model' || type === 'file-preview' ? undefined : tab.initialContent,
                     hardwareGerber,
                   }
                 : tab,

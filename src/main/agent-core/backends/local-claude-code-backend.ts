@@ -1,15 +1,17 @@
 /**
- * LocalClaudeCodeBackend — 本机 Claude Code CLI 后端
+ * LocalClaudeCodeBackend — 本机 Claude Agent SDK 后端
  *
- * 通过 spawn('claude', ...) 子进程与 Claude Code CLI 交互。
+ * 通过 @anthropic-ai/claude-agent-sdk 的 query() 与 Claude Code agent runtime 交互。
  * 实现 IAgentBackend 接口。
  */
 
-import { spawn, type ChildProcess } from 'child_process'
-import { writeFileSync, mkdtempSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
-import { createInterface } from 'readline'
+import {
+  query,
+  type McpServerConfig,
+  type Options as ClaudeAgentSdkOptions,
+  type Query,
+} from '@anthropic-ai/claude-agent-sdk'
 import type { McpToolHost } from '../tools/tool-host.js'
 import type { ToolDefinition } from '../tools/types.js'
 import type {
@@ -47,12 +49,18 @@ export interface AndroidAdbHost {
 }
 
 export interface ClaudeCodeBackendOptions {
-  /** Claude Code CLI 绝对路径；为空时交给 spawn 按 PATH 解析。 */
+  /** Claude Code executable path；为空时按 PATH 使用 claude。 */
   claudeCodePath?: string
   /** 单次会话最大费用（美元） */
   maxBudgetUsd?: number
   /** 注入到子进程的环境变量（如 ANTHROPIC_BASE_URL, ANTHROPIC_API_KEY） */
   env?: Record<string, string>
+  /** Anthropic-compatible API base URL. */
+  apiBaseUrl?: string
+  /** Anthropic-compatible API key. */
+  apiKey?: string
+  /** Model name passed to the SDK. */
+  modelName?: string
   /** 获取当前工作区路径（用于把 Agent cwd 绑定到工作区；空串=未选，回退临时目录） */
   getWorkspacePath?: () => string
   /** agent-device 语义层是否可用（用于工具上下文 prompt 提示 Agent 何时用/降级） */
@@ -62,18 +70,20 @@ export interface ClaudeCodeBackendOptions {
 }
 
 export class LocalClaudeCodeBackend implements IAgentBackend {
-  private currentProcess: ChildProcess | null = null
+  private currentQuery: Query | null = null
+  private abortController: AbortController | null = null
   private sessionId: string | null = null
   private aborted = false
-  private lastCliErrorMessage: string | null = null
+  private lastSdkErrorMessage: string | null = null
   private stderrTail = ''
-  /** MCP 配置临时目录路径（进程退出时清理） */
-  private mcpConfigDir: string | null = null
   /** 当前 Claude Code 进程使用的 MCP 会话 token（进程退出时释放） */
   private mcpSessionToken: string | null = null
   private readonly maxBudgetUsd: number
   private readonly claudeCodePath: string
   private readonly extraEnv: Record<string, string>
+  private readonly apiBaseUrl?: string
+  private readonly apiKey?: string
+  private readonly modelName?: string
   private readonly getWorkspacePath?: () => string
   private readonly toolHost: McpToolHost
   private readonly mcpClientMgr: McpConfigComposer
@@ -99,6 +109,9 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
     this.claudeCodePath = options?.claudeCodePath?.trim() || 'claude'
     this.maxBudgetUsd = options?.maxBudgetUsd ?? 1.0
     this.extraEnv = options?.env ?? {}
+    this.apiBaseUrl = options?.apiBaseUrl?.trim() || undefined
+    this.apiKey = options?.apiKey?.trim() || undefined
+    this.modelName = options?.modelName?.trim() || undefined
     this.getWorkspacePath = options?.getWorkspacePath
     this.agentDeviceAvailable = options?.agentDeviceAvailable
     this.hostContext = {
@@ -117,22 +130,11 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
     this.scope = scope
   }
 
-  /**
-   * 清理 MCP 配置临时文件
-   * 每轮 sendMessage 都写新的临时目录，需要在进程退出/中止/销毁时清理。
-   */
+  /** 释放本轮 MCP 工具会话。 */
   private cleanupMcpConfig(): void {
     if (this.mcpSessionToken) {
       this.toolHost.releaseToolSession(this.mcpSessionToken)
       this.mcpSessionToken = null
-    }
-    if (this.mcpConfigDir) {
-      try {
-        rmSync(this.mcpConfigDir, { recursive: true, force: true })
-      } catch {
-        // 临时文件清理失败不阻断流程
-      }
-      this.mcpConfigDir = null
     }
   }
 
@@ -140,7 +142,7 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
     this.eventHandler?.(type, data)
   }
 
-  private buildProcessEnv(): NodeJS.ProcessEnv {
+  private buildProcessEnv(): Record<string, string | undefined> {
     const env = { ...process.env }
     for (const key of Object.keys(env)) {
       if (
@@ -157,7 +159,13 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
         delete env[key]
       }
     }
-    return { ...env, ...this.extraEnv }
+    return {
+      ...env,
+      ...this.extraEnv,
+      ...(this.apiBaseUrl ? { ANTHROPIC_BASE_URL: this.apiBaseUrl } : {}),
+      ...(this.apiKey ? { ANTHROPIC_API_KEY: this.apiKey } : {}),
+      CLAUDE_AGENT_SDK_CLIENT_APP: 'cclink-studio/0.1.1',
+    }
   }
 
   private rememberStderr(chunk: string): void {
@@ -324,7 +332,7 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
 
   async sendMessage(userMessage: string, options?: AgentSendOptions): Promise<void> {
     // 如果上一轮还在运行，拒绝新消息
-    if (this.currentProcess && !this.currentProcess.killed) {
+    if (this.currentQuery) {
       this.emit('error', {
         type: 'error',
         message: 'AI 正在响应中，请等待完成或点击中止',
@@ -333,30 +341,10 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
     }
 
     this.aborted = false
-    this.lastCliErrorMessage = null
+    this.lastSdkErrorMessage = null
     this.stderrTail = ''
 
-    // 构建 CLI 参数
-    const args = [
-      '-p',
-      '--output-format',
-      'stream-json',
-      '--verbose',
-      '--include-partial-messages',
-      '--max-budget-usd',
-      String(this.maxBudgetUsd),
-    ]
-    if (options?.forceVisibleBrowser) {
-      args.push(
-        '--tools',
-        '',
-        '--strict-mcp-config',
-        '--disallowedTools',
-        DISALLOWED_CLAUDE_TOOLS.join(' '),
-      )
-    }
-
-    // 合成 MCP 配置（写临时文件而非内联 JSON：CLI 当前版本对内联 JSON 解析有问题）
+    // 为当前会话创建隔离的 MCP 工具会话。
     this.mcpSessionToken = this.toolHost.createToolSession(
       options?.conversationId ?? 'agent-default',
     )
@@ -364,97 +352,78 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
       this.toolHost.getPort(),
       this.mcpSessionToken,
     )
-    this.mcpConfigDir = mkdtempSync(join(tmpdir(), 'cclink-studio-mcp-'))
-    const mcpConfigFile = join(this.mcpConfigDir, 'mcp-config.json')
-    writeFileSync(mcpConfigFile, JSON.stringify(mcpConfig, null, 2))
-    args.push('--mcp-config', mcpConfigFile)
-    // 工具收窄：按当前作用域决定 allowedTools（all=全部；其余只暴露该域）。
-    // 服务端照常广播全部工具，CLI 客户端 allowlist 只把匹配的暴露给模型。
-    for (const glob of scopeToAllowedTools(this.scope)) {
-      args.push('--allowedTools', glob)
+
+    // 发送方携带的会话工作区优先；旧调用方继续回退到当前全局工作区。
+    const workspacePath = options?.workspacePath?.trim() || this.getWorkspacePath?.() || ''
+    const abortController = new AbortController()
+    const sdkOptions: ClaudeAgentSdkOptions = {
+      abortController,
+      cwd: workspacePath || tmpdir(),
+      additionalDirectories: workspacePath ? [workspacePath] : [],
+      env: this.buildProcessEnv(),
+      includePartialMessages: true,
+      maxBudgetUsd: this.maxBudgetUsd,
+      mcpServers: (mcpConfig as { mcpServers?: Record<string, McpServerConfig> }).mcpServers,
+      strictMcpConfig: true,
+      pathToClaudeCodeExecutable: this.claudeCodePath,
+      allowedTools: scopeToAllowedTools(this.scope),
+      stderr: (data) => {
+        this.rememberStderr(data)
+        console.error('[ClaudeCodeBackend] stderr:', data)
+      },
+      systemPrompt: {
+        type: 'preset',
+        preset: 'claude_code',
+        append: this.buildToolContextPrompt(options),
+      },
+      ...(this.modelName ? { model: this.modelName } : {}),
+      ...(this.sessionId ? { resume: this.sessionId } : {}),
     }
-
-    // 绑定工作区：把 Agent 的 cwd 锁到用户工作区，并通过 --add-dir 显式授权该目录
-    // （未选工作区时回退到系统临时目录，避免 Agent 在主进程目录随意操作）
-    const workspacePath = this.getWorkspacePath?.() ?? ''
-    if (workspacePath) {
-      args.push('--add-dir', workspacePath)
+    if (options?.forceVisibleBrowser) {
+      sdkOptions.tools = []
+      sdkOptions.disallowedTools = DISALLOWED_CLAUDE_TOOLS
     }
-
-    // 动态注入工具上下文
-    args.push('--append-system-prompt', this.buildToolContextPrompt(options))
-
-    // 有 session 时恢复对话
-    if (this.sessionId) {
-      args.push('--resume', this.sessionId)
-    }
-
-    // 用户消息放最后
-    args.push(userMessage)
 
     try {
-      this.currentProcess = spawn(this.claudeCodePath, args, {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: this.buildProcessEnv(),
-        cwd: workspacePath || tmpdir(),
+      const sdkQuery = query({
+        prompt: userMessage,
+        options: sdkOptions,
       })
+      this.currentQuery = sdkQuery
+      this.abortController = abortController
+      void this.consumeQuery(sdkQuery)
     } catch (err) {
       this.cleanupMcpConfig()
       this.emit('error', {
         type: 'error',
-        message: `无法启动 Claude Code CLI: ${String(err)}`,
+        message: `无法启动 Claude Agent SDK: ${String(err)}`,
       })
-      return
     }
+  }
 
-    const proc = this.currentProcess
-    proc.stdin?.end()
-
-    // stderr 日志
-    proc.stderr?.on('data', (data: Buffer) => {
-      const text = data.toString()
-      this.rememberStderr(text)
-      console.error('[ClaudeCodeBackend] stderr:', text)
-    })
-
-    // 逐行解析 stdout NDJSON
-    const rl = createInterface({ input: proc.stdout! })
-    rl.on('line', (line: string) => {
-      if (!line.trim()) return
-      try {
-        const event = JSON.parse(line)
-        this.handleEvent(event)
-      } catch {
-        console.warn('[ClaudeCodeBackend] 无法解析 NDJSON 行:', line.slice(0, 100))
+  private async consumeQuery(sdkQuery: Query): Promise<void> {
+    try {
+      for await (const event of sdkQuery) {
+        this.handleEvent(event as Record<string, unknown>)
       }
-    })
-
-    // 进程退出处理
-    proc.on('exit', (code, signal) => {
-      if (!this.aborted && code !== 0 && code !== null && !this.lastCliErrorMessage) {
-        const detail = this.stderrTail.trim()
+      const detail = this.stderrTail.trim()
+      if (!this.aborted && detail && !this.lastSdkErrorMessage) {
+        console.error('[ClaudeCodeBackend] stderr:', detail)
+      }
+    } catch (err) {
+      if (!this.aborted) {
         this.emit('error', {
           type: 'error',
-          message: detail
-            ? `Claude Code 进程异常退出 (code: ${code}, signal: ${signal}): ${detail}`
-            : `Claude Code 进程异常退出 (code: ${code}, signal: ${signal})`,
+          message: `Claude Agent SDK 错误: ${err instanceof Error ? err.message : String(err)}`,
         })
       }
-      this.currentProcess = null
+    } finally {
+      if (this.currentQuery === sdkQuery) {
+        this.currentQuery = null
+        this.abortController = null
+      }
       this.cleanupMcpConfig()
-    })
-
-    // 进程错误处理
-    proc.on('error', (err) => {
-      const message =
-        (err as NodeJS.ErrnoException).code === 'ENOENT'
-          ? `Claude Code CLI 未找到（${this.claudeCodePath}）。请在设置页检测或手动填写路径。`
-          : `Claude Code CLI 错误: ${err.message}`
-
-      this.emit('error', { type: 'error', message })
-      this.currentProcess = null
-      this.cleanupMcpConfig()
-    })
+    }
   }
 
   /** 解析 CLI 事件并 emit */
@@ -484,8 +453,8 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
               ? event.result
               : errors.length > 0
                 ? errors.join('\n')
-                : 'Claude Code 返回错误结果'
-          this.lastCliErrorMessage = message
+                : 'Claude Agent SDK 返回错误结果'
+          this.lastSdkErrorMessage = message
           this.emit('error', { type: 'error', message })
         } else {
           this.emit('complete', event)
@@ -499,16 +468,16 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
 
   async abort(): Promise<void> {
     this.aborted = true
-    if (this.currentProcess && !this.currentProcess.killed) {
-      this.currentProcess.kill('SIGTERM')
-      this.currentProcess = null
-    }
+    this.abortController?.abort()
+    this.currentQuery?.close()
+    this.currentQuery = null
+    this.abortController = null
     this.cleanupMcpConfig()
   }
 
   getStatus(): AgentBackendStatus {
     return {
-      connected: this.currentProcess !== null && !this.currentProcess.killed,
+      connected: this.currentQuery !== null,
       sessionId: this.sessionId,
     }
   }

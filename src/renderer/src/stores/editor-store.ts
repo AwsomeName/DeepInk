@@ -7,7 +7,11 @@
 
 import { create } from 'zustand'
 import type { EditorContentUpdate } from '@shared/ipc/editor'
+import type { FsTextDocumentSnapshot } from '@shared/ipc/fs'
+import type { MarkdownDiagnostic } from '../features/markdown/markdown-codec'
 import { isWorkspaceStateRestoring, persistWorkspaceSection } from '../utils/workspace-state'
+
+export type MarkdownEditorMode = 'wysiwyg' | 'source'
 
 /** 单个文件的编辑器状态 */
 export interface EditorFileState {
@@ -19,6 +23,18 @@ export interface EditorFileState {
   dirty: boolean
   /** 是否正在加载 */
   loading: boolean
+  /** 当前编辑模式 */
+  mode?: MarkdownEditorMode
+  /** Markdown 保真和兼容性诊断 */
+  diagnostics?: MarkdownDiagnostic[]
+  /** 最近一次读取/保存的磁盘内容指纹 */
+  versionHash?: string
+  modifiedAt?: number
+  /** 外部修改产生的冲突快照 */
+  externalContent?: string
+  externalHash?: string
+  /** 最近一次可见错误 */
+  error?: string
 }
 
 export type { EditorContentUpdate } from '@shared/ipc/editor'
@@ -41,7 +57,22 @@ interface EditorState {
   updateContent: (filePath: string, markdown: string) => void
 
   /** 保存文件：写入磁盘，清 dirty */
-  saveFile: (filePath: string) => Promise<void>
+  saveFile: (filePath: string, options?: { force?: boolean }) => Promise<'saved' | 'conflict'>
+
+  /** 重新从磁盘载入文件 */
+  reloadFile: (filePath: string) => Promise<void>
+
+  /** 检查文件是否被外部程序修改 */
+  checkExternalChange: (filePath: string) => Promise<'same' | 'reloaded' | 'conflict'>
+
+  /** 设置 Markdown 编辑模式 */
+  setMode: (filePath: string, mode: MarkdownEditorMode) => void
+
+  /** 更新 Markdown 诊断 */
+  setDiagnostics: (filePath: string, diagnostics: MarkdownDiagnostic[]) => void
+
+  /** 清除外部冲突 */
+  clearConflict: (filePath: string) => void
 
   /** 判断文件是否有未保存修改 */
   isDirty: (filePath: string) => boolean
@@ -77,6 +108,15 @@ function normalizeEditorDrafts(value: unknown): Record<string, EditorFileState> 
       currentContent: file.currentContent,
       dirty: Boolean(file.dirty),
       loading: false,
+      mode: file.mode === 'source' ? 'source' : 'wysiwyg',
+      diagnostics: Array.isArray(file.diagnostics) ? file.diagnostics : [],
+      ...(typeof file.versionHash === 'string' ? { versionHash: file.versionHash } : {}),
+      ...(typeof file.modifiedAt === 'number' ? { modifiedAt: file.modifiedAt } : {}),
+      ...(typeof file.externalContent === 'string'
+        ? { externalContent: file.externalContent }
+        : {}),
+      ...(typeof file.externalHash === 'string' ? { externalHash: file.externalHash } : {}),
+      ...(typeof file.error === 'string' ? { error: file.error } : {}),
     }
   }
   return Object.keys(files).length > 0 ? files : null
@@ -122,22 +162,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           currentContent: '',
           dirty: false,
           loading: true,
+          mode: existing?.mode ?? 'wysiwyg',
+          diagnostics: existing?.diagnostics ?? [],
         },
       },
     }))
 
     try {
-      const result = await window.cclinkStudio.fs.readFile(filePath)
-      const content = typeof result === 'string' ? result : result.content
+      const snapshot = await readTextSnapshot(filePath)
       set((state) => ({
         files: {
           ...state.files,
-          [filePath]: {
-            savedContent: content,
-            currentContent: content,
-            dirty: false,
-            loading: false,
-          },
+          [filePath]: fileStateFromSnapshot(snapshot, state.files[filePath]?.mode),
         },
       }))
     } catch (err) {
@@ -151,6 +187,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             currentContent: '',
             dirty: false,
             loading: false,
+            mode: 'wysiwyg',
+            diagnostics: [],
+            error: err instanceof Error ? err.message : '打开文件失败',
           },
         },
       }))
@@ -181,12 +220,48 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })
   },
 
-  saveFile: async (filePath) => {
+  saveFile: async (filePath, options) => {
     const file = get().files[filePath]
-    if (!file) return
+    if (!file) return 'saved'
 
     try {
-      await window.cclinkStudio.fs.writeFile(filePath, file.currentContent)
+      const fsApi = window.cclinkStudio.fs
+      if (fsApi.saveTextDocument) {
+        const result = await fsApi.saveTextDocument({
+          filePath,
+          content: file.currentContent,
+          expectedHash: file.versionHash,
+          force: options?.force,
+        })
+        if (result.status === 'conflict') {
+          set((state) => ({
+            files: {
+              ...state.files,
+              [filePath]: {
+                ...state.files[filePath],
+                externalContent: result.current?.content ?? '',
+                externalHash: result.current?.hash,
+                modifiedAt: result.current?.modifiedAt,
+                error: '文件已被外部修改',
+              },
+            },
+          }))
+          return 'conflict'
+        }
+        set((state) => ({
+          files: {
+            ...state.files,
+            [filePath]: fileStateFromSnapshot(
+              result.snapshot,
+              state.files[filePath]?.mode,
+              state.files[filePath]?.diagnostics ?? [],
+            ),
+          },
+        }))
+        return 'saved'
+      }
+
+      await fsApi.writeFile(filePath, file.currentContent)
       set((state) => ({
         files: {
           ...state.files,
@@ -194,14 +269,107 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             ...state.files[filePath],
             savedContent: file.currentContent,
             dirty: false,
+            externalContent: undefined,
+            externalHash: undefined,
+            error: undefined,
           },
         },
       }))
+      return 'saved'
     } catch (err) {
       console.error('[EditorStore] 保存文件失败:', filePath, err)
+      set((state) => ({
+        files: {
+          ...state.files,
+          [filePath]: {
+            ...state.files[filePath],
+            error: err instanceof Error ? err.message : '保存文件失败',
+          },
+        },
+      }))
       throw err
     }
   },
+
+  reloadFile: async (filePath) => {
+    const snapshot = await readTextSnapshot(filePath)
+    set((state) => ({
+      files: {
+        ...state.files,
+        [filePath]: fileStateFromSnapshot(snapshot, state.files[filePath]?.mode),
+      },
+    }))
+  },
+
+  checkExternalChange: async (filePath) => {
+    const current = get().files[filePath]
+    if (!current) return 'same'
+    const snapshot = await readTextSnapshot(filePath)
+    if (!current.versionHash || snapshot.hash === current.versionHash) return 'same'
+    if (!current.dirty) {
+      set((state) => ({
+        files: {
+          ...state.files,
+          [filePath]: fileStateFromSnapshot(snapshot, state.files[filePath]?.mode),
+        },
+      }))
+      return 'reloaded'
+    }
+    set((state) => ({
+      files: {
+        ...state.files,
+        [filePath]: {
+          ...state.files[filePath],
+          externalContent: snapshot.content,
+          externalHash: snapshot.hash,
+          modifiedAt: snapshot.modifiedAt,
+          error: '文件已被外部修改',
+        },
+      },
+    }))
+    return 'conflict'
+  },
+
+  setMode: (filePath, mode) =>
+    set((state) => {
+      const file = state.files[filePath]
+      if (!file) return state
+      return {
+        files: {
+          ...state.files,
+          [filePath]: { ...file, mode },
+        },
+      }
+    }),
+
+  setDiagnostics: (filePath, diagnostics) =>
+    set((state) => {
+      const file = state.files[filePath]
+      if (!file) return state
+      return {
+        files: {
+          ...state.files,
+          [filePath]: { ...file, diagnostics },
+        },
+      }
+    }),
+
+  clearConflict: (filePath) =>
+    set((state) => {
+      const file = state.files[filePath]
+      if (!file) return state
+      return {
+        files: {
+          ...state.files,
+          [filePath]: {
+            ...file,
+            externalContent: undefined,
+            externalHash: undefined,
+            error: undefined,
+          },
+        },
+      }
+    }),
 
   isDirty: (filePath) => {
     return get().files[filePath]?.dirty ?? false
@@ -249,6 +417,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             currentContent: seed,
             dirty: seed !== '',
             loading: false,
+            mode: 'wysiwyg',
+            diagnostics: [],
           },
         },
       }
@@ -265,3 +435,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 useEditorStore.subscribe((state) => {
   saveStoredEditorFiles(state)
 })
+
+async function readTextSnapshot(filePath: string): Promise<FsTextDocumentSnapshot> {
+  const fsApi = window.cclinkStudio.fs
+  if (fsApi.readTextDocument) return fsApi.readTextDocument(filePath)
+  const result = await fsApi.readFile(filePath)
+  const content = typeof result === 'string' ? result : result.content
+  return {
+    path: filePath,
+    content,
+    size: new TextEncoder().encode(content).byteLength,
+    modifiedAt: Date.now(),
+    hash: '',
+  }
+}
+
+function fileStateFromSnapshot(
+  snapshot: FsTextDocumentSnapshot,
+  mode: MarkdownEditorMode = 'wysiwyg',
+  diagnostics: MarkdownDiagnostic[] = [],
+): EditorFileState {
+  return {
+    savedContent: snapshot.content,
+    currentContent: snapshot.content,
+    dirty: false,
+    loading: false,
+    mode,
+    diagnostics,
+    versionHash: snapshot.hash || undefined,
+    modifiedAt: snapshot.modifiedAt,
+  }
+}

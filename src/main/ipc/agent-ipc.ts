@@ -22,6 +22,7 @@ import type {
   AgentSendMessageInput,
   AgentSendMessagePayload,
 } from '../../shared/ipc/agent'
+import type { WorkspaceRef } from '../../shared/workspace-ref'
 
 interface AgentIpcDeps {
   getAgentBridge: () => AgentBridge | null
@@ -38,7 +39,21 @@ function normalizeSendMessageInput(input: AgentSendMessageInput): AgentSendMessa
     message: input.message,
     resources: Array.isArray(input.resources) ? input.resources : undefined,
     skills: Array.isArray(input.skills) ? input.skills : undefined,
+    sessionId:
+      input.sessionId === null || typeof input.sessionId === 'string'
+        ? input.sessionId
+        : undefined,
+    workspaceRef: normalizeWorkspaceRef(input.workspaceRef),
   }
+}
+
+function normalizeWorkspaceRef(value: unknown): WorkspaceRef | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as { kind?: unknown; path?: unknown }
+  if (candidate.kind === 'global') return { kind: 'global' }
+  if (candidate.kind !== 'local' || typeof candidate.path !== 'string') return undefined
+  const path = candidate.path.trim()
+  return path ? { kind: 'local', path } : undefined
 }
 
 /**
@@ -54,7 +69,7 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
 
   // ─── AI 后端通信 ─────────────────────────────────
 
-  // 发送用户消息给 Claude Code CLI
+  // 发送用户消息给 Claude Agent SDK 后端
   ipcMain.handle(
     'agent:sendMessage',
     async (
@@ -70,7 +85,12 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
       await agentBridge.sendMessage(
         payload.message,
         typeof conversationId === 'string' ? conversationId : undefined,
-        { resources: payload.resources, skills: payload.skills },
+        {
+          resources: payload.resources,
+          skills: payload.skills,
+          sessionId: payload.sessionId,
+          workspaceRef: payload.workspaceRef,
+        },
       )
       return { success: true }
     },

@@ -12,6 +12,14 @@ import { useFsStore } from '../../stores/fs-store'
 import { useAgentStore } from '../../stores/agent-store'
 import { useToastStore } from './Toast'
 
+function toWorkspaceRelativePath(filePath: string, workspacePath: string | null): string {
+  if (!workspacePath) return filePath
+  const root = workspacePath.replace(/\/+$/, '')
+  if (filePath === root) return '.'
+  if (filePath.startsWith(root + '/')) return filePath.slice(root.length + 1)
+  return filePath
+}
+
 export function ContextMenu(): React.ReactElement | null {
   const open = useContextMenuStore((s) => s.open)
   const x = useContextMenuStore((s) => s.x)
@@ -23,6 +31,8 @@ export function ContextMenu(): React.ReactElement | null {
   const showToast = useToastStore((s) => s.show)
   const startEditing = useFsStore((s) => s.startEditing)
   const toggleDir = useFsStore((s) => s.toggleDir)
+  const refreshDir = useFsStore((s) => s.refreshDir)
+  const workspacePath = useFsStore((s) => s.workspacePath)
   const activeConversationId = useAgentStore((s) => s.activeConversationId)
   const addMountedResource = useAgentStore((s) => s.addMountedResource)
   const ref = useRef<HTMLDivElement>(null)
@@ -89,17 +99,18 @@ export function ContextMenu(): React.ReactElement | null {
     hide()
   }
 
-  /** 挂载文件到当前会话 */
+  /** 挂载文件或文件夹到当前会话 */
   const handleSendToSession = (): void => {
-    if (!node || node.type !== 'file') return
+    if (!node) return
+    const kind = node.type === 'directory' ? 'folder' : 'file'
     addMountedResource(
       {
-        id: `file:${node.path}`,
-        kind: 'file',
+        id: `${kind}:${node.path}`,
+        kind,
         label: node.name,
         detail: node.path,
         ref: {
-          type: 'file',
+          type: kind,
           path: node.path,
         },
       },
@@ -108,6 +119,42 @@ export function ContextMenu(): React.ReactElement | null {
     showToast('已发送到当前会话资源栏', 'success')
     hide()
   }
+
+  const copyText = async (text: string, successMessage: string): Promise<void> => {
+    hide()
+    try {
+      await navigator.clipboard.writeText(text)
+      showToast(successMessage, 'success')
+    } catch (err) {
+      showToast('复制失败: ' + String(err), 'error')
+    }
+  }
+
+  const handleCopyAbsolutePath = (): void => {
+    if (!node) return
+    void copyText(node.path, '已复制绝对路径')
+  }
+
+  const handleCopyRelativePath = (): void => {
+    if (!node) return
+    const relativePath = toWorkspaceRelativePath(node.path, workspacePath)
+    void copyText(relativePath, relativePath === node.path ? '已复制路径' : '已复制相对路径')
+  }
+
+  const handleExtractZip = async (): Promise<void> => {
+    if (!node || node.type !== 'file') return
+    hide()
+    try {
+      const result = await window.cclinkStudio.fs.extractZip(node.path)
+      const parentPath =
+        node.path.lastIndexOf('/') > 0 ? node.path.slice(0, node.path.lastIndexOf('/')) : '/'
+      await refreshDir(parentPath)
+      showToast(`已解压到 ${result.targetDir}`, 'success')
+    } catch (err) {
+      showToast('解压失败: ' + String(err), 'error')
+    }
+  }
+
   const handlePreview = (): void => {
     if (!node) return
     openTab({
@@ -148,12 +195,13 @@ export function ContextMenu(): React.ReactElement | null {
 
   const isDir = node.type === 'directory'
   const isMd = node.extension === '.md'
+  const isZip = node.type === 'file' && node.extension === '.zip'
 
   // 确保菜单不超出视口右侧和底部
   const menuStyle: React.CSSProperties = {
     position: 'fixed',
     left: Math.min(x, window.innerWidth - 220),
-    top: Math.min(y, window.innerHeight - 200),
+    top: Math.max(8, Math.min(y, window.innerHeight - 320)),
     zIndex: 10000,
   }
 
@@ -173,16 +221,28 @@ export function ContextMenu(): React.ReactElement | null {
             </div>
           </>
         )}
-        {!isDir && (
-          <div className="context-menu-item" onClick={handleSendToSession}>
-            <span className="context-menu-icon">↗</span>
-            <span>发送到当前会话</span>
-          </div>
-        )}
+        <div className="context-menu-item" onClick={handleSendToSession}>
+          <span className="context-menu-icon">↗</span>
+          <span>发送到当前会话</span>
+        </div>
         <div className="context-menu-item" onClick={handleRename}>
           <span className="context-menu-icon">✏️</span>
           <span>重命名</span>
         </div>
+        <div className="context-menu-item" onClick={handleCopyAbsolutePath}>
+          <span className="context-menu-icon">📋</span>
+          <span>复制绝对路径</span>
+        </div>
+        <div className="context-menu-item" onClick={handleCopyRelativePath}>
+          <span className="context-menu-icon">📎</span>
+          <span>复制相对路径</span>
+        </div>
+        {isZip && (
+          <div className="context-menu-item" onClick={() => void handleExtractZip()}>
+            <span className="context-menu-icon">📦</span>
+            <span>解压到同名文件夹</span>
+          </div>
+        )}
         <div className="context-menu-separator" />
 
         {/* 微信格式操作 */}

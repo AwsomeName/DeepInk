@@ -38,9 +38,10 @@ export async function buildAgentResourceContext(
         })
       : null
   const workspace =
-    options.settings.lastWorkspacePath.trim().length > 0
+    options.context?.workspaceRef ??
+    (options.settings.lastWorkspacePath.trim().length > 0
       ? localWorkspaceRef(options.settings.lastWorkspacePath.trim())
-      : globalWorkspaceRef()
+      : globalWorkspaceRef())
 
   return {
     version: 1,

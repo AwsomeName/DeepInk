@@ -30,9 +30,9 @@ export interface AgentBridgeOptions {
   agentEngine?: 'local-claude-code'
   backendType?: 'claude-code' | 'http-api'
   maxBudgetUsd?: number
-  /** Claude Code CLI 路径；为空时由 LocalClaudeCodeBackend 交给 spawn 按 PATH 解析。 */
+  /** Claude Code executable 路径；为空时由 Agent SDK 按 PATH 解析。 */
   claudeCodePath?: string
-  /** API 格式（anthropic → CLI + env, openai → HTTP API） */
+  /** API 格式（当前本地 Agent 路径使用 Anthropic-compatible 配置） */
   apiFormat?: 'anthropic' | 'openai'
   /** API 基础地址（Anthropic 格式时注入为 ANTHROPIC_BASE_URL） */
   apiBaseUrl?: string
@@ -40,7 +40,7 @@ export interface AgentBridgeOptions {
   apiKey?: string
   /** 模型名称 */
   modelName?: string
-  /** 获取当前工作区路径（Claude Code 后端据此绑定 Agent 的 cwd，仅 CCLink Studio 进程内生效） */
+  /** 旧调用方的工作区回退；正常发送优先使用会话自身 workspaceRef。 */
   getWorkspacePath?: () => string
   /** 获取当前设置快照，用于构建 Agent 资源事实包。 */
   getSettingsSnapshot?: () => AppSettings
@@ -114,6 +114,9 @@ export class AgentBridge {
       claudeCode: {
         claudeCodePath: options?.claudeCodePath,
         maxBudgetUsd: options?.maxBudgetUsd,
+        apiBaseUrl: options?.apiBaseUrl,
+        apiKey: options?.apiKey,
+        modelName: options?.modelName,
         getWorkspacePath: this.getWorkspacePath,
         hostContext: {
           hostName: 'CCLink Studio',
@@ -130,6 +133,12 @@ export class AgentBridge {
     conversationId = DEFAULT_CONVERSATION_ID,
     context?: AgentSendMessageContext,
   ): Promise<void> {
+    if (context?.sessionId !== undefined) {
+      this.runtime.restoreConversation(
+        conversationId,
+        typeof context.sessionId === 'string' ? context.sessionId.trim() || null : null,
+      )
+    }
     const sendPlan = this.resolveSendPlan(conversationId, message, context)
     if (sendPlan.options.forceVisibleBrowser) {
       await this.syncVisibleBrowserPage(sendPlan.browserTabId)
@@ -148,7 +157,11 @@ export class AgentBridge {
       await this.runtime.sendMessage(
         buildAgentMessageWithContext(message, { ...context, resourceContext }),
         conversationId,
-        { ...sendPlan.options, resourceContext },
+        {
+          ...sendPlan.options,
+          workspacePath: resourceContext.workspace.rootPath ?? undefined,
+          resourceContext,
+        },
       )
     } catch (error) {
       this.failActiveBrowserTask(conversationId, error)
@@ -342,6 +355,9 @@ export class AgentBridge {
       maxBudgetUsd: apiSettings.maxBudgetUsd,
       agentEngine: 'local-claude-code',
       claudeCodePath: apiSettings.claudeCodePath,
+      apiBaseUrl: apiSettings.apiBaseUrl,
+      apiKey: apiSettings.apiKey,
+      modelName: apiSettings.modelName,
     })
     this.switchBackend(config)
   }

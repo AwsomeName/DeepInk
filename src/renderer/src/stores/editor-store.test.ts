@@ -50,12 +50,16 @@ describe('useEditorStore', () => {
         currentContent: '# 未命名',
         dirty: true,
         loading: false,
+        mode: 'wysiwyg',
+        diagnostics: [],
       })
       expect(files['/docs/plan.md']).toEqual({
         savedContent: 'old',
         currentContent: 'new',
         dirty: true,
         loading: false,
+        mode: 'wysiwyg',
+        diagnostics: [],
       })
     })
 

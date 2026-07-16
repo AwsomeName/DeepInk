@@ -16,6 +16,7 @@ export function SessionSidebarGroup({
   collapsed = false,
   collapsedText,
   onToggleCollapsed,
+  showTitle = true,
   children,
 }: {
   title: string
@@ -23,30 +24,32 @@ export function SessionSidebarGroup({
   collapsed?: boolean
   collapsedText?: string
   onToggleCollapsed?: () => void
+  showTitle?: boolean
   children: ReactNode
 }): React.ReactElement | null {
   if (count === 0) return null
 
   return (
     <div className="session-sidebar-group">
-      {onToggleCollapsed ? (
-        <button
-          className="session-sidebar-group-title collapsible"
-          onClick={onToggleCollapsed}
-          title={collapsed ? `展开${title}` : `收起${title}`}
-        >
-          <span>
-            <IconChevronDown size={10} className={collapsed ? 'collapsed' : ''} />
-            {title}
-          </span>
-          <span>{count}</span>
-        </button>
-      ) : (
-        <div className="session-sidebar-group-title">
-          <span>{title}</span>
-          <span>{count}</span>
-        </div>
-      )}
+      {showTitle &&
+        (onToggleCollapsed ? (
+          <button
+            className="session-sidebar-group-title collapsible"
+            onClick={onToggleCollapsed}
+            title={collapsed ? `展开${title}` : `收起${title}`}
+          >
+            <span>
+              <IconChevronDown size={10} className={collapsed ? 'collapsed' : ''} />
+              {title}
+            </span>
+            <span>{count}</span>
+          </button>
+        ) : (
+          <div className="session-sidebar-group-title">
+            <span>{title}</span>
+            <span>{count}</span>
+          </div>
+        ))}
       {collapsed ? (
         <div className="project-panel-empty compact">{collapsedText ?? '点击展开历史'}</div>
       ) : (

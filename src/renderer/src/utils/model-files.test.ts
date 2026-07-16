@@ -21,4 +21,39 @@ describe('model-files', () => {
     expect(isModelFileExtension('.md')).toBe(false)
     expect(getTabTypeForFile('.md')).toBe('editor')
   })
+
+  it('图片、Office 安全降级、主流媒体和压缩包进入只读文件预览 Tab', () => {
+    for (const extension of [
+      '.png',
+      '.jpg',
+      '.jpeg',
+      '.webp',
+      '.pdf',
+      '.doc',
+      '.docx',
+      '.xls',
+      '.xlsx',
+      '.ppt',
+      '.pptx',
+      '.odt',
+      '.ods',
+      '.odp',
+      '.pages',
+      '.numbers',
+      '.key',
+      '.mp4',
+      '.mov',
+      '.webm',
+      '.m4v',
+      '.mp3',
+      '.wav',
+      '.m4a',
+      '.zip',
+      '.tar',
+      '.7z',
+      '.rar',
+    ]) {
+      expect(getTabTypeForFile(extension)).toBe('file-preview')
+    }
+  })
 })

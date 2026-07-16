@@ -1,11 +1,29 @@
 import type { TabType } from '../types'
-import { isModelFileExtension as isSharedModelFileExtension } from '@shared/file-types'
+import {
+  isAppleIWorkFileExtension,
+  isArchiveFileExtension,
+  isImageFileExtension,
+  isMediaFileExtension,
+  isModelFileExtension as isSharedModelFileExtension,
+  isOfficeFileExtension,
+} from '@shared/file-types'
 
 export function isModelFileExtension(extension?: string): boolean {
   return isSharedModelFileExtension(extension)
 }
 
 export function getTabTypeForFile(extension?: string): TabType {
+  const normalizedExtension = (extension ?? '').toLowerCase()
+  if (
+    isImageFileExtension(extension) ||
+    normalizedExtension === '.pdf' ||
+    isOfficeFileExtension(extension) ||
+    isMediaFileExtension(extension) ||
+    isArchiveFileExtension(extension) ||
+    isAppleIWorkFileExtension(extension)
+  ) {
+    return 'file-preview'
+  }
   return isModelFileExtension(extension) ? 'model' : 'editor'
 }
 

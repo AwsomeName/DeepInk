@@ -43,7 +43,7 @@ export function createWindowRuntime(
   runtime.browserManager.setActive('browser')
 
   runtime.browserInstanceStore = new BrowserInstanceStore()
-  void runtime.browserInstanceStore.load()
+  void runtime.browserInstanceStore.load().then(() => runtime.browserInstanceStore?.clear())
   runtime.browserManager.attachInstanceStore(runtime.browserInstanceStore)
   runtime.browserTaskRuntime = new BrowserTaskRuntime(runtime.mainWindow)
   runtime.browserDownloadStore = new BrowserDownloadStore(

@@ -1,10 +1,8 @@
 import { useCallback, useRef } from 'react'
-import type { BrowserInstanceSnapshot } from '@shared/ipc/browser'
 import { useAgentStore, useBrowserStore, useTabStore, useWorkspaceStore } from '../../stores'
 import { useTabContextMenuStore } from '../../stores/tab-context-menu-store'
 import { AndroidToolbar } from './AndroidToolbar'
 import { BrowserToolbar } from './BrowserToolbar'
-import { SessionRestoreBanner } from './SessionRestoreBanner'
 import { TabBar } from './TabBar'
 import { WorkbenchContent } from './WorkbenchContent'
 import { useBrowserEvents } from './use-browser-events'
@@ -105,30 +103,8 @@ export function Workbench(): React.ReactElement {
     [activeTabId, isBrowserTab, openTab],
   )
 
-  const restoreBrowserSnapshot = useCallback(
-    async (snap: BrowserInstanceSnapshot): Promise<void> => {
-      openTab({
-        type: 'browser',
-        title: snap.title ?? '恢复的页面',
-        icon: '🌐',
-        initialUrl: snap.url,
-        restore: {
-          viewMode: snap.viewMode,
-          zoomMode: snap.zoomMode,
-          manualZoom: snap.manualZoom,
-          history: snap.history,
-          historyIndex: snap.historyIndex,
-        },
-        forceNew: true,
-      })
-      await window.cclinkStudio.browser.removeSnapshot(snap.id)
-    },
-    [openTab],
-  )
-
   return (
     <div className="workbench">
-      <SessionRestoreBanner />
       <TabBar
         tabs={tabs}
         activeTabId={activeTabId}
@@ -149,7 +125,6 @@ export function Workbench(): React.ReactElement {
           onUrlInputChange={setBrowserUrlInput}
           onNavigate={handleNavigate}
           onOpenUrl={openBrowserUrl}
-          onRestoreSnapshot={restoreBrowserSnapshot}
         />
       )}
 

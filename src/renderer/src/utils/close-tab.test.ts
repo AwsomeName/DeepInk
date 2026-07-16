@@ -105,7 +105,7 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
     expect(useTabStore.getState().tabs.some((tab) => tab.id === tabId)).toBe(false)
   })
 
-  it('关闭 running Terminal Tab 需要确认终止语义', async () => {
+  it('关闭 running Terminal Tab 不弹确认，直接关闭视图', async () => {
     const runtime = {
       location: 'local' as const,
       transport: 'local' as const,
@@ -143,13 +143,7 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
 
     await closeTabWithDraftPolicy(tabId)
 
-    expect(window.cclinkStudio.dialog.showMessageBox).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: 'warning',
-        title: '结束 Terminal',
-        buttons: ['关闭视图', '结束并关闭', '取消'],
-      }),
-    )
+    expect(window.cclinkStudio.dialog.showMessageBox).not.toHaveBeenCalled()
     expect(window.cclinkStudio.terminal.recordLifecycleEvent).toHaveBeenCalledWith({
       terminalSessionId: 'terminal-running',
       workspaceKey: '/workspace',
@@ -170,36 +164,5 @@ describe('closeTabWithDraftPolicy terminal lifecycle', () => {
       closePolicy: 'terminate-process',
     })
     expect(useTabStore.getState().tabs.some((tab) => tab.id === tabId)).toBe(false)
-  })
-
-  it('取消关闭 running Terminal Tab 会保留 Tab', async () => {
-    vi.mocked(window.cclinkStudio.dialog.showMessageBox).mockResolvedValueOnce({ response: 2 })
-    useTabStore.getState().openTab({
-      type: 'terminal',
-      title: 'Terminal',
-      icon: '⌨️',
-      terminal: {
-        runtime: {
-          location: 'local',
-          transport: 'local',
-          backend: 'local-shell',
-          workspaceRef: { kind: 'local', path: '/workspace' },
-          cwd: '/workspace',
-        },
-        permissionPolicy: {
-          mode: 'ask-risky-command',
-          requireConfirmationFor: ['write', 'destructive', 'privileged', 'unknown'],
-        },
-        status: 'running',
-        closePolicy: 'terminate-process',
-        sessionId: 'terminal-cancel',
-      },
-    })
-    const tabId = useTabStore.getState().activeTabId!
-
-    await closeTabWithDraftPolicy(tabId)
-
-    expect(useTabStore.getState().tabs.some((tab) => tab.id === tabId)).toBe(true)
-    expect(window.cclinkStudio.terminal.recordLifecycleEvent).not.toHaveBeenCalled()
   })
 })

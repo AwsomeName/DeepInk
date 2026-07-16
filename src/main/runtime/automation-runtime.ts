@@ -35,7 +35,11 @@ export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeSta
 
     runtime.toolHost = new McpToolHost(runtime.permissionManager)
     runtime.toolHost.registerModule(
-      new BrowserToolModule(runtime.playwrightBridge, runtime.browserTaskRuntime),
+      new BrowserToolModule(
+        runtime.playwrightBridge,
+        runtime.browserTaskRuntime,
+        runtime.browserManager,
+      ),
     )
 
     runtime.editorModule = new EditorToolModule(runtime.mainWindow)

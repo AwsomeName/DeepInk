@@ -13,23 +13,30 @@ import type { AgentResourceCandidate, AgentSkillCandidate } from './view-model'
 
 export function ResourceCandidateMenu({
   candidates,
+  selectedIndex = 0,
+  onActiveIndexChange,
   onPick,
 }: {
   candidates: AgentResourceCandidate[]
+  selectedIndex?: number
+  onActiveIndexChange?: (index: number) => void
   onPick: (candidate: AgentResourceCandidate) => void
 }): React.ReactElement {
   return (
-    <div className="agent-resource-menu">
+    <div className="agent-resource-menu" role="listbox" aria-label="资源候选">
       {candidates.length === 0 ? (
         <div className="agent-resource-menu-empty">
           <IconSearch size={13} />
           没有匹配资源
         </div>
       ) : (
-        candidates.map((candidate) => (
+        candidates.map((candidate, index) => (
           <button
             key={candidate.id}
-            className="agent-resource-menu-row"
+            className={`agent-resource-menu-row${index === selectedIndex ? ' selected' : ''}`}
+            role="option"
+            aria-selected={index === selectedIndex}
+            onMouseEnter={() => onActiveIndexChange?.(index)}
             onMouseDown={(event) => {
               event.preventDefault()
               onPick(candidate)
@@ -48,23 +55,30 @@ export function ResourceCandidateMenu({
 
 export function SkillCandidateMenu({
   candidates,
+  selectedIndex = 0,
+  onActiveIndexChange,
   onPick,
 }: {
   candidates: AgentSkillCandidate[]
+  selectedIndex?: number
+  onActiveIndexChange?: (index: number) => void
   onPick: (candidate: AgentSkillCandidate) => void
 }): React.ReactElement {
   return (
-    <div className="agent-resource-menu agent-skill-menu">
+    <div className="agent-resource-menu agent-skill-menu" role="listbox" aria-label="Skill 候选">
       {candidates.length === 0 ? (
         <div className="agent-resource-menu-empty">
           <IconSearch size={13} />
           没有匹配 Skill
         </div>
       ) : (
-        candidates.map((candidate) => (
+        candidates.map((candidate, index) => (
           <button
             key={candidate.id}
-            className="agent-resource-menu-row"
+            className={`agent-resource-menu-row${index === selectedIndex ? ' selected' : ''}`}
+            role="option"
+            aria-selected={index === selectedIndex}
+            onMouseEnter={() => onActiveIndexChange?.(index)}
             onMouseDown={(event) => {
               event.preventDefault()
               onPick(candidate)
@@ -98,6 +112,7 @@ function resourceMenuIcon(kind: AgentMountedResourceKind): React.ReactElement {
     case 'tab':
     case 'artifact':
       return <IconFile size={13} />
+    case 'folder':
     case 'project':
       return <IconFolder size={13} />
     default:

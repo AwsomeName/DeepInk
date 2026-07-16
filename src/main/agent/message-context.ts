@@ -1,9 +1,12 @@
 import type { AgentSendResource, AgentSendSkill } from '../../shared/ipc/agent'
 import type { AgentResourceContextSnapshot } from '../../shared/agent-resource-context'
+import type { WorkspaceRef } from '../../shared/workspace-ref'
 
 export interface AgentSendMessageContext {
   resources?: AgentSendResource[]
   skills?: AgentSendSkill[]
+  sessionId?: string | null
+  workspaceRef?: WorkspaceRef
   resourceContext?: AgentResourceContextSnapshot
 }
 

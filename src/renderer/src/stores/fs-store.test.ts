@@ -32,10 +32,16 @@ describe('fs-store workspace switching', () => {
       cclinkStudio: {
         fs: {
           readDir: vi.fn().mockResolvedValue([]),
+          isDirectory: vi.fn().mockResolvedValue(true),
+          rename: vi.fn().mockResolvedValue(undefined),
+          mkdir: vi.fn().mockResolvedValue(undefined),
+          writeFile: vi.fn().mockResolvedValue(undefined),
+          watchDir: vi.fn().mockResolvedValue(vi.fn()),
         },
         workspaceState: {
           get: vi.fn(),
           setSection: vi.fn().mockResolvedValue({ success: true }),
+          listLocalWorkspaces: vi.fn().mockResolvedValue([]),
         },
         settings: {
           getAll: vi.fn().mockResolvedValue({ lastWorkspacePath: '', recentWorkspacePaths: [] }),
@@ -176,6 +182,81 @@ describe('fs-store workspace switching', () => {
     })
   })
 
+  it('does not overwrite persisted recent projects with an empty startup merge', async () => {
+    await useFsStore.getState().initWorkspace()
+
+    expect(useFsStore.getState().recentWorkspacePaths).toEqual([])
+    expect(window.cclinkStudio.settings.set).not.toHaveBeenCalledWith({
+      recentWorkspacePaths: [],
+    })
+  })
+
+  it('recovers recent projects from workspace state summaries after restart', async () => {
+    const currentWorkspacePath = '/Users/apple/current-project'
+    const olderWorkspacePath = '/Users/apple/old-project'
+    const getAll = window.cclinkStudio.settings.getAll as ReturnType<typeof vi.fn>
+    getAll.mockResolvedValue({
+      lastWorkspacePath: currentWorkspacePath,
+      recentWorkspacePaths: [currentWorkspacePath],
+    })
+    const listLocalWorkspaces = window.cclinkStudio.workspaceState
+      .listLocalWorkspaces as ReturnType<typeof vi.fn>
+    listLocalWorkspaces.mockResolvedValue([
+      {
+        workspaceKey: olderWorkspacePath,
+        workspacePath: olderWorkspacePath,
+        ownerKey: 'local:owner-1',
+        updatedAt: 2,
+      },
+    ])
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
+    getWorkspaceState.mockResolvedValue(snapshot(currentWorkspacePath, {}))
+
+    await useFsStore.getState().initWorkspace()
+
+    expect(listLocalWorkspaces).toHaveBeenCalledWith('local:owner-1')
+    expect(useFsStore.getState().recentWorkspacePaths).toEqual([
+      currentWorkspacePath,
+      olderWorkspacePath,
+    ])
+    expect(window.cclinkStudio.settings.set).toHaveBeenCalledWith({
+      recentWorkspacePaths: [currentWorkspacePath, olderWorkspacePath],
+    })
+  })
+
+  it('filters missing workspace-state summaries from recovered recent projects', async () => {
+    const currentWorkspacePath = '/Users/apple/current-project'
+    const missingWorkspacePath = '/Users/apple/deleted-smoke-project'
+    const getAll = window.cclinkStudio.settings.getAll as ReturnType<typeof vi.fn>
+    getAll.mockResolvedValue({
+      lastWorkspacePath: currentWorkspacePath,
+      recentWorkspacePaths: [currentWorkspacePath, missingWorkspacePath],
+    })
+    const listLocalWorkspaces = window.cclinkStudio.workspaceState
+      .listLocalWorkspaces as ReturnType<typeof vi.fn>
+    listLocalWorkspaces.mockResolvedValue([
+      {
+        workspaceKey: missingWorkspacePath,
+        workspacePath: missingWorkspacePath,
+        ownerKey: 'local:owner-1',
+        updatedAt: 2,
+      },
+    ])
+    const isDirectory = window.cclinkStudio.fs.isDirectory as ReturnType<typeof vi.fn>
+    isDirectory.mockImplementation((path: string) => {
+      return Promise.resolve(path !== missingWorkspacePath)
+    })
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
+    getWorkspaceState.mockResolvedValue(snapshot(currentWorkspacePath, {}))
+
+    await useFsStore.getState().initWorkspace()
+
+    expect(useFsStore.getState().recentWorkspacePaths).toEqual([currentWorkspacePath])
+    expect(window.cclinkStudio.settings.set).toHaveBeenCalledWith({
+      recentWorkspacePaths: [currentWorkspacePath],
+    })
+  })
+
   it('clears stale project runtime when the last workspace path no longer opens', async () => {
     const missingWorkspacePath = '/Users/apple/missing-project'
     const staleConversationId = useAgentStore.getState().createConversation({ activate: true })
@@ -224,5 +305,124 @@ describe('fs-store workspace switching', () => {
     expect(useEditorStore.getState().files).toEqual({})
     expect(useAgentStore.getState().activeConversationId).not.toBe(staleConversationId)
     expect(window.cclinkStudio.settings.set).toHaveBeenCalledWith({ lastWorkspacePath: '' })
+  })
+
+  it('refreshes root tree after renaming a root-level file', async () => {
+    const workspacePath = '/Users/apple/project'
+    const readDir = window.cclinkStudio.fs.readDir as ReturnType<typeof vi.fn>
+    readDir.mockResolvedValueOnce([
+      {
+        name: 'a',
+        path: `${workspacePath}/a`,
+        type: 'file',
+        size: 0,
+        modifiedAt: 1,
+      },
+    ])
+    readDir.mockResolvedValueOnce([
+      {
+        name: '05-c c lin k',
+        path: `${workspacePath}/05-c c lin k`,
+        type: 'file',
+        size: 0,
+        modifiedAt: 2,
+      },
+    ])
+
+    await useFsStore.getState().setWorkspace(workspacePath)
+    await useFsStore.getState().confirmRename(`${workspacePath}/a`, '05-c c lin k')
+
+    expect(window.cclinkStudio.fs.rename).toHaveBeenCalledWith(
+      `${workspacePath}/a`,
+      `${workspacePath}/05-c c lin k`,
+    )
+    expect(useFsStore.getState().tree).toEqual([
+      expect.objectContaining({
+        name: '05-c c lin k',
+        path: `${workspacePath}/05-c c lin k`,
+      }),
+    ])
+    expect(useFsStore.getState().error).toBeNull()
+    expect(useFsStore.getState().operationError).toBeNull()
+  })
+
+  it('refreshes workspace and reloads expanded directories', async () => {
+    const workspacePath = '/Users/apple/project'
+    const childDir = `${workspacePath}/docs`
+    const readDir = window.cclinkStudio.fs.readDir as ReturnType<typeof vi.fn>
+    readDir.mockImplementation((path: string) => {
+      if (path === workspacePath) {
+        return Promise.resolve([
+          {
+            name: 'docs',
+            path: childDir,
+            type: 'directory',
+            size: 0,
+            modifiedAt: 1,
+          },
+        ])
+      }
+      if (path === childDir) {
+        return Promise.resolve([
+          {
+            name: 'new.md',
+            path: `${childDir}/new.md`,
+            type: 'file',
+            extension: '.md',
+            size: 0,
+            modifiedAt: 2,
+          },
+        ])
+      }
+      return Promise.resolve([])
+    })
+
+    await useFsStore.getState().setWorkspace(workspacePath)
+    await useFsStore.getState().toggleDir(childDir)
+    await useFsStore.getState().refreshWorkspace()
+
+    expect(readDir).toHaveBeenCalledWith(workspacePath)
+    expect(readDir).toHaveBeenCalledWith(childDir)
+    expect(useFsStore.getState().tree).toEqual([
+      expect.objectContaining({
+        path: childDir,
+        expanded: true,
+        children: [
+          expect.objectContaining({
+            name: 'new.md',
+            path: `${childDir}/new.md`,
+          }),
+        ],
+      }),
+    ])
+  })
+
+  it('keeps workspace visible when rename fails', async () => {
+    const workspacePath = '/Users/apple/project'
+    const readDir = window.cclinkStudio.fs.readDir as ReturnType<typeof vi.fn>
+    readDir.mockResolvedValue([
+      {
+        name: 'a',
+        path: `${workspacePath}/a`,
+        type: 'file',
+        size: 0,
+        modifiedAt: 1,
+      },
+    ])
+    const rename = window.cclinkStudio.fs.rename as ReturnType<typeof vi.fn>
+    rename.mockRejectedValue(new Error('ENOENT'))
+
+    await useFsStore.getState().setWorkspace(workspacePath)
+    await useFsStore.getState().confirmRename(`${workspacePath}/a`, '05-c c lin k')
+
+    expect(useFsStore.getState().workspacePath).toBe(workspacePath)
+    expect(useFsStore.getState().tree).toEqual([
+      expect.objectContaining({
+        name: 'a',
+        path: `${workspacePath}/a`,
+      }),
+    ])
+    expect(useFsStore.getState().error).toBeNull()
+    expect(useFsStore.getState().operationError).toContain('重命名失败')
   })
 })

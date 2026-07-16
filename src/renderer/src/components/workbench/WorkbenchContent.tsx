@@ -15,6 +15,7 @@ import { ErrorBoundary } from '../common/ErrorBoundary'
 import { PanelErrorFallback } from '../common/ErrorFallback'
 import { DataSourceQueryTab } from '../data-sources/DataSourceQueryTab'
 import { SettingsPage } from '../settings/SettingsPage'
+import { FilePreview } from './FilePreview'
 import { AndroidDisplay } from './AndroidDisplay'
 import { GerberLayerPreview } from './GerberLayerPreview'
 import { MarkdownEditor } from './MarkdownEditor'
@@ -60,6 +61,9 @@ export function WorkbenchContent({
             {activeTab.type === 'android' && <AndroidDisplay />}
             {activeTab.type === 'preview' && activeTab.filePath && (
               <WeChatPreview key={activeTab.filePath} filePath={activeTab.filePath} />
+            )}
+            {activeTab.type === 'file-preview' && activeTab.filePath && (
+              <FilePreview key={activeTab.filePath} filePath={activeTab.filePath} />
             )}
             {activeTab.type === 'model' && activeTab.filePath && (
               <ModelViewer key={activeTab.filePath} filePath={activeTab.filePath} />

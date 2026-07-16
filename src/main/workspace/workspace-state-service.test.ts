@@ -93,6 +93,23 @@ describe('WorkspaceStateService', () => {
     expect(owned.sections).toEqual({})
   })
 
+  it('lists local workspace summaries for recent project recovery', async () => {
+    const service = new WorkspaceStateService()
+    await service.loadState()
+
+    await service.setSection('/tmp/a', 'tabs', { activeTabId: 'legacy' })
+    await service.setSection('/tmp/a', 'tabs', { activeTabId: 'owner-a' }, 'local:a')
+    await service.setSection('/tmp/b', 'tabs', { activeTabId: 'owner-b' }, 'local:a')
+    await service.setSection('official://device/%2Ftmp%2Fremote', 'tabs', { activeTabId: 'remote' })
+
+    const summaries = service.listLocalWorkspaces('local:a')
+
+    expect(summaries.map((summary) => summary.workspacePath).sort()).toEqual(['/tmp/a', '/tmp/b'])
+    expect(summaries.find((summary) => summary.workspacePath === '/tmp/a')?.ownerKey).toBe(
+      'local:a',
+    )
+  })
+
   it('keeps namespaced workspace keys isolated from local paths', async () => {
     const service = new WorkspaceStateService()
     await service.loadState()
@@ -197,6 +214,55 @@ describe('WorkspaceStateService', () => {
     await service.loadState()
 
     expect(service.getSnapshot(null).sections.layout).toEqual({ activePanel: 'files' })
+  })
+
+  it('removes browser tabs created by the legacy global restore flow', async () => {
+    await writeFile(
+      join(tempDir, 'workspace-state.json'),
+      JSON.stringify({
+        version: 1,
+        workspaces: {
+          global: {
+            version: 1,
+            workspaceId: 'global',
+            ownerKey: null,
+            workspaceKey: null,
+            workspacePath: null,
+            updatedAt: 0,
+            sections: {
+              tabs: {
+                tabs: [
+                  {
+                    id: 'legacy-browser',
+                    type: 'browser',
+                    title: '恢复的页面',
+                    initialUrl: 'https://www.zhihu.com/signin',
+                    restore: { viewMode: 'desktop', zoomMode: 'fit', manualZoom: 1 },
+                  },
+                  { id: 'editor', type: 'editor', title: 'README.md', icon: 'file' },
+                ],
+                activeTabId: 'legacy-browser',
+              },
+              browserTabs: {
+                tabs: {
+                  'legacy-browser': { url: 'https://www.zhihu.com/signin' },
+                },
+              },
+            },
+          },
+        },
+      }),
+      'utf-8',
+    )
+
+    const service = new WorkspaceStateService()
+    await service.loadState()
+
+    expect(service.getSnapshot(null).sections.tabs).toEqual({
+      tabs: [{ id: 'editor', type: 'editor', title: 'README.md', icon: 'file' }],
+      activeTabId: 'editor',
+    })
+    expect(service.getSnapshot(null).sections.browserTabs).toEqual({ tabs: {} })
   })
 
   it('serializes concurrent section writes without losing sections', async () => {

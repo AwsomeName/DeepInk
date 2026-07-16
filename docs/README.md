@@ -34,7 +34,7 @@ Studio 默认可单仓库独立启动，不要求 `cclink-dev`、`chat-cc/deploy
 - 架构与开发：`docs/architecture.md`、`docs/development.md`。
 - 本地验收：`docs/ops/local-smoke-check.md`。
 - 官方集成：`docs/official-integration-contract.md`、`docs/ops/cclink-dev-official-integration-handoff.md`。
-- 工作台能力：`docs/features/project-system.md`、`docs/features/agent-system.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/terminal-tab-model.md`、`docs/features/agent-device.md`。
+- 工作台能力：`docs/features/project-system.md`、`docs/features/agent-system.md`、`docs/features/agent-panel-product-model.md`、`docs/features/browser-automation.md`、`docs/features/document-editor.md`、`docs/features/markdown-wysiwyg.md`、`docs/features/file-type-support.md`、`docs/features/terminal-tab-model.md`、`docs/features/agent-device.md`。
 - 行业能力：数据源、硬件工作区、FPC 改版、CAD 转换、项目内运营助手。
 
 文档只描述最新产品方向和当前工程边界，不保留旧方案细节。

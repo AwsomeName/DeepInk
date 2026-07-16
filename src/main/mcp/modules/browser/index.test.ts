@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { toolNameToActionType, BrowserToolModule } from './index'
 import { PLAYWRIGHT_ACTION_TYPES } from '../../../playwright/playwright-actions'
 
@@ -77,5 +77,64 @@ describe('BrowserToolModule 工具定义', () => {
       const actionType = toolNameToActionType(def.name)
       expect(PLAYWRIGHT_ACTION_TYPES).toContain(actionType)
     }
+  })
+})
+
+describe('BrowserToolModule 可视浏览器同步', () => {
+  it('navigate uses the visible BrowserManager view instead of a hidden Playwright page', async () => {
+    const page = {
+      url: () => 'https://www.baidu.com/',
+    }
+    const bridge = {
+      getPage: () => page,
+      getActiveTabId: () => 'hidden-tab',
+      switchToPage: vi.fn().mockRejectedValue(new Error('not claimed')),
+    }
+    const browserManager = {
+      getActiveViewId: () => 'visible-tab',
+      setActive: vi.fn(),
+      navigate: vi.fn().mockResolvedValue(undefined),
+      getCurrentURL: () => 'https://www.zhihu.com/signin',
+      getTitle: () => '知乎 - 有问题，就会有答案',
+    }
+    const module = new BrowserToolModule(bridge as any, null, browserManager as any)
+
+    const result = await module.execute('browser_navigate', {
+      url: 'https://www.zhihu.com/signin',
+    })
+
+    expect(browserManager.setActive).toHaveBeenCalledWith('visible-tab')
+    expect(browserManager.navigate).toHaveBeenCalledWith(
+      'visible-tab',
+      'https://www.zhihu.com/signin',
+    )
+    expect(result).toEqual({
+      tabId: 'visible-tab',
+      url: 'https://www.zhihu.com/signin',
+      title: '知乎 - 有问题，就会有答案',
+    })
+  })
+
+  it('fails interaction actions when Playwright is pointed at a different page than the visible view', async () => {
+    const page = {
+      url: () => 'https://www.zhihu.com/signin',
+      click: vi.fn(),
+    }
+    const bridge = {
+      getPage: () => page,
+      getActiveTabId: () => 'hidden-tab',
+      switchToPage: vi.fn().mockResolvedValue(undefined),
+    }
+    const browserManager = {
+      getActiveViewId: () => 'visible-tab',
+      setActive: vi.fn(),
+      getCurrentURL: () => 'https://www.baidu.com/',
+    }
+    const module = new BrowserToolModule(bridge as any, null, browserManager as any)
+
+    await expect(module.execute('browser_click', { selector: '#login' })).rejects.toThrow(
+      '浏览器自动化目标与可视页面不一致',
+    )
+    expect(page.click).not.toHaveBeenCalled()
   })
 })

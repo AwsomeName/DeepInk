@@ -27,6 +27,7 @@ export type TabType =
   | 'editor'
   | 'settings'
   | 'preview'
+  | 'file-preview'
   | 'android'
   | 'model'
   | 'conversation'
@@ -46,6 +47,7 @@ export type ConversationBackend = 'cclink-studio-agent' | 'codex' | 'claude-code
 
 export type AgentMountedResourceKind =
   | 'file'
+  | 'folder'
   | 'tab'
   | 'browser'
   | 'android'

@@ -350,9 +350,32 @@ function normalizeConversationSnapshot(
   return { conversations, conversationOrder: order, activeConversationId }
 }
 
+function isInitialSeedConversation(conversation: AgentConversationState): boolean {
+  const onlyMessage = conversation.messages.length === 1 ? conversation.messages[0] : null
+  return (
+    conversation.id === DEFAULT_CONVERSATION_ID &&
+    conversation.title === '新会话' &&
+    !conversation.archivedAt &&
+    !conversation.sessionId &&
+    conversation.lastCost === null &&
+    conversation.input === '' &&
+    conversation.mountedResources.length === 0 &&
+    conversation.mountedSkills.length === 0 &&
+    onlyMessage?.id === 'welcome' &&
+    onlyMessage.role === 'assistant'
+  )
+}
+
 function saveStoredConversations(state: AgentState): void {
   try {
     if (isWorkspaceStateRestoring()) return
+    if (
+      state.conversationOrder.length === 1 &&
+      isInitialSeedConversation(state.conversations[state.conversationOrder[0]])
+    ) {
+      return
+    }
+
     const conversations: Record<string, AgentConversationState> = {}
     for (const id of state.conversationOrder.slice(-20)) {
       const conversation = state.conversations[id]

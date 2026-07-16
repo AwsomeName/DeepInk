@@ -1,4 +1,3 @@
-import type { BrowserInstanceSnapshot } from '@shared/ipc/browser'
 import type { BrowserTabState } from '../../stores/browser-store'
 import {
   IconArrowLeft,
@@ -18,7 +17,6 @@ interface BrowserToolbarProps {
   onUrlInputChange: (tabId: string, value: string) => void
   onNavigate: () => void
   onOpenUrl: (url: string) => void
-  onRestoreSnapshot: (snapshot: BrowserInstanceSnapshot) => void | Promise<void>
 }
 
 export function BrowserToolbar({
@@ -27,7 +25,6 @@ export function BrowserToolbar({
   onUrlInputChange,
   onNavigate,
   onOpenUrl,
-  onRestoreSnapshot,
 }: BrowserToolbarProps): React.ReactElement {
   return (
     <div className="browser-toolbar">
@@ -40,7 +37,7 @@ export function BrowserToolbar({
       <button onClick={() => window.cclinkStudio.browser.reload(tabId)} title="刷新">
         <IconRefresh size={16} />
       </button>
-      <BrowserHistoryMenu onOpenUrl={onOpenUrl} onRestoreSnapshot={onRestoreSnapshot} />
+      <BrowserHistoryMenu onOpenUrl={onOpenUrl} />
       <input
         className="url-input"
         value={browserState?.urlInput ?? ''}

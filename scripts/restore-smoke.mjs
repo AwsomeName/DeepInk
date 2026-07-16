@@ -178,10 +178,15 @@ async function main() {
     const { page: restoredPage } = await restartAndReconnect()
     try {
       await restoredPage.waitForFunction(
-        (name) =>
-          document.querySelector('.app-topbar-title')?.textContent?.includes(name) &&
-          document.body.innerText.includes('restored.md'),
-        workspaceName,
+        async ({ name, path }) => {
+          const titleRestored = document
+            .querySelector('.app-topbar-title')
+            ?.textContent?.includes(name)
+          if (!titleRestored) return false
+          const entries = await window.cclinkStudio.fs.readDir(path)
+          return entries.some((entry) => entry.name === 'restored.md')
+        },
+        { name: workspaceName, path: workspaceDir },
         { timeout: 20_000 },
       )
     } catch (error) {

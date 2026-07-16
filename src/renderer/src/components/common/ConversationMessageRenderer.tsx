@@ -1,19 +1,79 @@
 import type { AgentMessage, ContentBlock } from '../../types'
 import { IconCheck, IconError, IconThinking, IconTool } from './Icons'
 
+type ToolContentBlock = Extract<ContentBlock, { type: 'tool_use' | 'tool_result' }>
+type ThinkingContentBlock = Extract<ContentBlock, { type: 'thinking' }>
+
+type ContentRenderUnit =
+  | { type: 'block'; block: ContentBlock }
+  | { type: 'tool_group'; blocks: ToolContentBlock[] }
+  | { type: 'thinking_group'; blocks: ThinkingContentBlock[] }
+
 export function ConversationMessageRenderer({
   message,
 }: {
   message: AgentMessage
 }): React.ReactElement {
+  const units = buildContentRenderUnits(message.content)
+
   return (
     <div className={`agent-message ${message.role} ${message.isStreaming ? 'streaming' : ''}`}>
-      {message.content.map((block, index) => (
-        <ContentBlockRenderer key={index} block={block} />
+      {units.map((unit, index) => (
+        <ContentRenderUnitRenderer key={index} unit={unit} />
       ))}
       {message.isStreaming && <span className="streaming-cursor" />}
     </div>
   )
+}
+
+export function buildContentRenderUnits(blocks: ContentBlock[]): ContentRenderUnit[] {
+  const units: ContentRenderUnit[] = []
+  let pendingTools: ToolContentBlock[] = []
+  let pendingThinking: ThinkingContentBlock[] = []
+
+  const flushTools = (): void => {
+    if (pendingTools.length === 0) return
+    units.push({ type: 'tool_group', blocks: pendingTools })
+    pendingTools = []
+  }
+  const flushThinking = (): void => {
+    if (pendingThinking.length === 0) return
+    units.push({ type: 'thinking_group', blocks: pendingThinking })
+    pendingThinking = []
+  }
+
+  for (const block of blocks) {
+    if (block.type === 'tool_use' || block.type === 'tool_result') {
+      flushThinking()
+      pendingTools.push(block)
+      continue
+    }
+
+    if (block.type === 'thinking') {
+      flushTools()
+      pendingThinking.push(block)
+      continue
+    }
+
+    flushTools()
+    flushThinking()
+    units.push({ type: 'block', block })
+  }
+
+  flushTools()
+  flushThinking()
+  return units
+}
+
+function ContentRenderUnitRenderer({ unit }: { unit: ContentRenderUnit }): React.ReactElement {
+  if (unit.type === 'tool_group') {
+    return <ToolExecutionGroup blocks={unit.blocks} />
+  }
+  if (unit.type === 'thinking_group') {
+    return <ThinkingGroup blocks={unit.blocks} />
+  }
+
+  return <ContentBlockRenderer block={unit.block} />
 }
 
 export function ContentBlockRenderer({ block }: { block: ContentBlock }): React.ReactElement {
@@ -30,34 +90,180 @@ export function ContentBlockRenderer({ block }: { block: ContentBlock }): React.
         </div>
       )
 
-    case 'thinking':
+    case 'thinking': {
+      const thinkingPreview = previewText(block.thinking, 56) || '查看推理摘要'
       return (
         <details className="content-thinking">
           <summary>
             <IconThinking size={12} />
-            思考过程
+            <span>思考摘要</span>
+            <em>{thinkingPreview}</em>
           </summary>
           <div className="thinking-content">{block.thinking}</div>
         </details>
       )
+    }
 
-    case 'tool_use':
+    case 'tool_use': {
+      const toolLabel = productToolLabel(block.name)
+      const toolInputPreview = previewText(JSON.stringify(block.input), 72)
       return (
-        <div className="content-tool-use">
-          <div className="tool-header">
+        <details className="content-tool-use">
+          <summary className="tool-summary">
             <IconTool size={12} />
-            {block.name}
+            <span>{toolLabel}</span>
+            <em>{toolInputPreview || '无参数'}</em>
+          </summary>
+          <div className="tool-detail">
+            <div className="tool-raw-name">{block.name}</div>
+            <pre className="tool-input">{formatToolInput(block.input)}</pre>
           </div>
-          <pre className="tool-input">{JSON.stringify(block.input, null, 2)}</pre>
-        </div>
+        </details>
       )
+    }
 
-    case 'tool_result':
+    case 'tool_result': {
+      const resultLabel = block.is_error ? '工具失败' : '工具完成'
+      const resultPreview = previewText(block.content, 92) || (block.is_error ? '执行失败' : '执行成功')
       return (
-        <div className={`content-tool-result ${block.is_error ? 'error' : 'success'}`}>
-          {block.is_error ? <IconError size={12} /> : <IconCheck size={12} />}
-          {block.content}
-        </div>
+        <details className={`content-tool-result ${block.is_error ? 'error' : 'success'}`}>
+          <summary>
+            {block.is_error ? <IconError size={12} /> : <IconCheck size={12} />}
+            <span>{resultLabel}</span>
+            <em>{resultPreview}</em>
+          </summary>
+          <div className="tool-result-content">{block.content}</div>
+        </details>
       )
+    }
   }
+}
+
+function ThinkingGroup({ blocks }: { blocks: ThinkingContentBlock[] }): React.ReactElement {
+  const joined = blocks.map((block) => block.thinking).join('\n\n')
+  const preview = previewText(joined, 72) || '查看推理摘要'
+
+  return (
+    <details className="content-thinking content-thinking-group">
+      <summary>
+        <IconThinking size={12} />
+        <span>思考摘要</span>
+        <em>
+          {blocks.length > 1 ? `${blocks.length} 段 · ` : ''}
+          {preview}
+        </em>
+      </summary>
+      <div className="thinking-content">
+        {blocks.map((block, index) => (
+          <div key={index} className="thinking-segment">
+            {block.thinking}
+          </div>
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function ToolExecutionGroup({ blocks }: { blocks: ToolContentBlock[] }): React.ReactElement {
+  const actionCount = blocks.filter((block) => block.type === 'tool_use').length || blocks.length
+  const preview = blocks
+    .slice(0, 3)
+    .map((block) =>
+      block.type === 'tool_use'
+        ? productToolLabel(block.name)
+        : block.is_error
+          ? '工具失败'
+          : '工具完成',
+    )
+    .join('、')
+
+  return (
+    <details className="content-tool-group">
+      <summary>
+        <IconTool size={12} />
+        <span>执行过程</span>
+        <em>
+          {actionCount} 个动作
+          {preview ? ` · ${preview}` : ''}
+        </em>
+      </summary>
+      <div className="tool-group-rows">
+        {blocks.map((block, index) => (
+          <ToolExecutionRow key={index} block={block} />
+        ))}
+      </div>
+    </details>
+  )
+}
+
+function ToolExecutionRow({ block }: { block: ToolContentBlock }): React.ReactElement {
+  if (block.type === 'tool_use') {
+    return (
+      <details className="tool-group-row tool-group-row-use">
+        <summary>
+          <IconTool size={12} />
+          <span>{productToolLabel(block.name)}</span>
+          <em>{previewText(JSON.stringify(block.input), 72) || '无参数'}</em>
+        </summary>
+        <div className="tool-detail">
+          <div className="tool-raw-name">{block.name}</div>
+          <pre className="tool-input">{formatToolInput(block.input)}</pre>
+        </div>
+      </details>
+    )
+  }
+
+  if (block.type === 'tool_result') {
+    return (
+      <details
+        className={`tool-group-row tool-group-row-result ${block.is_error ? 'error' : 'success'}`}
+      >
+        <summary>
+          {block.is_error ? <IconError size={12} /> : <IconCheck size={12} />}
+          <span>{block.is_error ? '工具失败' : '工具完成'}</span>
+          <em>{previewText(block.content, 92) || (block.is_error ? '执行失败' : '执行成功')}</em>
+        </summary>
+        <div className="tool-result-content">{block.content}</div>
+      </details>
+    )
+  }
+
+  return <div className="tool-result-content">未知工具事件</div>
+}
+
+function formatToolInput(input: Record<string, unknown>): string {
+  try {
+    return JSON.stringify(input, null, 2)
+  } catch {
+    return String(input)
+  }
+}
+
+function previewText(value: string, maxLength: number): string {
+  const normalized = value.replace(/\s+/g, ' ').trim()
+  if (!normalized) return ''
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength)}...` : normalized
+}
+
+function productToolLabel(name: string): string {
+  const normalized = name
+    .replace(/^mcp__cclink_studio__/, '')
+    .replace(/^mcp__[^_]+__/, '')
+    .replace(/^cclink_studio__/, '')
+
+  const labels: Record<string, string> = {
+    browser_navigate: '浏览器导航',
+    browser_get_tab_info: '读取标签页信息',
+    browser_click: '点击页面',
+    browser_fill: '填写表单',
+    browser_screenshot: '截取页面',
+    browser_extract: '提取页面信息',
+    browser_scroll: '滚动页面',
+    browser_wait: '等待页面',
+    fs_read_file: '读取文件',
+    fs_write_file: '写入文件',
+    terminal_run: '运行命令',
+  }
+
+  return labels[normalized] ?? normalized.replace(/_/g, ' ')
 }

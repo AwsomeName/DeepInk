@@ -2,7 +2,14 @@ import { useRef, useState, useEffect, useCallback } from 'react'
 import { useFsStore, useTabStore } from '../../stores'
 import { useContextMenuStore } from '../../stores/context-menu-store'
 import type { FileTreeNode } from '../../stores/fs-store'
-import { IconFolder, IconFile, IconPlus, IconChevronRight, IconChevronDown } from '../common/Icons'
+import {
+  IconFolder,
+  IconFile,
+  IconPlus,
+  IconChevronRight,
+  IconChevronDown,
+  IconRefresh,
+} from '../common/Icons'
 import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
 import { isGerberFileExtension } from '../../utils/hardware-files'
 
@@ -38,12 +45,41 @@ const FILE_ICONS: Record<string, string> = {
   '.html': '🌐',
   '.py': '🐍',
   '.pdf': '📕',
+  '.doc': '📘',
   '.docx': '📘',
+  '.xls': '📊',
   '.xlsx': '📊',
+  '.ppt': '📽️',
   '.pptx': '📽️',
+  '.odt': '📘',
+  '.ods': '📊',
+  '.odp': '📽️',
+  '.pages': '📘',
+  '.numbers': '📊',
+  '.key': '📽️',
   '.png': '🖼️',
   '.jpg': '🖼️',
   '.jpeg': '🖼️',
+  '.webp': '🖼️',
+  '.bmp': '🖼️',
+  '.svg': '🖼️',
+  '.mp4': '🎬',
+  '.mov': '🎬',
+  '.webm': '🎬',
+  '.m4v': '🎬',
+  '.mp3': '🎵',
+  '.wav': '🎵',
+  '.m4a': '🎵',
+  '.aac': '🎵',
+  '.flac': '🎵',
+  '.ogg': '🎵',
+  '.opus': '🎵',
+  '.zip': '🗜️',
+  '.tar': '🗜️',
+  '.gz': '🗜️',
+  '.tgz': '🗜️',
+  '.7z': '🗜️',
+  '.rar': '🗜️',
   '.fbx': getModelFileIcon('.fbx'),
   '.glb': getModelFileIcon('.glb'),
   '.gltf': getModelFileIcon('.gltf'),
@@ -62,6 +98,7 @@ export function FileTree(): React.ReactElement {
   const workspacePath = useFsStore((s) => s.workspacePath)
   const loading = useFsStore((s) => s.loading)
   const error = useFsStore((s) => s.error)
+  const operationError = useFsStore((s) => s.operationError)
   const picking = useFsStore((s) => s.picking)
   const openWorkspacePicker = useFsStore((s) => s.openWorkspacePicker)
   const toggleDir = useFsStore((s) => s.toggleDir)
@@ -69,11 +106,14 @@ export function FileTree(): React.ReactElement {
   const newFolderParent = useFsStore((s) => s.newFolderParent)
   const startEditing = useFsStore((s) => s.startEditing)
   const setSelectedPath = useFsStore((s) => s.setSelectedPath)
+  const refreshWorkspace = useFsStore((s) => s.refreshWorkspace)
   const confirmNewFolder = useFsStore((s) => s.confirmNewFolder)
   const confirmNewFile = useFsStore((s) => s.confirmNewFile)
   const cancelEditing = useFsStore((s) => s.cancelEditing)
+  const clearOperationError = useFsStore((s) => s.clearOperationError)
   const openTab = useTabStore((s) => s.openTab)
   const treeRef = useRef<HTMLDivElement>(null)
+  const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     const el = treeRef.current
@@ -83,6 +123,42 @@ export function FileTree(): React.ReactElement {
     el.addEventListener('scroll', onScroll, { passive: true })
     return () => el.removeEventListener('scroll', onScroll)
   }, [workspacePath])
+
+  useEffect(() => {
+    if (!workspacePath) return
+
+    let dispose: (() => void) | null = null
+    let cancelled = false
+    const scheduleRefresh = (): void => {
+      if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
+      refreshTimerRef.current = setTimeout(() => {
+        refreshTimerRef.current = null
+        void refreshWorkspace()
+      }, 300)
+    }
+
+    void window.cclinkStudio.fs
+      .watchDir(workspacePath, scheduleRefresh)
+      .then((stop) => {
+        if (cancelled) {
+          stop()
+          return
+        }
+        dispose = stop
+      })
+      .catch((error) => {
+        console.warn('[FileTree] 监听工作区目录失败:', error)
+      })
+
+    return () => {
+      cancelled = true
+      dispose?.()
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current)
+        refreshTimerRef.current = null
+      }
+    }
+  }, [workspacePath, refreshWorkspace])
 
   /** 点击文件 → 打开编辑器 Tab */
   const handleFileClick = (node: FileTreeNode): void => {
@@ -161,6 +237,13 @@ export function FileTree(): React.ReactElement {
       <div className="file-tree-toolbar">
         <button
           className="file-tree-toolbar-btn"
+          onClick={() => void refreshWorkspace()}
+          title="刷新文件树"
+        >
+          <IconRefresh size={13} />
+        </button>
+        <button
+          className="file-tree-toolbar-btn"
           onClick={() => startEditing('new-file', workspacePath)}
           title="新建文件"
         >
@@ -176,6 +259,16 @@ export function FileTree(): React.ReactElement {
           <IconPlus size={9} className="file-tree-toolbar-plus" />
         </button>
       </div>
+      {operationError && (
+        <button
+          type="button"
+          className="file-tree-operation-error"
+          onClick={clearOperationError}
+          title="点击关闭"
+        >
+          {operationError}
+        </button>
+      )}
       <div className="file-tree" ref={treeRef}>
         {tree.map((node) => (
           <FileTreeNodeView
@@ -329,27 +422,37 @@ function InlineInput({
   depth: number
   icon: React.ReactNode
   initialValue?: string
-  onConfirm: (name: string) => void
+  onConfirm: (name: string) => void | Promise<void>
   onCancel: () => void
 }): React.ReactElement {
   const [value, setValue] = useState(initialValue)
   const inputRef = useRef<HTMLInputElement>(null)
+  const submittedRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
   }, [])
 
+  const submit = useCallback(() => {
+    if (submittedRef.current) return
+    const trimmed = value.trim()
+    if (!trimmed) return
+    submittedRef.current = true
+    void onConfirm(value)
+  }, [onConfirm, value])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault()
-        onConfirm(value)
+        submit()
       } else if (e.key === 'Escape') {
         e.preventDefault()
+        submittedRef.current = true
         onCancel()
       }
     },
-    [value, onConfirm, onCancel],
+    [submit, onCancel],
   )
 
   return (
@@ -361,7 +464,7 @@ function InlineInput({
         value={value}
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={handleKeyDown}
-        onBlur={() => value.trim() && onConfirm(value)}
+        onBlur={submit}
       />
     </div>
   )
@@ -377,11 +480,12 @@ function InlineInputBox({
   onCancel,
 }: {
   initialValue: string
-  onConfirm: (name: string) => void
+  onConfirm: (name: string) => void | Promise<void>
   onCancel: () => void
 }): React.ReactElement {
   const [value, setValue] = useState(initialValue)
   const inputRef = useRef<HTMLInputElement>(null)
+  const submittedRef = useRef(false)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -391,17 +495,26 @@ function InlineInputBox({
     inputRef.current?.setSelectionRange(0, selEnd)
   }, [initialValue])
 
+  const submit = useCallback(() => {
+    if (submittedRef.current) return
+    const trimmed = value.trim()
+    if (!trimmed) return
+    submittedRef.current = true
+    void onConfirm(value)
+  }, [onConfirm, value])
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
         e.preventDefault()
-        onConfirm(value)
+        submit()
       } else if (e.key === 'Escape') {
         e.preventDefault()
+        submittedRef.current = true
         onCancel()
       }
     },
-    [value, onConfirm, onCancel],
+    [submit, onCancel],
   )
 
   return (
@@ -411,7 +524,7 @@ function InlineInputBox({
       value={value}
       onChange={(e) => setValue(e.target.value)}
       onKeyDown={handleKeyDown}
-      onBlur={() => value.trim() && onConfirm(value)}
+      onBlur={submit}
     />
   )
 }

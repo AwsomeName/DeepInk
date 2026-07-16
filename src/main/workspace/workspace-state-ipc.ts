@@ -47,6 +47,10 @@ export function registerWorkspaceStateIpc(workspaceStateService: WorkspaceStateS
     },
   )
 
+  ipcMain.handle('workspaceState:listLocalWorkspaces', (_event, ownerKey?: string | null) => {
+    return workspaceStateService.listLocalWorkspaces(ownerKey)
+  })
+
   ipcMain.handle('workspaceState:diagnostics', () => {
     return workspaceStateService.getDiagnostics()
   })

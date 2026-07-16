@@ -41,6 +41,13 @@ export interface WorkspaceStateDiagnostics {
   } | null
 }
 
+export interface WorkspaceStateLocalWorkspaceSummary {
+  workspaceKey: string
+  workspacePath: string
+  ownerKey: string | null
+  updatedAt: number
+}
+
 export interface WorkspaceStateApiContract {
   get: (workspaceKey?: string | null, ownerKey?: string | null) => Promise<WorkspaceStateSnapshot>
   setSection: (
@@ -53,5 +60,8 @@ export interface WorkspaceStateApiContract {
     workspaceKey?: string | null,
     ownerKey?: string | null,
   ) => Promise<{ success: boolean; error?: string }>
+  listLocalWorkspaces: (
+    ownerKey?: string | null,
+  ) => Promise<WorkspaceStateLocalWorkspaceSummary[]>
   diagnostics: () => Promise<WorkspaceStateDiagnostics>
 }

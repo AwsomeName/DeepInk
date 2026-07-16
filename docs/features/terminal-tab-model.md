@@ -128,15 +128,14 @@ permissionPolicy
 | closePolicy | 行为 | 适用场景 |
 | --- | --- | --- |
 | `close-view` | 只关闭视图，进程继续运行 | 长任务 |
-| `terminate-process` | 关闭 Tab 时结束进程 | 普通交互 shell 默认 |
+| `terminate-process` | 显式终止时结束进程；关闭 Tab 仍只关闭视图 | 普通交互 shell 默认 |
 | `keep-running` | 明确后台保留，并进入任务/会话列表 | 长任务或用户明确选择 |
 
 当前规则：
 
-- `idle / exited / error` 状态关闭 Tab 不弹确认。
-- `starting / running / blocked` 且 `terminate-process` 时，关闭前确认“结束并关闭 / 取消”。
-- `starting / running / blocked` 且 `keep-running` 时，关闭前确认“关闭视图 / 取消”。
-- 本地 shell 终止会杀掉本机子进程。
+- 关闭 Terminal Tab 不弹确认，默认只关闭视图。
+- `starting / running / blocked` 状态关闭 Tab 时，进程继续运行，session 标记为可恢复。
+- 终止本地 shell 必须走显式终止入口；终止会杀掉本机子进程。
 
 ## Session 状态机
 

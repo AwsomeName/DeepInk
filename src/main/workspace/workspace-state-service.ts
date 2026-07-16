@@ -1,9 +1,10 @@
 import { app } from 'electron'
 import { createHash } from 'crypto'
 import { copyFile, mkdir, readFile, rename, writeFile } from 'fs/promises'
-import { dirname, join } from 'path'
+import { dirname, isAbsolute, join } from 'path'
 import type {
   WorkspaceStateDiagnostics,
+  WorkspaceStateLocalWorkspaceSummary,
   WorkspaceStateSnapshot,
 } from '../../shared/ipc/workspace-state'
 import { getUserDataPathDiagnostics } from '../runtime/user-data-path'
@@ -46,6 +47,65 @@ function migrateWorkspaceStateFile(raw: unknown): WorkspaceStateFile {
     version,
     workspaces: typeof file.workspaces === 'object' && file.workspaces ? file.workspaces : {},
   }
+}
+
+function removeLegacyGlobalBrowserRestores(file: WorkspaceStateFile): boolean {
+  let changed = false
+
+  for (const snapshot of Object.values(file.workspaces)) {
+    const tabsSection = snapshot.sections.tabs
+    if (!tabsSection || typeof tabsSection !== 'object') continue
+    const parsedTabs = tabsSection as { tabs?: unknown[]; activeTabId?: unknown }
+    if (!Array.isArray(parsedTabs.tabs)) continue
+
+    const legacyIds = new Set(
+      parsedTabs.tabs.flatMap((value) => {
+        if (!value || typeof value !== 'object') return []
+        const tab = value as {
+          id?: unknown
+          type?: unknown
+          title?: unknown
+          initialUrl?: unknown
+          restore?: unknown
+        }
+        return tab.type === 'browser' &&
+          tab.title === '恢复的页面' &&
+          typeof tab.id === 'string' &&
+          typeof tab.initialUrl === 'string' &&
+          tab.restore &&
+          typeof tab.restore === 'object'
+          ? [tab.id]
+          : []
+      }),
+    )
+    if (legacyIds.size === 0) continue
+
+    const tabs = parsedTabs.tabs.filter((value) => {
+      if (!value || typeof value !== 'object') return true
+      return !legacyIds.has(String((value as { id?: unknown }).id ?? ''))
+    })
+    snapshot.sections.tabs = {
+      ...parsedTabs,
+      tabs,
+      activeTabId:
+        typeof parsedTabs.activeTabId === 'string' && legacyIds.has(parsedTabs.activeTabId)
+          ? ((tabs[0] as { id?: string } | undefined)?.id ?? null)
+          : (parsedTabs.activeTabId ?? null),
+    }
+
+    const browserTabsSection = snapshot.sections.browserTabs
+    if (browserTabsSection && typeof browserTabsSection === 'object') {
+      const parsedBrowserTabs = browserTabsSection as { tabs?: Record<string, unknown> }
+      if (parsedBrowserTabs.tabs && typeof parsedBrowserTabs.tabs === 'object') {
+        const browserTabs = { ...parsedBrowserTabs.tabs }
+        for (const id of legacyIds) delete browserTabs[id]
+        snapshot.sections.browserTabs = { ...parsedBrowserTabs, tabs: browserTabs }
+      }
+    }
+    changed = true
+  }
+
+  return changed
 }
 
 function getWorkspaceId(workspaceKey?: string | null, ownerKey?: string | null): string {
@@ -107,6 +167,10 @@ export class WorkspaceStateService {
   async loadState(): Promise<void> {
     try {
       this.state = await this.readStateFile(this.stateFilePath)
+      if (removeLegacyGlobalBrowserRestores(this.state)) {
+        await this.saveState()
+        console.log('[WorkspaceStateService] 已清理旧版跨项目浏览器恢复现场')
+      }
       console.log('[WorkspaceStateService] 工作台状态已加载')
     } catch (error: unknown) {
       const isEnoent =
@@ -121,6 +185,10 @@ export class WorkspaceStateService {
       console.warn('[WorkspaceStateService] 工作台状态读取失败，尝试读取备份:', error)
       try {
         this.state = await this.readStateFile(this.backupFilePath)
+        if (removeLegacyGlobalBrowserRestores(this.state)) {
+          await this.saveState()
+          console.log('[WorkspaceStateService] 已清理旧版跨项目浏览器恢复现场')
+        }
         console.warn('[WorkspaceStateService] 已从备份恢复工作台状态')
         return
       } catch (backupError: unknown) {
@@ -170,6 +238,35 @@ export class WorkspaceStateService {
   async clear(workspaceKey?: string | null, ownerKey?: string | null): Promise<void> {
     delete this.state.workspaces[getWorkspaceId(workspaceKey, ownerKey)]
     await this.saveState()
+  }
+
+  listLocalWorkspaces(ownerKey?: string | null): WorkspaceStateLocalWorkspaceSummary[] {
+    const normalizedOwnerKey = ownerKey || null
+    const byPath = new Map<string, WorkspaceStateLocalWorkspaceSummary>()
+
+    for (const snapshot of Object.values(this.state.workspaces)) {
+      const workspacePath = snapshot.workspacePath ?? snapshot.workspaceKey
+      if (!workspacePath || workspacePath !== snapshot.workspaceKey) continue
+      if (!isAbsolute(workspacePath)) continue
+      if (snapshot.ownerKey !== normalizedOwnerKey && snapshot.ownerKey !== null) continue
+
+      const current = byPath.get(workspacePath)
+      const next: WorkspaceStateLocalWorkspaceSummary = {
+        workspaceKey: workspacePath,
+        workspacePath,
+        ownerKey: snapshot.ownerKey ?? null,
+        updatedAt: snapshot.updatedAt,
+      }
+      if (
+        !current ||
+        (current.ownerKey !== normalizedOwnerKey && next.ownerKey === normalizedOwnerKey) ||
+        next.updatedAt > current.updatedAt
+      ) {
+        byPath.set(workspacePath, next)
+      }
+    }
+
+    return Array.from(byPath.values()).sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
   getDiagnostics(): WorkspaceStateDiagnostics {

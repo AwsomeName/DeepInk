@@ -83,7 +83,7 @@ export class BrowserManager {
   private playwrightBridge: PlaywrightBridge | null = null
   /** view 被销毁时回调（tabId）—— AgentBridge / TaskRuntime 等据此清理状态 */
   private readonly viewDestroyedCallbacks = new Set<(tabId: string) => void>()
-  /** 实例快照存储（晚绑定，关闭 Tab 时序列化以便重启重建） */
+  /** 浏览历史存储（晚绑定）。项目浏览器现场由 WorkspaceState 负责。 */
   private instanceStore: BrowserInstanceStore | null = null
 
   constructor(mainWindow: BrowserWindow, defaults?: { zoomMode?: ZoomMode; viewMode?: ViewMode }) {
@@ -122,7 +122,7 @@ export class BrowserManager {
     this.viewDestroyedCallbacks.add(cb)
   }
 
-  /** 绑定实例快照存储（关闭 Tab 时序列化） */
+  /** 绑定浏览历史存储。 */
   attachInstanceStore(store: BrowserInstanceStore): void {
     this.instanceStore = store
   }
@@ -345,27 +345,6 @@ export class BrowserManager {
       cb(tabId)
     }
 
-    // 序列化快照（URL + 视图模式 + 缩放），供重启「恢复上次会话」重建。
-    // 登录态由默认 session 持久化，不在此处；仅记录「回到哪个页面 + 视图模式」。
-    // 注意：须在 webContents.close() 之前读，否则可能拿不到；上面已用 entry.url（onNavigate 维护），
-    // 这里不再碰 webContents。
-    if (this.instanceStore) {
-      const url = entry.url
-      // 忽略空/默认页面（about:blank、首页）——不值得恢复
-      if (url && url !== 'about:blank' && url !== DEFAULT_URL) {
-        void this.instanceStore.record({
-          id: randomUUID(),
-          url,
-          title: null,
-          viewMode: entry.viewMode,
-          zoomMode: entry.zoomMode,
-          manualZoom: entry.manualZoom,
-          history: entry.history,
-          historyIndex: entry.historyIndex,
-          closedAt: Date.now(),
-        })
-      }
-    }
   }
 
   /**
@@ -622,6 +601,13 @@ export class BrowserManager {
     const entry = this.views.get(tabId)
     if (!entry) return ''
     return entry.view.webContents.getURL() || entry.url
+  }
+
+  /** 获取当前页面标题（优先实时读取）。 */
+  getTitle(tabId: string): string {
+    const entry = this.views.get(tabId)
+    if (!entry) return ''
+    return entry.view.webContents.getTitle()
   }
 
   /** 销毁所有视图并清空窗口引用 */

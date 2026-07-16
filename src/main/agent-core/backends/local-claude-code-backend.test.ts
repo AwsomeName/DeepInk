@@ -1,7 +1,4 @@
-import { EventEmitter } from 'events'
-import { PassThrough } from 'stream'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { ChildProcess } from 'child_process'
 import type { McpToolHost } from '../tools/tool-host'
 import type { ToolDefinition } from '../tools/types'
 import {
@@ -10,19 +7,21 @@ import {
   type McpConfigComposer,
 } from './local-claude-code-backend'
 
-const spawnMock = vi.hoisted(() => vi.fn())
+const queryMock = vi.hoisted(() => vi.fn())
 
-vi.mock('child_process', () => ({
-  spawn: spawnMock,
+vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
+  query: queryMock,
 }))
 
-function createMockProcess(): ChildProcess {
-  const proc = new EventEmitter() as ChildProcess
-  proc.stdin = new PassThrough()
-  proc.stdout = new PassThrough()
-  proc.stderr = new PassThrough()
-  Object.defineProperty(proc, 'killed', { value: false })
-  return proc
+function createMockQuery(events: Array<Record<string, unknown>> = []): AsyncIterable<unknown> & {
+  close: ReturnType<typeof vi.fn>
+} {
+  return {
+    close: vi.fn(),
+    async *[Symbol.asyncIterator]() {
+      for (const event of events) yield event
+    },
+  }
 }
 
 function createTool(name: string): ToolDefinition {
@@ -81,6 +80,10 @@ function createBackendFixture(): {
     undefined as never,
     {
       claudeCodePath: '/usr/local/bin/claude',
+      apiBaseUrl: 'https://open.bigmodel.cn/api/anthropic',
+      apiKey: 'test-api-key',
+      modelName: 'glm-4.6',
+      getWorkspacePath: () => '/Users/apple/Desktop/project',
       hostContext: {
         hostName: 'CCLink Studio',
         mcpServerName: 'cclink_studio',
@@ -96,48 +99,64 @@ function createBackend(): LocalClaudeCodeBackend {
   return createBackendFixture().backend
 }
 
-function getLastSpawnArgs(): string[] {
-  const call = spawnMock.mock.calls.at(-1)
-  if (!call) throw new Error('spawn was not called')
-  return call[1] as string[]
+function getLastQueryParams(): { prompt: string; options: Record<string, any> } {
+  const call = queryMock.mock.calls.at(-1)
+  if (!call) throw new Error('query was not called')
+  return call[0]
 }
 
-function getPrompt(args: string[]): string {
-  const index = args.indexOf('--append-system-prompt')
-  if (index < 0) throw new Error('append system prompt was not passed')
-  return args[index + 1]
+function getSystemPromptAppend(): string {
+  const params = getLastQueryParams()
+  return params.options.systemPrompt.append
 }
 
 describe('LocalClaudeCodeBackend visible browser policy', () => {
   beforeEach(() => {
-    spawnMock.mockReset()
-    spawnMock.mockImplementation(() => createMockProcess())
+    queryMock.mockReset()
+    queryMock.mockImplementation(() => createMockQuery())
   })
 
-  it('keeps Claude Code built-in tools available for ordinary messages', async () => {
+  it('uses the Claude Agent SDK with configured provider settings', async () => {
     await createBackend().sendMessage('普通问答')
 
-    const args = getLastSpawnArgs()
-    expect(args).not.toContain('--tools')
-    expect(args).not.toContain('--strict-mcp-config')
-    expect(args).not.toContain('--disallowedTools')
-    expect(getPrompt(args)).toContain('| browser_new_tab |')
+    const params = getLastQueryParams()
+    expect(params.prompt).toBe('普通问答')
+    expect(params.options).toMatchObject({
+      cwd: '/Users/apple/Desktop/project',
+      additionalDirectories: ['/Users/apple/Desktop/project'],
+      includePartialMessages: true,
+      maxBudgetUsd: 1,
+      model: 'glm-4.6',
+      pathToClaudeCodeExecutable: '/usr/local/bin/claude',
+      strictMcpConfig: true,
+      allowedTools: ['mcp__cclink_studio__*'],
+      mcpServers: {
+        cclink_studio: {
+          type: 'http',
+          url: 'http://127.0.0.1:39876/mcp?session=mcp-session-1',
+        },
+      },
+    })
+    expect(params.options.env.ANTHROPIC_BASE_URL).toBe('https://open.bigmodel.cn/api/anthropic')
+    expect(params.options.env.ANTHROPIC_API_KEY).toBe('test-api-key')
+    expect(params.options.env.CLAUDE_AGENT_SDK_CLIENT_APP).toBe('cclink-studio/0.1.1')
+    expect(params.options.tools).toBeUndefined()
+    expect(params.options.disallowedTools).toBeUndefined()
+    expect(getSystemPromptAppend()).toContain('| browser_new_tab |')
   })
 
   it('disables invisible browser routes when a visible browser tab is forced', async () => {
     await createBackend().sendMessage('操作这个网页', { forceVisibleBrowser: true })
 
-    const args = getLastSpawnArgs()
-    expect(args.slice(args.indexOf('--tools'), args.indexOf('--tools') + 2)).toEqual([
-      '--tools',
-      '',
+    const params = getLastQueryParams()
+    expect(params.options.tools).toEqual([])
+    expect(params.options.strictMcpConfig).toBe(true)
+    expect(params.options.disallowedTools).toEqual([
+      'mcp__cclink_studio__browser_new_tab',
+      'AskUserQuestion',
     ])
-    expect(args).toContain('--strict-mcp-config')
-    expect(
-      args.slice(args.indexOf('--disallowedTools'), args.indexOf('--disallowedTools') + 2),
-    ).toEqual(['--disallowedTools', 'mcp__cclink_studio__browser_new_tab AskUserQuestion'])
 
-    const prompt = getPrompt(args)
+    const prompt = getSystemPromptAppend()
     expect(prompt).toContain('不要使用 Claude Code 内置 WebSearch/WebFetch')
     expect(prompt).toContain('只有 URL host 已匹配目标站点时')
     expect(prompt).toContain('不要调用 AskUserQuestion')
@@ -152,10 +171,18 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
 
     expect(createToolSession).toHaveBeenCalledWith('conv-123')
     expect(composeMcpConfig).toHaveBeenCalledWith(39876, 'mcp-session-1')
+    await vi.waitFor(() => expect(releaseToolSession).toHaveBeenCalledWith('mcp-session-1'))
+  })
 
-    const proc = spawnMock.mock.results.at(-1)?.value as EventEmitter
-    proc.emit('exit', 0, null)
-    expect(releaseToolSession).toHaveBeenCalledWith('mcp-session-1')
+  it('uses the conversation workspace instead of the global workspace fallback', async () => {
+    await createBackend().sendMessage('继续处理旧项目', {
+      workspacePath: '/Users/apple/Desktop/previous-project',
+    })
+
+    expect(getLastQueryParams().options).toMatchObject({
+      cwd: '/Users/apple/Desktop/previous-project',
+      additionalDirectories: ['/Users/apple/Desktop/previous-project'],
+    })
   })
 
   it('injects the host resource context into the system prompt', async () => {
@@ -201,10 +228,41 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
       },
     })
 
-    const prompt = getPrompt(getLastSpawnArgs())
+    const prompt = getSystemPromptAppend()
     expect(prompt).toContain('### CCLink Studio 资源事实包')
     expect(prompt).toContain('"host": "www.baidu.com"')
     expect(prompt).toContain('"expectedHosts"')
     expect(prompt).toContain('以这里的 URL/host/workspace/config/task 为准')
+  })
+
+  it('resumes existing Claude sessions via SDK options', async () => {
+    const backend = createBackend()
+    backend.setSessionId('123e4567-e89b-12d3-a456-426614174000')
+
+    await backend.sendMessage('继续')
+
+    expect(getLastQueryParams().options.resume).toBe('123e4567-e89b-12d3-a456-426614174000')
+  })
+
+  it('updates the stored session id from SDK init events', async () => {
+    queryMock.mockReturnValueOnce(
+      createMockQuery([
+        {
+          type: 'system',
+          subtype: 'init',
+          session_id: '123e4567-e89b-12d3-a456-426614174001',
+        },
+      ]),
+    )
+    const backend = createBackend()
+    const events: Array<{ type: string; data: unknown }> = []
+    backend.onEvent((type, data) => events.push({ type, data }))
+
+    await backend.sendMessage('你好')
+
+    await vi.waitFor(() =>
+      expect(backend.getSessionId()).toBe('123e4567-e89b-12d3-a456-426614174001'),
+    )
+    expect(events.some((event) => event.type === 'system')).toBe(true)
   })
 })

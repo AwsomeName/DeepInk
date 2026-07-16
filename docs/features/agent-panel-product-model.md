@@ -1,220 +1,308 @@
-# Agent Panel 产品模型
+# Agent Panel 产品模型与推进计划
 
 ## 结论
 
-Agent Panel 是当前项目里的 AI 会话工作区，不是全局历史中心，也不是模型/Skill 配置页。
+Agent Panel 是当前工作流的执行控制台，不是全局会话后台，也不是配置页。
 
-默认产品规则：
+右侧 Agent Panel 定稿为三段式：
 
-- 如果当前有激活项目，新会话自动挂靠当前项目。
-- 如果没有激活项目，新会话挂靠默认项目，也就是“未归档”。
-- Agent Panel 内部由主对话区和会话列表窄列组成：**会话列表在主对话区右边**。
-- `/` 用于挂 Skill。
-- `@` 用于挂资源。
-- 会话顶端展示当前项目/会话已挂载资源。
-- Agent 框架、模型、推理模式在输入区底部选择。
-- Skill、模型、Provider、API Key、默认模式等长期配置全部放到设置页。
+```text
+Quick Switcher / 新建
+  当前 + 运行中 + 最近，单列表混排，默认最多 5 条，可以展开
+
+Messages
+  高密度 turn 视图，工具调用默认折叠
+
+Composer / 已挂载资源
+  输入框 + @资源 + /技能 + 发送
+```
+
+核心产品规则：
+
+- 用户只理解 Thread / 会话，不理解 `assistant-panel`、`workbench-tab` 这类工程 surface。
+- 右侧 Quick Switcher 只做快速切换和新建，不复制左侧完整会话中心。
+- 左侧“会话”视图负责完整历史、搜索、归档和项目级管理。
+- 中间 Workbench 只打开同一个 Thread 的工作视图，关闭 Tab 不删除 Thread。
+- Messages 默认展示结果和可审计摘要，不把每个工具事件铺成大卡片。
+- Composer 区域承载下一条消息的上下文：输入、已挂载资源、`@`、`/`、发送。
 
 本文使用“项目”作为产品口语；工程和既有文档中的“工作空间”与项目等价。
 
-## 会话归属
+## 会话心智
 
-会话必须有归属，不能让用户理解“绑定/未绑定”这种内部状态。
+会话事实源是 Thread。
 
 ```text
-当前有激活项目
-└─ 新会话归属当前项目
-
-当前没有激活项目
-└─ 新会话归属默认项目 / 未归档
+Thread
+├─ id
+├─ title
+├─ workspaceRef | null
+├─ status
+├─ messages
+├─ mountedResources
+├─ createdAt / updatedAt / archivedAt
+└─ views
+   ├─ agent rail current view
+   └─ optional workbench tab view
 ```
 
-会话归属用于：
+Thread 是同一个东西，可以在右侧继续聊，可以在左侧管理，也可以在 Workbench 打开为任务 Tab。
 
-- 按项目过滤会话列表。
-- 恢复项目时恢复相关会话。
-- 决定 `@` 资源搜索范围的默认优先级。
-- 决定会话产物默认保存位置。
+不要把“右侧即时助手会话”和“中间工作会话”做成两种用户概念。工程上可以保留迁移字段，但产品表现必须收敛为同一个 Thread。
 
 ## 右侧 Agent Panel 布局
 
-右侧 Agent Panel 内部不是单列聊天框，而是：
+### Quick Switcher / 新建
+
+顶部只承担快速切换和新建。
 
 ```text
-┌──────────────────────────────────────────────┐
-│ Agent Panel                                  │
-├───────────────────────────────┬──────────────┤
-│ 主对话区                       │ 会话列表窄列  │
-│                               │              │
-│ 顶部：已挂载资源横列           │ 当前项目激活会话│
-│ 消息流                         │              │
-│ 输入框                         │              │
-│ 底部：Agent/模型/推理模式选择  │ 底部：历史展开 │
-└───────────────────────────────┴──────────────┘
+[ 当前 Thread 标题                         + ]
+
+● 知乎登录排查                  等待确认
+● 修改文件预览                  执行中
+○ 新会话                        2分钟前
+○ 构建报错分析                  10分钟前
+○ API 类型错误                  昨天
+展开全部
 ```
 
-重点：
+排序规则：
 
-- 主对话区在左。
-- 会话列表窄列在主对话区右边。
-- 会话列表只展示当前项目的激活会话。
-- 会话列表底部有“历史/已关闭”展开按钮，用于查看已关闭会话。
-- 已关闭历史不是默认铺满主对话区的历史中心。
+1. 当前 Thread 永远第一。
+2. 等待确认、执行中、出错等需要注意的 Thread 优先于普通空闲 Thread。
+3. 其他 Thread 按 `updatedAt desc`。
+4. 默认最多显示 5 条。
+5. 展开后在右侧局部显示更多当前项目 Thread，不跳转到左侧。
+6. 已归档 Thread 默认不显示，除非当前正在查看它。
 
-窄列在宽度不足时可以降级为更窄的 icon/短标题列表，但位置仍然在主对话区右侧。
+每行展示：
 
-## 会话列表窄列
+- 状态点。
+- Thread 标题。
+- 简短状态或相对时间。
+- hover / 更多菜单提供重命名、归档、在 Workbench 打开。
 
-会话列表窄列的职责只有一个：管理当前项目的激活会话。
+### Messages
 
-展示内容：
+Messages 使用高密度 turn 视图。一次 assistant turn 合并展示，不再按 raw event 逐条铺开。
 
-- 当前项目激活会话。
-- 会话运行状态，例如空闲、生成中、等待确认、出错。
-- 当前选中会话。
-- 新建会话入口。
-- 底部“已关闭历史”展开入口。
-
-不展示：
-
-- 全局所有项目会话。
-- 模型配置。
-- Skill 配置。
-- 能力状态诊断。
-- 大面积搜索/过滤 UI。
-
-已关闭历史展开后，才展示当前项目已关闭会话，并支持恢复。
-
-## 主对话区
-
-主对话区负责当前会话的协作，不承担会话管理后台职责。
-
-结构：
+目标形态：
 
 ```text
-资源横列
-消息流
-输入框
-Agent/模型/推理模式选择
+我先确认当前浏览器状态，然后打开知乎登录页。
+
+执行过程  2 个动作
+▸ 浏览器导航              成功  1.2s
+▸ 读取标签页信息          成功  0.1s
+
+当前页面是知乎登录页。你可以继续告诉我要登录、检查元素，还是提取页面信息。
 ```
 
-### 资源横列
+展示规则：
 
-会话顶端集中展示当前项目/会话已挂载资源，一行横列即可：
+- 用户消息完整展示。
+- 助手自然语言结果优先展示。
+- 工具调用默认折叠为 timeline row。
+- raw MCP 名称、JSON 参数、stdout/stderr 只在展开详情中展示。
+- 连续工具事件合并为一个“执行过程”块。
+- 连续思考/状态事件合并为摘要，不作为主视觉卡片反复出现。
+- 错误和等待确认保持显眼，但仍遵守高密度布局。
+
+工具标题必须产品化：
 
 ```text
-@ README.md  @ 选题库.md  @ Browser: 百度  @ Tab: 公众号后台
+mcp__cclink_studio__browser_navigate      -> 浏览器导航
+mcp__cclink_studio__browser_get_tab_info  -> 读取标签页信息
+fs_read_file                              -> 读取文件
+terminal_run                              -> 运行命令
 ```
 
-资源过多时：
+### Composer / 已挂载资源
 
-- 横向滚动，或
-- 显示前几个资源 + `+N`。
-
-资源横列只展示已挂载资源，不承载配置项。
-
-## `/` Skill 挂载
-
-输入框支持 `/` 唤起 Skill 菜单。
-
-示例：
+Composer 是下一条消息的上下文区，已挂载资源必须靠近输入框。
 
 ```text
-/grill-me
-/wechat-format
-/browser-task
+已挂载资源
+@ 当前浏览器 Tab   @ README.md   @ 当前项目
+
+[ 输入框                                               ]
+[@资源] [/技能] [权限模式] [发送]
 ```
 
-Skill 的含义：
+规则：
 
-- 当前消息或当前会话要使用的能力/流程。
-- 可以来自内置 Skill，也可以来自用户安装的 Skill。
-- 选择后以 chip 形式进入输入框或会话上下文。
+- `@` 挂资源：项目文件、打开 Tab、浏览器、Android/设备、任务产物、数据源记录等。
+- `/` 挂 Skill：当前消息或当前会话要使用的流程能力。
+- 资源 chip 可移除；资源过多时横向滚动或显示 `+N`。
+- Agent 框架、模型、推理模式属于执行选择，可以在输入区底部以紧凑控件出现。
+- Skill、模型、Provider、API Key、默认模式等长期配置只放设置页。
 
-Skill 的长期管理不在 Agent Panel 中完成，而在设置页完成。
+## 左侧与 Workbench 分工
 
-设置页负责：
+左侧“会话”视图是 Thread Center：
 
-- Skill 安装/卸载。
-- Skill 启用/禁用。
-- Skill 权限。
-- `/` 命令别名和排序。
+- 完整历史。
+- 搜索和过滤。
+- 当前项目、未归档、已归档。
+- 批量或长期管理。
+- 打开到 Workbench 的入口。
 
-## `@` 资源挂载
+右侧 Quick Switcher 不是 Thread Center，只保留当前工作流最相关的少量 Thread。
 
-输入框支持 `@` 唤起资源选择。
+Workbench 是 Thread 的深度工作视图：
 
-资源范围包括：
+- 打开同一个 Thread 的任务 Tab。
+- 适合长任务、代码修改、浏览器自动化、文件编辑。
+- 关闭 Tab 只是关闭视图，不关闭 Thread。
 
-- 当前项目文件。
-- 当前项目草稿。
-- 当前打开的文档 Tab。
-- 当前打开的浏览器 Tab。
-- 当前打开的 Android/设备 Tab。
-- 任务产物、截图、下载文件。
-- 后续 IM 对话、云文件、远程资源。
+## 推进里程碑
 
-`@` 的默认搜索优先级：
+### M1：统一 Thread 产品模型
 
-1. 当前项目资源。
-2. 当前打开 Tab。
-3. 最近使用资源。
-4. 默认项目 / 未归档资源。
+目标：
 
-资源被选择后，进入当前会话的已挂载资源横列。
+- 收敛当前 `assistant-panel` / `workbench-tab` 的用户心智，建立 Thread 作为会话事实源。
+- 明确右侧、左侧、Workbench 都是同一个 Thread 的不同视图。
 
-## Agent / 模型 / 推理模式选择
+方案：
 
-Agent 框架、模型、推理模式是执行选择，不是项目资源，也不是顶部状态。
+- 梳理 `AgentConversationState`、Tab conversation 引用和 workspace snapshot 的字段含义。
+- 保留必要兼容字段，但新增或抽象 presentation model，让 UI 不再按 surface 解释“会话类型”。
+- 更新新建、切换、归档、恢复、Workbench 打开逻辑，使它们围绕同一个 Thread ID 运转。
+- 左侧列表点击默认激活右侧 Thread；“在 Workbench 打开”作为显式动作。
 
-它们放在输入区底部，参考 Claude Code / Codex：
+验收标准：
 
-```text
-Claude Code · Sonnet · Thinking Auto ▾
-```
+- 右侧新建 Thread 后，左侧当前项目能看到同一个 Thread。
+- 左侧点击 Thread 只切换右侧当前 Thread，不自动打开 Workbench Tab。
+- 显式“在 Workbench 打开”后，中间 Tab 引用同一个 Thread ID。
+- 关闭 Workbench Tab 不删除、不归档 Thread。
+- 已有 workspace snapshot 能迁移或兼容恢复，不丢现有会话。
 
-可选择项：
+### M2：右侧 Quick Switcher / 新建
 
-- Agent 框架：Claude Code、Codex、HTTP API、自定义 Agent。
-- 模型：由当前 Provider 决定。
-- 推理模式：Auto、Fast、Thinking、Deep 等。
+目标：
 
-这里只做选择，不做复杂配置。
+- 替换混乱的右侧 header，会话切换和新建集中到顶部 Quick Switcher。
+- 支持当前 + 运行中 + 最近的单列表混排，默认最多 5 条，可展开。
 
-## 设置页职责
+方案：
 
-以下内容必须放到设置页：
+- 新增 `buildQuickThreadList` 视图模型，输入为 conversations、activeThreadId、activeWorkspaceRef。
+- 排序优先级：当前、等待确认/执行中/错误、最近更新。
+- 默认显示 5 条，提供展开状态显示更多当前项目 Thread。
+- `+` 新建 Thread 并绑定当前项目；无项目时进入未归档。
+- 每行提供状态点、标题、状态/时间和更多操作。
 
-- Agent 框架管理。
-- Provider / API Key / Base URL。
-- 默认模型。
-- 默认推理模式。
-- Skill 管理。
-- MCP 工具权限。
-- `/` Skill 菜单配置。
-- `@` 资源索引范围。
+验收标准：
 
-Agent Panel 只做当前项目会话的使用界面。
+- 当前 Thread 永远在 Quick Switcher 第一位。
+- 运行中、等待确认、错误 Thread 在普通空闲 Thread 前面。
+- 默认最多 5 条；点击展开后显示更多，且不跳转左侧。
+- 点击任一 Thread 立即切换右侧 Messages 和 Composer。
+- 新建 Thread 后右侧立刻切到新 Thread，并出现在 Quick Switcher 和左侧 Thread Center。
 
-## 验收标准
+### M3：Messages 高密度 turn 视图
 
-- 有激活项目时，新会话自动归属当前项目。
-- 无激活项目时，新会话进入默认项目 / 未归档。
-- Agent Panel 中主对话区在左，会话列表窄列在右。
-- 会话列表默认只显示当前项目激活会话。
-- 会话列表底部可以展开已关闭历史。
-- 会话顶端有一行已挂载资源横列。
-- 输入框 `/` 可以挂 Skill。
-- 输入框 `@` 可以挂项目资源、文件、Tab 等资源。
-- 底部可以选择 Agent 框架、模型、推理模式。
-- Skill 和模型的长期配置只在设置页出现。
+目标：
+
+- 降低消息流噪声，把工具调用、思考过程、状态事件合并为可审计但不抢主视觉的 turn。
+- 让用户优先看到“结果、执行摘要、下一步”。
+
+方案：
+
+- 新增 `ConversationTurnViewModel`，将 raw messages / content blocks / tool events 聚合为 turn。
+- 工具调用默认渲染为折叠 timeline row。
+- 对 MCP/raw tool name 做产品化标题映射。
+- 连续工具事件合并为“执行过程 N 个动作”。
+- 详情展开后再显示 JSON 参数、原始工具名、输出和错误。
+- 等待确认和失败状态保留高可见度。
+
+验收标准：
+
+- 浏览器导航、读取标签页信息等工具调用默认只占一行摘要。
+- 展开工具 row 能看到 raw tool name、参数和结果。
+- 一个 assistant turn 不再被拆成多张“思考过程”大卡片。
+- 错误工具调用能在摘要行明确显示失败原因。
+- 既有诊断日志仍能获取完整 raw event，不因 UI 折叠丢审计数据。
+
+### M4：Composer / 已挂载资源
+
+目标：
+
+- 把已挂载资源移到输入区附近，明确它们是下一条消息上下文。
+- 统一 `@资源`、`/技能`、发送和执行选项的位置。
+
+方案：
+
+- 将 MountedResourceBar 移到 Composer 区域顶部。
+- 保留资源 chip 的移除能力，资源过多时横向滚动或折叠为 `+N`。
+- Composer toolbar 保留 `@`、`/`、权限模式、发送。
+- 输入框聚焦时，资源和技能候选菜单贴近 Composer 弹出。
+
+验收标准：
+
+- 已挂载资源不再占据消息历史上方的诊断行。
+- 添加或移除资源后，当前 Thread 的 Composer 立即反映。
+- `@` 可以挂文件、Tab、浏览器、项目资源。
+- `/` 可以挂 Skill。
+- 发送消息时携带当前 Composer 中的资源和 Skill 上下文。
+
+### M5：左侧 Thread Center 与 Workbench 联动
+
+目标：
+
+- 左侧保留完整管理能力，右侧保持轻量快速切换。
+- Workbench 只作为 Thread 的深度视图，不制造第二套会话。
+
+方案：
+
+- 左侧按当前项目、未归档、已归档组织 Thread。
+- 搜索、过滤、归档、恢复、删除放在左侧。
+- 行内或右键提供“在 Workbench 打开”。
+- Workbench Tab title、归档状态、关闭行为都引用 Thread 事实源。
+
+验收标准：
+
+- 左侧能搜索当前项目、未归档、已归档 Thread。
+- 左侧归档 Thread 后，右侧 Quick Switcher 移除该 Thread；如果当前正在查看，切换到合理 fallback。
+- Workbench 打开的 Thread 与右侧切换到同一 Thread 时消息一致。
+- 删除 Thread 前有确认；删除后相关 Workbench Tab 被关闭或进入明确不可用状态。
+
+### M6：回归、迁移和视觉密度验收
+
+目标：
+
+- 确保新会话模型不会破坏本地启动、Agent 流式、工具确认和 workspace 恢复。
+- 确保右侧视觉密度明显提升。
+
+方案：
+
+- 补齐 store/view-model 单元测试。
+- 补齐 workspace snapshot 恢复测试。
+- 用 Playwright 或本地手测覆盖右侧 Quick Switcher、Messages 折叠、Composer 资源挂载。
+- 更新本地 smoke check。
+
+验收标准：
+
+- `pnpm typecheck` 通过。
+- Agent store、conversation view-model、workspace restore 相关测试通过。
+- `pnpm dev` 可独立启动，不要求官方账号、云端 runtime 或生产 API。
+- 缺少 adb 时应用仍可启动，Android 能力只降级。
+- 右侧同一屏能看到更多有效 assistant 结果，工具详情默认不铺满消息流。
 
 ## /grilling
 
-最容易犯的错是把 Agent Panel 做成“全局管理台”。这会导致默认界面越来越像调试面板，而不是协作面板。
+结论：这次重构的成败不在按钮位置，而在是否真正收敛为 Thread。
 
-必须守住三个边界：
+必须主动拷问：
 
-1. 当前项目优先：右侧只服务当前项目会话。
-2. 对话优先：主对话区是中心，会话列表只是右侧窄列。
-3. 使用和配置分离：Agent Panel 负责使用，设置页负责配置。
+1. 是否又把右侧 Quick Switcher 做成了第二个左侧会话中心？
+2. 是否仍然让用户理解 `assistant-panel` / `workbench-tab`？
+3. 是否只是把工具卡片缩小，而没有把 raw event 聚合成 turn？
+4. 是否隐藏了审计信息，导致工具调用不可追踪？
+5. 是否把官方账号、消息网络、订阅、额度或生产 API 带回 OSS 默认路径？
+6. 是否破坏了独立启动、本地 Agent、本地工作区、浏览器、Terminal 和 Android 降级能力？
+
+下一步最该做的是 M1 + M2：先统一 Thread 事实源和右侧 Quick Switcher。Messages 高密度化风险更大，应该等会话切换心智稳定后再推进。

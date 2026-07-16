@@ -6,6 +6,7 @@ import type {
 } from '@shared/ipc/hardware'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
 import { useAgentStore, useFsStore, useHardwareStore, useTabStore } from '../../stores'
+import { buildAgentSendPayload } from '../../features/agent-conversations/payload'
 import {
   IconChevronDown,
   IconChevronRight,
@@ -238,7 +239,10 @@ export function HardwareProductionSection({
       },
     })
     try {
-      await window.cclinkStudio.agent.sendMessage(conversationId, { message: prompt })
+      await window.cclinkStudio.agent.sendMessage(
+        conversationId,
+        buildAgentSendPayload(prompt, useAgentStore.getState().conversations[conversationId]),
+      )
     } catch (error) {
       addSystemMessage(`发送失败: ${String(error)}`, conversationId)
     }

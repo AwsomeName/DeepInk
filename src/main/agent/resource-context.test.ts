@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { inferTaskIntent } from './resource-context'
+import { DEFAULT_SETTINGS } from '../settings/types'
+import { buildAgentResourceContext, inferTaskIntent } from './resource-context'
 
 describe('agent resource context intent inference', () => {
   it('recognizes Zhihu login tasks with expected hosts', () => {
@@ -24,6 +25,31 @@ describe('agent resource context intent inference', () => {
     expect(inferTaskIntent('我们继续看看方案')).toMatchObject({
       kind: 'general',
       confidence: 'low',
+    })
+  })
+
+  it('uses the conversation workspace instead of the currently selected project', async () => {
+    const snapshot = await buildAgentResourceContext({
+      message: '继续',
+      scope: { kind: 'all' },
+      browserTabId: null,
+      context: {
+        workspaceRef: { kind: 'local', path: '/Users/apple/Desktop/previous-project' },
+      },
+      playwrightBridge: {
+        getPageDiagnostics: async () => null,
+      } as never,
+      settings: {
+        ...DEFAULT_SETTINGS,
+        lastWorkspacePath: '/Users/apple/Desktop/current-project',
+      },
+    })
+
+    expect(snapshot.workspace).toEqual({
+      ref: { kind: 'local', path: '/Users/apple/Desktop/previous-project' },
+      key: '/Users/apple/Desktop/previous-project',
+      rootPath: '/Users/apple/Desktop/previous-project',
+      writable: true,
     })
   })
 })

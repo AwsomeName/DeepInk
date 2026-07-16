@@ -62,17 +62,18 @@ claude login
 
 这里记录 Agent 系统必须遵守的核心规则：
 
-- 有激活项目时，新会话自动归属当前项目。
-- 无激活项目时，新会话归属默认项目 / 未归档。
-- 会话列表统一放在左侧 Activity Bar 的“会话”视图里，展示当前项目会话，也能查看未归档和已归档历史。
-- 右侧 Agent Panel 不再展示会话历史列表，只承载当前对话、待确认操作和轻量运行反馈。
-- 会话顶端用一行横列展示当前会话已挂载资源。
-- 输入框 `/` 挂 Skill。
-- 输入框 `@` 挂资源，包括项目文件、打开的文档 Tab、浏览器 Tab、Android/设备 Tab、任务产物等。
-- 输入区底部选择 Agent 框架、模型和推理模式。
+- 用户只理解 Thread / 会话，不理解 `assistant-panel`、`workbench-tab` 这类工程 surface。
+- 有激活项目时，新 Thread 自动归属当前项目。
+- 无激活项目时，新 Thread 归属默认项目 / 未归档。
+- 右侧 Agent Panel 是当前工作流控制台，结构为 Quick Switcher / Messages / Composer。
+- Quick Switcher 负责当前 + 运行中 + 最近 Thread 的快速切换和新建，单列表混排，默认最多 5 条，可展开。
+- Messages 使用高密度 turn 视图，工具调用默认折叠，raw MCP 名称和 JSON 参数只在展开详情中显示。
+- Composer 区域展示已挂载资源，并承载输入框、`@资源`、`/技能` 和发送。
+- 左侧 Activity Bar 的“会话”视图是 Thread Center，负责完整历史、搜索、过滤、归档和项目级管理。
+- Workbench 只打开同一个 Thread 的深度工作视图，关闭 Tab 不删除 Thread。
 - Skill、模型、Provider、API Key、默认模式等长期配置只放设置页。
 
-Agent Panel 负责当前会话的即时协作体验，不负责全局历史管理和复杂配置。
+详细产品模型和推进里程碑见 `docs/features/agent-panel-product-model.md`。
 
 ## 系统架构
 

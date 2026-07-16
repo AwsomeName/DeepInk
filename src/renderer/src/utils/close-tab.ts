@@ -133,31 +133,11 @@ function terminalHasActiveProcess(tab: Tab): boolean {
 
 async function closeTerminalView(tab: Tab): Promise<void> {
   const terminal = tab.terminal
-  if (!terminal || !terminalHasActiveProcess(tab) || terminal.closePolicy === 'close-view') {
-    await recordTerminalLifecycleEvent(terminal, 'closed', 'Terminal 视图已关闭')
-    useTabStore.getState().closeTab(tab.id)
-    return
-  }
-
-  const { response } = await window.cclinkStudio.dialog.showMessageBox({
-    type: 'warning',
-    title: '结束 Terminal',
-    message: '这个 Terminal 仍在运行。要关闭视图还是结束进程？',
-    detail: '关闭视图会保留本次 Terminal session，可从 Terminal 面板恢复；结束并关闭会终止进程。',
-    buttons: ['关闭视图', '结束并关闭', '取消'],
-    defaultId: 0,
-    cancelId: 2,
-  })
-
-  if (response === 0) {
-    await recordTerminalLifecycleEvent(terminal, 'closed', 'Terminal 视图已关闭，进程保留')
-    useTabStore.getState().closeTab(tab.id)
-  }
-
-  if (response === 1) {
-    await recordTerminalLifecycleEvent(terminal, 'terminated', 'Terminal 关闭时请求结束进程')
-    useTabStore.getState().closeTab(tab.id)
-  }
+  const message = terminalHasActiveProcess(tab)
+    ? 'Terminal 视图已关闭，进程保留'
+    : 'Terminal 视图已关闭'
+  await recordTerminalLifecycleEvent(terminal, 'closed', message)
+  useTabStore.getState().closeTab(tab.id)
 }
 
 export async function closeTabWithDraftPolicy(tabId: string): Promise<void> {

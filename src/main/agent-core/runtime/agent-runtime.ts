@@ -101,12 +101,21 @@ export class AgentRuntime {
 
   switchBackend(config: BackendConfig): void {
     this.currentConfig = config
-    const existing = Array.from(this.conversations.entries())
+    const existing = Array.from(this.conversations.entries()).map(
+      ([conversationId, conversation]) => ({
+        conversationId,
+        scope: conversation.scope,
+        sessionId: conversation.backend.getSessionId(),
+        backend: conversation.backend,
+      }),
+    )
     this.conversations.clear()
 
-    for (const [conversationId, oldConversation] of existing) {
-      void oldConversation.backend.destroy()
-      const conversation = this.createConversation(conversationId, oldConversation.scope)
+    for (const previous of existing) {
+      void previous.backend.destroy()
+      const conversation = this.createConversation(previous.conversationId, previous.scope)
+      conversation.backend.setSessionId?.(previous.sessionId)
+      const { conversationId } = previous
       this.conversations.set(conversationId, conversation)
     }
   }

@@ -69,6 +69,22 @@ export interface AgentSessionDetail {
   }>
 }
 
+export type QuickThreadStatusKind = 'active' | 'waiting' | 'running' | 'error' | 'idle'
+
+export interface QuickThreadSummary {
+  id: string
+  title: string
+  statusKind: QuickThreadStatusKind
+  statusLabel: string
+  detail: string
+  workspaceLabel: string
+  messageCount: number
+  updatedAt: number
+  surface: AgentConversationState['surface']
+  workspaceKey: string | null
+  isActive: boolean
+}
+
 export interface ProjectAssistantSessions {
   active: AgentSessionSummary[]
   closed: AgentSessionSummary[]
@@ -269,6 +285,74 @@ export function buildProjectAssistantSessions({
       .filter((summary) => conversations[summary.id]?.archivedAt)
       .sort((a, b) => b.updatedAt - a.updatedAt),
   }
+}
+
+export function buildQuickThreadList({
+  conversations,
+  conversationOrder,
+  activeConversationId,
+  activeWorkspaceRef,
+  pendingConfirmationCount = 0,
+  expanded = false,
+  limit = 5,
+  now = Date.now(),
+}: {
+  conversations: Record<string, AgentConversationState>
+  conversationOrder: string[]
+  activeConversationId: string
+  activeWorkspaceRef: WorkspaceRef
+  pendingConfirmationCount?: number
+  expanded?: boolean
+  limit?: number
+  now?: number
+}): QuickThreadSummary[] {
+  const activeWorkspaceKey = workspaceRefKey(activeWorkspaceRef)
+  const summaries = conversationOrder.flatMap((id) => {
+    const conversation = conversations[id]
+    if (!conversation) return []
+    const isActive = id === activeConversationId
+    if (conversation.archivedAt && !isActive) return []
+
+    const workspaceKey = conversation.runtime.workspaceRef
+      ? workspaceRefKey(conversation.runtime.workspaceRef)
+      : null
+    const workspaceLabel = conversation.runtime.workspaceRef
+      ? workspaceRefLabel(conversation.runtime.workspaceRef)
+      : '未绑定'
+    const belongsToActiveWorkspace =
+      activeWorkspaceRef.kind === 'global'
+        ? !workspaceKey || workspaceKey === activeWorkspaceKey
+        : !workspaceKey || workspaceKey === activeWorkspaceKey
+    if (!belongsToActiveWorkspace && !isActive) return []
+
+    const status = quickThreadStatus(conversation, isActive && pendingConfirmationCount > 0)
+
+    return [
+      {
+        id,
+        title: conversation.title === '新会话' ? '新会话' : conversation.title,
+        statusKind: status.kind,
+        statusLabel: status.label,
+        detail: quickThreadDetail(conversation, status, isActive, now),
+        workspaceLabel,
+        messageCount: conversation.messages.filter((message) => message.id !== 'welcome').length,
+        updatedAt: conversation.updatedAt,
+        surface: conversation.surface,
+        workspaceKey,
+        isActive,
+      },
+    ]
+  })
+
+  const ordered = summaries.sort((a, b) => {
+    if (a.isActive) return -1
+    if (b.isActive) return 1
+    const attention = quickThreadStatusRank(b.statusKind) - quickThreadStatusRank(a.statusKind)
+    if (attention !== 0) return attention
+    return b.updatedAt - a.updatedAt
+  })
+
+  return expanded ? ordered : ordered.slice(0, limit)
 }
 
 export function buildSessionSummary({
@@ -680,6 +764,57 @@ function statusLabel(status: AgentConversationState['backendState']): string {
     case 'error':
       return '连接错误'
   }
+}
+
+function quickThreadStatus(
+  conversation: AgentConversationState,
+  hasPendingConfirmation: boolean,
+): { kind: QuickThreadStatusKind; label: string } {
+  if (hasPendingConfirmation) return { kind: 'waiting', label: '等待确认' }
+  if (conversation.backendState === 'error') return { kind: 'error', label: '错误' }
+  if (conversation.loading || conversation.backendState === 'streaming') {
+    return { kind: 'running', label: '执行中' }
+  }
+  return { kind: 'idle', label: '空闲' }
+}
+
+function quickThreadStatusRank(kind: QuickThreadStatusKind): number {
+  switch (kind) {
+    case 'waiting':
+      return 4
+    case 'running':
+      return 3
+    case 'error':
+      return 2
+    case 'active':
+      return 1
+    case 'idle':
+      return 0
+  }
+}
+
+function quickThreadDetail(
+  conversation: AgentConversationState,
+  status: { kind: QuickThreadStatusKind; label: string },
+  isActive: boolean,
+  now: number,
+): string {
+  if (status.kind !== 'idle') return status.label
+  if (isActive) return '当前'
+  return formatRelativeTime(conversation.updatedAt, now)
+}
+
+function formatRelativeTime(timestamp: number, now: number): string {
+  if (!Number.isFinite(timestamp)) return '未知'
+  const diff = Math.max(0, now - timestamp)
+  const minute = 60 * 1000
+  const hour = 60 * minute
+  const day = 24 * hour
+  if (diff < minute) return '刚刚'
+  if (diff < hour) return `${Math.floor(diff / minute)}分钟前`
+  if (diff < day) return `${Math.floor(diff / hour)}小时前`
+  if (diff < 7 * day) return `${Math.floor(diff / day)}天前`
+  return formatDateTime(timestamp)
 }
 
 function formatDateTime(timestamp: number): string {

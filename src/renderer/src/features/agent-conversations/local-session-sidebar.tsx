@@ -3,7 +3,7 @@ import type { WorkspaceRef } from '../../../../shared/workspace-ref'
 import { workspaceRefKey, workspaceRefLabel } from '../../../../shared/workspace-ref'
 import type { AgentConversationState } from '../../stores/agent-store'
 import { useAgentStore, useTabStore } from '../../stores'
-import { IconChevronDown, IconPlus, IconSearch } from '../../components/common/Icons'
+import { IconSearch } from '../../components/common/Icons'
 import { getConversationActivity } from './activity'
 import {
   formatRelativeSessionTime,
@@ -12,20 +12,6 @@ import {
   type SessionSidebarAction,
   type SessionSidebarStatusKind,
 } from './session-sidebar-primitives'
-
-type LocalSessionFilter = 'all' | 'workspace' | 'unbound' | 'running' | 'closed'
-
-const LOCAL_SESSION_FILTERS: Array<{
-  value: LocalSessionFilter
-  label: string
-  title: string
-}> = [
-  { value: 'all', label: '全部', title: '显示当前项目、未绑定和已关闭会话' },
-  { value: 'workspace', label: '当前项目', title: '只显示当前项目会话' },
-  { value: 'unbound', label: '未绑定', title: '只显示未绑定到项目的会话' },
-  { value: 'running', label: '运行中', title: '只显示正在运行或等待工具的会话' },
-  { value: 'closed', label: '已关闭', title: '只显示已关闭历史会话' },
-]
 
 export interface WorkspaceConversationGroups {
   current: AgentConversationState[]
@@ -44,7 +30,6 @@ export function getWorkspaceConversationGroups(
       const conversation = conversations[id]
       return conversation ? [conversation] : []
     })
-    .filter((conversation) => conversation.surface === 'workbench-tab')
     .sort((a, b) => b.updatedAt - a.updatedAt)
 
   const belongsToActiveWorkspace = (conversation: AgentConversationState): boolean => {
@@ -78,7 +63,6 @@ export function LocalSessionsList({
   workspaceRef,
   sessionGroups,
   activeConversationId,
-  createConversation,
   switchConversation,
   archiveConversation,
   restoreArchivedConversation,
@@ -91,7 +75,6 @@ export function LocalSessionsList({
   workspaceRef: WorkspaceRef
   sessionGroups: WorkspaceConversationGroups
   activeConversationId: string
-  createConversation: ReturnType<typeof useAgentStore.getState>['createConversation']
   switchConversation: (id: string) => void
   archiveConversation: ReturnType<typeof useAgentStore.getState>['archiveConversation']
   restoreArchivedConversation: ReturnType<
@@ -104,24 +87,20 @@ export function LocalSessionsList({
   closeTab: ReturnType<typeof useTabStore.getState>['closeTab']
 }): React.ReactElement {
   const [query, setQuery] = useState('')
-  const [filter, setFilter] = useState<LocalSessionFilter>('all')
   const [showClosed, setShowClosed] = useState(false)
-  const filteredSessionGroups = filterConversationGroups(sessionGroups, query, filter)
+  const filteredSessionGroups = filterConversationGroups(sessionGroups, query)
   const visibleCount =
     filteredSessionGroups.current.length +
     filteredSessionGroups.unbound.length +
     filteredSessionGroups.closed.length
-  const runningCount = [...sessionGroups.current, ...sessionGroups.unbound].filter(
-    (conversation) =>
-      conversation.loading || getConversationActivity(conversation).kind === 'running',
-  ).length
-  const totalOpenCount = sessionGroups.current.length + sessionGroups.unbound.length
 
-  const openWorkConversation = (conversation: AgentConversationState): void => {
+  const openConversation = (conversation: AgentConversationState): void => {
     if (conversation.archivedAt) {
       restoreArchivedConversation(conversation.id)
     }
     switchConversation(conversation.id)
+    if (conversation.surface === 'assistant-panel') return
+
     openTab({
       type: 'conversation',
       title: conversation.title === '新会话' ? '新工作会话' : conversation.title,
@@ -134,47 +113,8 @@ export function LocalSessionsList({
     })
   }
 
-  const createWorkConversation = (): void => {
-    const conversationId = createConversation({
-      surface: 'workbench-tab',
-      runtime: {
-        location: 'local',
-        transport: 'local',
-        backend: 'cclink-studio-agent',
-        workspaceRef,
-      },
-      activate: true,
-    })
-    openTab({
-      type: 'conversation',
-      title: '新工作会话',
-      icon: '🤖',
-      conversation: {
-        surface: 'workbench-tab',
-        runtime: {
-          location: 'local',
-          transport: 'local',
-          backend: 'cclink-studio-agent',
-          workspaceRef,
-        },
-        sessionId: conversationId,
-      },
-    })
-  }
-
   return (
     <div className="sidebar-section">
-      <div className="sidebar-section-header expanded">
-        <IconChevronDown size={10} />
-        会话
-      </div>
-      <button className="project-panel-row" onClick={createWorkConversation} title="新建会话">
-        <IconPlus size={14} />
-        <span className="project-panel-row-main">
-          <span className="project-panel-row-title">新建会话</span>
-          <span className="project-panel-row-meta">挂靠到当前工作空间</span>
-        </span>
-      </button>
       <label className="session-sidebar-search" title="搜索会话标题、摘要或工作空间">
         <IconSearch size={13} />
         <input
@@ -183,71 +123,46 @@ export function LocalSessionsList({
           placeholder="搜索会话"
         />
       </label>
-      <div className="session-sidebar-summary" title="当前会话列表摘要">
-        <span>{workspaceRef.kind === 'global' ? '未归档' : '当前项目'}</span>
-        <span>
-          {totalOpenCount} 个打开
-          {runningCount > 0 ? ` · ${runningCount} 个运行中` : ''}
-          {sessionGroups.closed.length > 0 ? ` · ${sessionGroups.closed.length} 个已关闭` : ''}
-        </span>
-      </div>
-      <div className="session-sidebar-filters" role="tablist" aria-label="会话筛选">
-        {LOCAL_SESSION_FILTERS.map((item) => (
-          <button
-            key={item.value}
-            className={filter === item.value ? 'active' : ''}
-            onClick={() => {
-              setFilter(item.value)
-              if (item.value === 'closed') setShowClosed(true)
-            }}
-            title={item.title}
-          >
-            {item.label}
-          </button>
-        ))}
-      </div>
       {visibleCount > 0 ? (
         <>
-          {filter !== 'closed' && (
-            <>
-              <ConversationGroup
-                title={workspaceRef.kind === 'global' ? '未归档' : '当前项目'}
-                conversations={filteredSessionGroups.current}
-                activeConversationId={activeConversationId}
-                onOpen={openWorkConversation}
-                onRename={(conversation) => {
-                  const title = window.prompt('重命名会话', conversation.title)
-                  if (title == null) return
-                  renameConversation(conversation.id, title)
-                }}
-                onArchive={(conversationId) => {
-                  archiveConversation(conversationId)
-                  closeConversationTabs(tabs, closeTab, conversationId)
-                }}
-              />
-              <ConversationGroup
-                title="未绑定"
-                conversations={filteredSessionGroups.unbound}
-                activeConversationId={activeConversationId}
-                onOpen={openWorkConversation}
-                onRename={(conversation) => {
-                  const title = window.prompt('重命名会话', conversation.title)
-                  if (title == null) return
-                  renameConversation(conversation.id, title)
-                }}
-                onArchive={(conversationId) => {
-                  archiveConversation(conversationId)
-                  closeConversationTabs(tabs, closeTab, conversationId)
-                }}
-              />
-            </>
-          )}
+          <ConversationGroup
+            title={workspaceRef.kind === 'global' ? '未归档' : '当前项目'}
+            conversations={filteredSessionGroups.current}
+            activeConversationId={activeConversationId}
+            onOpen={openConversation}
+            onRename={(conversation) => {
+              const title = window.prompt('重命名会话', conversation.title)
+              if (title == null) return
+              renameConversation(conversation.id, title)
+            }}
+            onArchive={(conversationId) => {
+              archiveConversation(conversationId)
+              closeConversationTabs(tabs, closeTab, conversationId)
+            }}
+            showTitle={false}
+          />
+          <ConversationGroup
+            title="未绑定"
+            conversations={filteredSessionGroups.unbound}
+            activeConversationId={activeConversationId}
+            onOpen={openConversation}
+            onRename={(conversation) => {
+              const title = window.prompt('重命名会话', conversation.title)
+              if (title == null) return
+              renameConversation(conversation.id, title)
+            }}
+            onArchive={(conversationId) => {
+              archiveConversation(conversationId)
+              closeConversationTabs(tabs, closeTab, conversationId)
+            }}
+            showTitle={false}
+          />
           {filteredSessionGroups.closed.length > 0 && (
             <ConversationGroup
               title="已关闭"
               conversations={showClosed ? filteredSessionGroups.closed : []}
               activeConversationId={activeConversationId}
-              onOpen={openWorkConversation}
+              onOpen={openConversation}
               onRename={(conversation) => {
                 const title = window.prompt('重命名会话', conversation.title)
                 if (title == null) return
@@ -268,7 +183,7 @@ export function LocalSessionsList({
         </>
       ) : (
         <div className="project-panel-empty">
-          {query.trim() || filter !== 'all' ? '没有匹配的会话' : '当前工作空间暂无会话'}
+          {query.trim() ? '没有匹配的会话' : '当前工作空间暂无会话'}
         </div>
       )}
     </div>
@@ -288,6 +203,7 @@ function ConversationGroup({
   collapsed = false,
   count,
   onToggleCollapsed,
+  showTitle = true,
 }: {
   title: string
   conversations: AgentConversationState[]
@@ -301,6 +217,7 @@ function ConversationGroup({
   collapsed?: boolean
   count?: number
   onToggleCollapsed?: () => void
+  showTitle?: boolean
 }): React.ReactElement | null {
   const groupCount = count ?? conversations.length
 
@@ -311,6 +228,7 @@ function ConversationGroup({
       collapsed={collapsed}
       collapsedText="点击展开已关闭历史"
       onToggleCollapsed={onToggleCollapsed}
+      showTitle={showTitle}
     >
       {conversations.map((conversation) => (
         <ConversationRow
@@ -411,36 +329,10 @@ function closeConversationTabs(
 function filterConversationGroups(
   groups: WorkspaceConversationGroups,
   query: string,
-  filter: LocalSessionFilter = 'all',
 ): WorkspaceConversationGroups {
   const normalized = query.trim().toLowerCase()
 
   const matches = (conversation: AgentConversationState): boolean => {
-    if (normalized) {
-      const workspaceLabel = conversation.runtime.workspaceRef
-        ? workspaceRefLabel(conversation.runtime.workspaceRef)
-        : '未绑定'
-      const haystack = [
-        conversation.title,
-        getConversationPreview(conversation),
-        workspaceLabel,
-        conversation.backendState,
-      ]
-        .join(' ')
-        .toLowerCase()
-
-      if (!haystack.includes(normalized)) return false
-    }
-
-    if (filter === 'running') {
-      const activity = getConversationActivity(conversation)
-      return conversation.loading || activity.kind === 'running' || activity.kind === 'tool'
-    }
-
-    return true
-  }
-
-  const matchesSearchOnly = (conversation: AgentConversationState): boolean => {
     if (!normalized) return true
     const workspaceLabel = conversation.runtime.workspaceRef
       ? workspaceRefLabel(conversation.runtime.workspaceRef)
@@ -457,38 +349,10 @@ function filterConversationGroups(
     return haystack.includes(normalized)
   }
 
-  switch (filter) {
-    case 'workspace':
-      return {
-        current: groups.current.filter(matches),
-        unbound: [],
-        closed: [],
-      }
-    case 'unbound':
-      return {
-        current: [],
-        unbound: groups.unbound.filter(matches),
-        closed: [],
-      }
-    case 'running':
-      return {
-        current: groups.current.filter(matches),
-        unbound: groups.unbound.filter(matches),
-        closed: [],
-      }
-    case 'closed':
-      return {
-        current: [],
-        unbound: [],
-        closed: groups.closed.filter(matchesSearchOnly),
-      }
-    case 'all':
-    default:
-      return {
-        current: groups.current.filter(matches),
-        unbound: groups.unbound.filter(matches),
-        closed: groups.closed.filter(matchesSearchOnly),
-      }
+  return {
+    current: groups.current.filter(matches),
+    unbound: groups.unbound.filter(matches),
+    closed: groups.closed.filter(matches),
   }
 }
 
