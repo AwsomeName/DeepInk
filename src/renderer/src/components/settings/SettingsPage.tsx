@@ -1,12 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_SETTINGS, PROVIDER_PRESETS, getPresetBaseUrl } from '@shared/ipc/settings'
-import type {
-  ApiFormat,
-  AppSettings,
-  CadBackend,
-  PermissionMode,
-  Provider,
-} from '@shared/ipc/settings'
+import type { ApiFormat, AppSettings, CadBackend, Provider } from '@shared/ipc/settings'
 import type { CadBackendStatus, CadCacheStatus } from '@shared/ipc/cad'
 import type { GitBackupAccountStatus } from '@shared/ipc/git-backup'
 import { useSettingsStore } from '../../stores'
@@ -21,12 +15,15 @@ import {
   IconRobot,
   IconSearch,
   IconSettings,
+  IconTool,
 } from '../common/Icons'
 import { Toggle } from '../common/Toggle'
+import { AgentCapabilitiesSettings } from './AgentCapabilitiesSettings'
 
 type SettingsSectionId =
   | 'appearance'
   | 'agent'
+  | 'agent-capabilities'
   | 'browser'
   | 'editor'
   | 'git-backup'
@@ -42,6 +39,7 @@ const SETTINGS_SECTIONS: Array<{
 }> = [
   { id: 'appearance', label: '外观', icon: IconPaintbrush },
   { id: 'agent', label: 'Agent', icon: IconRobot },
+  { id: 'agent-capabilities', label: 'Agent 能力', icon: IconTool },
   { id: 'browser', label: '浏览器', icon: IconGlobe },
   { id: 'editor', label: '编辑器', icon: IconFile },
   { id: 'git-backup', label: 'Git 备份', icon: IconLink },
@@ -67,6 +65,12 @@ const SETTINGS_SEARCH_INDEX: Array<{
     label: 'Agent 后端',
     description: '配置本地 Claude Code 或 OpenAI 兼容 API。',
     keywords: ['agent', 'claude', 'openai', 'model', 'api', '模型'],
+  },
+  {
+    sectionId: 'agent-capabilities',
+    label: 'Agent 工具与 MCP',
+    description: '管理内置工具、外部 MCP、运行状态和权限策略。',
+    keywords: ['agent', 'tool', 'mcp', 'permission', '工具', '能力', '权限'],
   },
   {
     sectionId: 'browser',
@@ -482,26 +486,6 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
           <section className="settings-section">
             <h2>Agent</h2>
             <div className="settings-group">
-              <SettingsRow settingKey="permissionMode" settings={settings} onReset={resetOne}>
-                <div className="settings-label">
-                  <span>权限模式</span>
-                  <span className="settings-description">控制 Agent 操作确认策略。</span>
-                </div>
-                <div className="settings-control">
-                  <select
-                    className="settings-select"
-                    value={settings.permissionMode}
-                    onChange={(event) =>
-                      update({ permissionMode: event.target.value as PermissionMode })
-                    }
-                  >
-                    <option value="auto">自动</option>
-                    <option value="categorized">按类别确认</option>
-                    <option value="strict">严格确认</option>
-                  </select>
-                </div>
-              </SettingsRow>
-
               <SettingsRow settingKey="provider" settings={settings} onReset={resetOne}>
                 <div className="settings-label">
                   <span>模型提供商</span>
@@ -600,6 +584,10 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
               </SettingsRow>
             </div>
           </section>
+        )}
+
+        {activeSection === 'agent-capabilities' && (
+          <AgentCapabilitiesSettings settings={settings} updateSettings={update} />
         )}
 
         {activeSection === 'browser' && (

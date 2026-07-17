@@ -120,5 +120,37 @@ describe('useEditorStore', () => {
       expect(updates.map((update) => update.id)).toEqual(['u1'])
       expect(useEditorStore.getState().pendingUpdates.map((update) => update.id)).toEqual(['u2'])
     })
+
+    it('目录移动后同步编辑缓冲和待处理更新路径', () => {
+      useEditorStore.setState({
+        files: {
+          '/project/docs/note.md': {
+            savedContent: 'old',
+            currentContent: 'draft',
+            dirty: true,
+            loading: false,
+          },
+        },
+        pendingUpdates: [
+          {
+            id: 'u1',
+            type: 'write',
+            filePath: '/project/docs/note.md',
+            content: 'next',
+            timestamp: 1,
+          },
+        ],
+      })
+
+      useEditorStore.getState().rebaseFilePaths('/project/docs', '/project/archive/docs')
+
+      expect(useEditorStore.getState().files['/project/docs/note.md']).toBeUndefined()
+      expect(useEditorStore.getState().files['/project/archive/docs/note.md']?.currentContent).toBe(
+        'draft',
+      )
+      expect(useEditorStore.getState().pendingUpdates[0].filePath).toBe(
+        '/project/archive/docs/note.md',
+      )
+    })
   })
 })

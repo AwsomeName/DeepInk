@@ -94,6 +94,11 @@ export function registerFsIpc(fs: FileService, settingsService: SettingsService)
     await fs.rename(oldPath, newPath)
   })
 
+  // 移动文件/目录（不覆盖目标中的同名项）
+  ipcMain.handle('fs:move', async (_event, oldPath: string, newPath: string) => {
+    await fs.move(oldPath, newPath)
+  })
+
   // 删除文件
   ipcMain.handle('fs:delete', async (_event, filePath: string) => {
     await fs.delete(filePath)

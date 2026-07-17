@@ -112,6 +112,7 @@ export class McpClientManager {
    * 添加外部 server
    */
   addServer(server: ExternalMcpServer): void {
+    assertValidServer(server)
     // 不允许覆盖内部 server 名称
     if (server.name === 'cclink_studio') {
       throw new Error('不允许使用保留名称 "cclink_studio"')
@@ -144,6 +145,13 @@ export class McpClientManager {
     const server = this.servers.find((s) => s.name === name)
     if (!server) return false
 
+    const next = { ...server, ...updates }
+    try {
+      assertValidServer(next)
+    } catch {
+      return false
+    }
+
     // 不允许改名到 cclink_studio 或已存在的名称
     if (updates.name && updates.name !== name) {
       if (updates.name === 'cclink_studio') return false
@@ -165,6 +173,25 @@ export class McpClientManager {
       writeFileSync(this.configPath, JSON.stringify(config, null, 2), 'utf-8')
     } catch (err) {
       console.error('[McpClientManager] 配置文件保存失败:', err)
+    }
+  }
+}
+
+function assertValidServer(server: ExternalMcpServer): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(server.name)) {
+    throw new Error('MCP 名称只能包含字母、数字、下划线和连字符')
+  }
+  if (!['stdio', 'http', 'sse'].includes(server.transport)) {
+    throw new Error('不支持的 MCP 传输类型')
+  }
+  if (server.transport === 'stdio' && !server.command?.trim()) {
+    throw new Error('stdio MCP 必须配置启动命令')
+  }
+  if (server.transport !== 'stdio') {
+    if (!server.url?.trim()) throw new Error('远程 MCP 必须配置 URL')
+    const url = new URL(server.url)
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('MCP URL 仅支持 http 或 https')
     }
   }
 }

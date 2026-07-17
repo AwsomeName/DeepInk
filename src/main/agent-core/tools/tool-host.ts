@@ -61,6 +61,8 @@ export class McpToolHost {
   private readonly modules: Map<string, ToolModule> = new Map()
   /** 工具名 → 所属模块名（用于路由） */
   private readonly toolToModule: Map<string, string> = new Map()
+  /** 用户显式禁用的模块；禁用后既不广播工具，也拒绝残留客户端调用。 */
+  private readonly disabledModules: Set<string> = new Set()
   /** 权限管理器 */
   private readonly permissionManager: ToolPermissionController
   /** 单轮 Agent 进程 → CCLink Studio 会话的短期映射 */
@@ -96,9 +98,31 @@ export class McpToolHost {
   getAllTools(): ToolDefinition[] {
     const all: ToolDefinition[] = []
     for (const module of this.modules.values()) {
+      if (this.disabledModules.has(module.name)) continue
       all.push(...module.tools)
     }
     return all
+  }
+
+  /** 返回所有已注册模块及其完整工具定义，供状态页审计。 */
+  getRegisteredModules(): Array<{ name: string; enabled: boolean; tools: ToolDefinition[] }> {
+    return Array.from(this.modules.values(), (module) => ({
+      name: module.name,
+      enabled: !this.disabledModules.has(module.name),
+      tools: [...module.tools],
+    }))
+  }
+
+  /** 立即启用或禁用一个已注册模块。 */
+  setModuleEnabled(moduleName: string, enabled: boolean): boolean {
+    if (!this.modules.has(moduleName)) return false
+    if (enabled) this.disabledModules.delete(moduleName)
+    else this.disabledModules.add(moduleName)
+    return true
+  }
+
+  isModuleEnabled(moduleName: string): boolean {
+    return this.modules.has(moduleName) && !this.disabledModules.has(moduleName)
   }
 
   /**
@@ -296,6 +320,13 @@ export class McpToolHost {
     if (!module) {
       return {
         content: [{ type: 'text' as const, text: `错误：未找到工具模块 "${moduleName}"` }],
+        isError: true,
+      }
+    }
+
+    if (!this.isModuleEnabled(moduleName)) {
+      return {
+        content: [{ type: 'text' as const, text: `工具模块 "${moduleName}" 已在设置中禁用` }],
         isError: true,
       }
     }

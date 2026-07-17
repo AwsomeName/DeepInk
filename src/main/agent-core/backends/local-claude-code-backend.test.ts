@@ -15,9 +15,32 @@ vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
 
 function createMockQuery(events: Array<Record<string, unknown>> = []): AsyncIterable<unknown> & {
   close: ReturnType<typeof vi.fn>
+  getContextUsage: ReturnType<typeof vi.fn>
 } {
   return {
     close: vi.fn(),
+    getContextUsage: vi.fn(async () => ({
+      categories: [
+        { name: 'messages', tokens: 24_000, color: '#0078d4' },
+        { name: 'tools', tokens: 8_000, color: '#28a66a' },
+      ],
+      totalTokens: 32_000,
+      maxTokens: 200_000,
+      rawMaxTokens: 200_000,
+      percentage: 16,
+      gridRows: [],
+      model: 'claude-sonnet',
+      memoryFiles: [],
+      mcpTools: [],
+      autoCompactThreshold: 190_000,
+      isAutoCompactEnabled: true,
+      apiUsage: {
+        input_tokens: 0,
+        output_tokens: 0,
+        cache_creation_input_tokens: 0,
+        cache_read_input_tokens: 0,
+      },
+    })),
     async *[Symbol.asyncIterator]() {
       for (const event of events) yield event
     },
@@ -39,7 +62,7 @@ function createTool(name: string): ToolDefinition {
   }
 }
 
-function createBackendFixture(): {
+function createBackendFixture(externalMcp = false): {
   backend: LocalClaudeCodeBackend
   createToolSession: ReturnType<typeof vi.fn>
   releaseToolSession: ReturnType<typeof vi.fn>
@@ -66,6 +89,9 @@ function createBackendFixture(): {
     return {
       mcpServers: {
         cclink_studio: { type: 'http', url: url.toString() },
+        ...(externalMcp
+          ? { knowledge: { type: 'http', url: 'https://mcp.example.com' } }
+          : {}),
       },
     }
   })
@@ -163,6 +189,16 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
     expect(prompt).not.toContain('| browser_new_tab |')
   })
 
+  it('allows enabled external MCP servers in the all scope', async () => {
+    const { backend } = createBackendFixture(true)
+    await backend.sendMessage('查询外部知识库')
+
+    expect(getLastQueryParams().options.allowedTools).toEqual([
+      'mcp__cclink_studio__*',
+      'mcp__knowledge__*',
+    ])
+  })
+
   it('binds MCP tool sessions to the current conversation', async () => {
     const { backend, createToolSession, releaseToolSession, composeMcpConfig } =
       createBackendFixture()
@@ -238,6 +274,25 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
     expect(prompt).toContain('以这里的 URL/host/workspace/config/task 为准')
   })
 
+  it('injects the UI continuity snapshot into the per-run system prompt', async () => {
+    await createBackend().sendMessage('继续', {
+      continuity: {
+        recentMessages: [
+          { role: 'user', text: '按顺序读取第九篇和第十篇' },
+          { role: 'assistant', text: '第九篇已完成，接下来读取第十篇。' },
+        ],
+        tasks: [{ content: '读取第十篇', status: 'in_progress' }],
+      },
+    })
+
+    expect(getLastQueryParams().prompt).toBe('继续')
+    const prompt = getSystemPromptAppend()
+    expect(prompt).toContain('CCLink Studio 会话连续性快照')
+    expect(prompt).toContain('按顺序读取第九篇和第十篇')
+    expect(prompt).toContain('读取第十篇')
+    expect(prompt).toContain('不要重复执行已完成任务')
+  })
+
   it('resumes existing Claude sessions via SDK options', async () => {
     const backend = createBackend()
     backend.setSessionId('123e4567-e89b-12d3-a456-426614174000')
@@ -245,6 +300,76 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
     await backend.sendMessage('继续')
 
     expect(getLastQueryParams().options.resume).toBe('123e4567-e89b-12d3-a456-426614174000')
+  })
+
+  it('reports the real SDK context usage snapshot', async () => {
+    const backend = createBackend()
+    const events: Array<{ type: string; data: unknown }> = []
+    backend.onEvent((type, data) => events.push({ type, data }))
+    queryMock.mockImplementationOnce(() =>
+      createMockQuery([
+        {
+          type: 'system',
+          subtype: 'init',
+          session_id: '123e4567-e89b-12d3-a456-426614174000',
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          session_id: '123e4567-e89b-12d3-a456-426614174000',
+          total_cost_usd: 0.01,
+        },
+      ]),
+    )
+
+    await backend.sendMessage('继续')
+
+    await vi.waitFor(() =>
+      expect(
+        events.some(
+          (event) =>
+            event.type === 'system' &&
+            (event.data as { subtype?: string }).subtype === 'context_usage',
+        ),
+      ).toBe(true),
+    )
+    await expect(backend.getContextUsage()).resolves.toMatchObject({
+      totalTokens: 32_000,
+      maxTokens: 200_000,
+      percentage: 16,
+      autoCompactThreshold: 190_000,
+      isAutoCompactEnabled: true,
+    })
+  })
+
+  it('runs manual compaction on the resumed SDK session', async () => {
+    const backend = createBackend()
+    backend.setSessionId('123e4567-e89b-12d3-a456-426614174000')
+    queryMock.mockImplementationOnce(() =>
+      createMockQuery([
+        {
+          type: 'system',
+          subtype: 'compact_boundary',
+          compact_metadata: { trigger: 'manual', pre_tokens: 160_000, post_tokens: 28_000 },
+          session_id: '123e4567-e89b-12d3-a456-426614174000',
+        },
+        {
+          type: 'result',
+          subtype: 'success',
+          is_error: false,
+          session_id: '123e4567-e89b-12d3-a456-426614174000',
+          total_cost_usd: 0.01,
+        },
+      ]),
+    )
+
+    await backend.compact('保留当前方案和未完成任务')
+
+    expect(getLastQueryParams()).toMatchObject({
+      prompt: '/compact 保留当前方案和未完成任务',
+      options: { resume: '123e4567-e89b-12d3-a456-426614174000' },
+    })
   })
 
   it('updates the stored session id from SDK init events', async () => {

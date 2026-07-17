@@ -634,7 +634,7 @@ describe('useAgentStore', () => {
   })
 
   describe('hydrateFromWorkspaceState', () => {
-    it('把磁盘中的运行中快照恢复为明确的中断状态', () => {
+    it('保留磁盘中的运行标识，等待主进程核对后再决定是否中断', () => {
       const now = Date.now()
       useAgentStore.getState().hydrateFromWorkspaceState({
         conversations: {
@@ -661,10 +661,12 @@ describe('useAgentStore', () => {
       })
 
       expect(useAgentStore.getState().conversations.running).toMatchObject({
-        loading: false,
-        runStatus: 'interrupted',
-        activeRunId: null,
-        lastRunTerminalReason: 'runtime-unavailable',
+        loading: true,
+        backendState: 'connecting',
+        runStatus: 'running',
+        activeRunId: 'run-before-restart',
+        streamingMessageId: 'message-1',
+        lastRunTerminalReason: null,
       })
     })
 
@@ -728,9 +730,9 @@ describe('useAgentStore', () => {
       expect(state.messages.at(-1)?.rawText).toBe('已整理')
       expect(state.sessionId).toBe('sess-b')
       expect(state.scope).toEqual({ kind: 'editor' })
-      expect(state.conversations.a.loading).toBe(false)
-      expect(state.conversations.a.backendState).toBe('disconnected')
-      expect(state.conversations.a.streamingMessageId).toBeNull()
+      expect(state.conversations.a.loading).toBe(true)
+      expect(state.conversations.a.backendState).toBe('connecting')
+      expect(state.conversations.a.streamingMessageId).toBe('stream-a')
       expect(state.conversations.a.input).toBe('')
       expect(state.conversations.b.messages[0].isStreaming).toBe(false)
     })

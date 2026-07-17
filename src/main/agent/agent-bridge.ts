@@ -26,6 +26,10 @@ import type { AgentScope } from './scope'
 import { buildAgentMessageWithContext, type AgentSendMessageContext } from './message-context'
 import { buildAgentResourceContext } from './resource-context'
 import { workspaceRefKey } from '../../shared/workspace-ref'
+import type {
+  AgentCompactConversationPayload,
+  AgentContextUsageSnapshot,
+} from '../../shared/agent-protocol'
 
 export interface AgentBridgeOptions {
   agentEngine?: 'local-claude-code'
@@ -156,19 +160,47 @@ export class AgentBridge {
     this.startBrowserTaskIfNeeded(conversationId, message, sendPlan.browserTabId)
     try {
       await this.runtime.sendMessage(
-        buildAgentMessageWithContext(message, { ...context, resourceContext }),
+        buildAgentMessageWithContext(message, {
+          resources: context?.resources,
+          skills: context?.skills,
+        }),
         conversationId,
         {
           ...sendPlan.options,
           runId: context?.runId,
           workspacePath: resourceContext.workspace.rootPath ?? undefined,
           resourceContext,
+          continuity: context?.continuity,
         },
       )
     } catch (error) {
       this.failActiveBrowserTask(conversationId, error)
       throw error
     }
+  }
+
+  async getContextUsage(
+    conversationId = DEFAULT_CONVERSATION_ID,
+  ): Promise<AgentContextUsageSnapshot | null> {
+    return this.runtime.getContextUsage(conversationId)
+  }
+
+  async compactConversation(
+    conversationId: string,
+    payload: AgentCompactConversationPayload,
+  ): Promise<void> {
+    if (this.isBusy(conversationId)) throw new Error('Agent 正在响应中，暂时不能压缩上下文')
+    const sessionId = payload.sessionId.trim()
+    if (!sessionId) throw new Error('当前会话还没有可压缩的 Claude SDK session')
+    this.runtime.restoreConversation(conversationId, sessionId)
+    const workspacePath =
+      payload.workspaceRef?.kind === 'local'
+        ? payload.workspaceRef.path
+        : this.getWorkspacePath?.() || undefined
+    await this.runtime.compactConversation(conversationId, payload.instructions, {
+      runId: payload.runId,
+      workspacePath,
+    })
   }
 
   private async resolveSendPlan(

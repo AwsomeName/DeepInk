@@ -14,7 +14,7 @@ import type {
   ConversationSurface,
 } from '../types'
 import type { WorkspaceRef } from '@shared/workspace-ref'
-import type { AgentStatus } from '@shared/agent-protocol'
+import type { AgentContextUsageSnapshot, AgentStatus } from '@shared/agent-protocol'
 import { workspaceRefKey } from '@shared/workspace-ref'
 import {
   isWorkspaceStateRestoring,
@@ -36,7 +36,28 @@ export type AgentRunTerminalReason =
   | 'error'
   | 'stream-ended'
   | 'cancelled'
+  | 'runtime-lost'
   | 'runtime-unavailable'
+
+function rebaseResourcePath(
+  path: string | undefined,
+  oldPrefix: string,
+  newPrefix: string,
+): string | undefined {
+  if (!path) return path
+  if (path === oldPrefix) return newPrefix
+  if (path.startsWith(oldPrefix + '/')) return newPrefix + path.slice(oldPrefix.length)
+  return path
+}
+
+export interface AgentContextCompactionState {
+  status: 'idle' | 'compacting' | 'completed' | 'failed'
+  trigger: 'manual' | 'auto' | null
+  preTokens: number | null
+  postTokens: number | null
+  error: string | null
+  updatedAt: number | null
+}
 
 export interface AgentConversationState {
   id: string
@@ -54,6 +75,8 @@ export interface AgentConversationState {
   sessionId: string | null
   streamingMessageId: string | null
   lastCost: number | null
+  contextUsage: AgentContextUsageSnapshot | null
+  contextCompaction: AgentContextCompactionState
   scope: AgentScope
   mountedResources: AgentMountedResource[]
   mountedSkills: AgentMountedSkill[]
@@ -76,6 +99,8 @@ interface AgentState {
   sessionId: string | null
   streamingMessageId: string | null
   lastCost: number | null
+  contextUsage: AgentContextUsageSnapshot | null
+  contextCompaction: AgentContextCompactionState
   scope: AgentScope
 
   /** Playwright 连接状态 */
@@ -121,6 +146,18 @@ interface AgentState {
   setBackendState: (state: AgentBackendState, conversationId?: string) => void
   setSessionId: (id: string | null, conversationId?: string) => void
   setLastCost: (cost: number, conversationId?: string) => void
+  setContextUsage: (usage: AgentContextUsageSnapshot | null, conversationId?: string) => void
+  beginContextCompaction: (conversationId?: string) => string
+  setContextCompaction: (
+    update: Partial<AgentContextCompactionState>,
+    conversationId?: string,
+  ) => void
+  finishContextCompaction: (
+    success: boolean,
+    conversationId?: string,
+    runId?: string,
+    error?: string,
+  ) => void
   setLoading: (loading: boolean, conversationId?: string) => void
   reconcileRuntimeStatus: (status: AgentStatus, conversationId?: string) => void
   setPlaywrightStatus: (status: PlaywrightStatus) => void
@@ -132,6 +169,7 @@ interface AgentState {
   setScope: (scope: AgentScope, conversationId?: string) => void
   addMountedResource: (resource: AgentMountedResource, conversationId?: string) => void
   removeMountedResource: (resourceId: string, conversationId?: string) => void
+  rebaseMountedResourcePaths: (oldPrefix: string, newPrefix: string) => void
   clearTransientResources: (conversationId?: string) => void
   addMountedSkill: (skill: AgentMountedSkill, conversationId?: string) => void
   removeMountedSkill: (skillId: string, conversationId?: string) => void
@@ -188,6 +226,15 @@ function createConversation(
     sessionId: null,
     streamingMessageId: null,
     lastCost: null,
+    contextUsage: null,
+    contextCompaction: {
+      status: 'idle',
+      trigger: null,
+      preTokens: null,
+      postTokens: null,
+      error: null,
+      updatedAt: null,
+    },
     scope: { kind: 'all' },
     mountedResources: [],
     mountedSkills: [],
@@ -209,6 +256,8 @@ function mirrorActive(
     sessionId: conversation.sessionId,
     streamingMessageId: conversation.streamingMessageId,
     lastCost: conversation.lastCost,
+    contextUsage: conversation.contextUsage,
+    contextCompaction: conversation.contextCompaction,
     scope: conversation.scope,
   }
 }
@@ -382,6 +431,11 @@ function normalizeConversationSnapshot(
   for (const [index, id] of parsed.conversationOrder.entries()) {
     const conversation = parsed.conversations[id]
     if (!conversation) continue
+    const awaitingRuntimeReconciliation =
+      conversation.runStatus === 'starting' ||
+      conversation.runStatus === 'running' ||
+      (conversation.loading === true &&
+        Boolean(conversation.activeRunId || conversation.streamingMessageId))
     const updatedAt = Number.isFinite(conversation.updatedAt)
       ? conversation.updatedAt
       : Date.now() + index
@@ -401,22 +455,32 @@ function normalizeConversationSnapshot(
         ? conversation.mountedResources
         : [],
       mountedSkills: Array.isArray(conversation.mountedSkills) ? conversation.mountedSkills : [],
-      loading: false,
-      backendState: 'disconnected',
-      runStatus:
-        conversation.runStatus === 'starting' || conversation.runStatus === 'running'
-          ? 'interrupted'
-          : (conversation.runStatus ?? 'idle'),
-      activeRunId: null,
+      contextUsage: conversation.contextUsage ?? null,
+      contextCompaction: conversation.contextCompaction ?? {
+        status: 'idle',
+        trigger: null,
+        preTokens: null,
+        postTokens: null,
+        error: null,
+        updatedAt: null,
+      },
+      loading: awaitingRuntimeReconciliation,
+      backendState: awaitingRuntimeReconciliation ? 'connecting' : 'disconnected',
+      runStatus: conversation.runStatus ?? 'idle',
+      activeRunId: awaitingRuntimeReconciliation ? (conversation.activeRunId ?? null) : null,
       lastRunEventAt: conversation.lastRunEventAt ?? conversation.updatedAt ?? null,
-      lastRunTerminalReason:
-        conversation.runStatus === 'starting' || conversation.runStatus === 'running'
-          ? 'runtime-unavailable'
-          : (conversation.lastRunTerminalReason ?? null),
-      streamingMessageId: null,
+      lastRunTerminalReason: awaitingRuntimeReconciliation
+        ? null
+        : (conversation.lastRunTerminalReason ?? null),
+      streamingMessageId: awaitingRuntimeReconciliation
+        ? (conversation.streamingMessageId ?? null)
+        : null,
       input: '',
       messages: Array.isArray(conversation.messages)
-        ? conversation.messages.map((msg) => ({ ...msg, isStreaming: false }))
+        ? conversation.messages.map((msg) => ({
+            ...msg,
+            isStreaming: awaitingRuntimeReconciliation && msg.isStreaming === true,
+          }))
         : [createWelcomeMessage()],
     }
     if (workspaceRef) {
@@ -647,6 +711,8 @@ export const useAgentStore = create<AgentState>((set) => ({
   sessionId: initialActiveConversation.sessionId,
   streamingMessageId: initialActiveConversation.streamingMessageId,
   lastCost: initialActiveConversation.lastCost,
+  contextUsage: initialActiveConversation.contextUsage,
+  contextCompaction: initialActiveConversation.contextCompaction,
   scope: initialActiveConversation.scope,
   playwrightStatus: { connected: false, pageUrl: null },
   pendingConfirmations: [] as ToolConfirmationRequest[],
@@ -1052,6 +1118,76 @@ export const useAgentStore = create<AgentState>((set) => ({
       })),
     ),
 
+  setContextUsage: (contextUsage, conversationId) =>
+    set((state) =>
+      updateConversation(state, conversationId, (conversation) => ({
+        ...conversation,
+        contextUsage,
+        updatedAt: Date.now(),
+      })),
+    ),
+
+  beginContextCompaction: (conversationId) => {
+    const runId = `compact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    const now = Date.now()
+    set((state) =>
+      updateConversation(state, conversationId, (conversation) => ({
+        ...conversation,
+        runStatus: 'running',
+        activeRunId: runId,
+        lastRunEventAt: now,
+        lastRunTerminalReason: null,
+        contextCompaction: {
+          status: 'compacting',
+          trigger: 'manual',
+          preTokens: conversation.contextUsage?.totalTokens ?? null,
+          postTokens: null,
+          error: null,
+          updatedAt: now,
+        },
+        updatedAt: now,
+      })),
+    )
+    return runId
+  },
+
+  setContextCompaction: (update, conversationId) =>
+    set((state) =>
+      updateConversation(state, conversationId, (conversation) => ({
+        ...conversation,
+        contextCompaction: {
+          ...conversation.contextCompaction,
+          ...update,
+          updatedAt: update.updatedAt ?? Date.now(),
+        },
+        updatedAt: Date.now(),
+      })),
+    ),
+
+  finishContextCompaction: (success, conversationId, runId, error) =>
+    set((state) =>
+      updateConversation(state, conversationId, (conversation) => {
+        if (runId && conversation.activeRunId && conversation.activeRunId !== runId) {
+          return conversation
+        }
+        const now = Date.now()
+        return {
+          ...conversation,
+          runStatus: success ? 'completed' : 'failed',
+          activeRunId: null,
+          lastRunEventAt: now,
+          lastRunTerminalReason: success ? 'completed' : 'error',
+          contextCompaction: {
+            ...conversation.contextCompaction,
+            status: success ? 'completed' : 'failed',
+            error: error ?? null,
+            updatedAt: now,
+          },
+          updatedAt: now,
+        }
+      }),
+    ),
+
   setLoading: (loading, conversationId) =>
     set((state) =>
       updateConversation(state, conversationId, (conversation) => ({
@@ -1067,6 +1203,11 @@ export const useAgentStore = create<AgentState>((set) => ({
         if (status.busy ?? status.connected) {
           return {
             ...conversation,
+            messages: conversation.messages.map((message) =>
+              message.id === conversation.streamingMessageId
+                ? { ...message, isStreaming: true }
+                : message,
+            ),
             loading: true,
             backendState: 'streaming' as AgentBackendState,
             runStatus: conversation.runStatus === 'starting' ? 'starting' : 'running',
@@ -1077,11 +1218,18 @@ export const useAgentStore = create<AgentState>((set) => ({
             updatedAt: Date.now(),
           }
         }
-        if (!conversation.loading) {
+        const awaitingRuntimeReconciliation =
+          conversation.loading ||
+          conversation.runStatus === 'starting' ||
+          conversation.runStatus === 'running' ||
+          Boolean(conversation.activeRunId)
+        if (!awaitingRuntimeReconciliation) {
           return status.sessionId && status.sessionId !== conversation.sessionId
             ? { ...conversation, sessionId: status.sessionId, updatedAt: Date.now() }
             : conversation
         }
+        const terminalReason: AgentRunTerminalReason =
+          status.ready === false ? 'runtime-unavailable' : 'runtime-lost'
         return {
           ...conversation,
           messages: conversation.messages.map((message) =>
@@ -1089,16 +1237,10 @@ export const useAgentStore = create<AgentState>((set) => ({
           ),
           loading: false,
           backendState: status.ready === false ? 'disconnected' : 'connected',
-          runStatus:
-            conversation.runStatus === 'starting' || conversation.runStatus === 'running'
-              ? 'interrupted'
-              : conversation.runStatus,
+          runStatus: 'interrupted',
           activeRunId: null,
           lastRunEventAt: Date.now(),
-          lastRunTerminalReason:
-            conversation.runStatus === 'starting' || conversation.runStatus === 'running'
-              ? 'runtime-unavailable'
-              : conversation.lastRunTerminalReason,
+          lastRunTerminalReason: terminalReason,
           sessionId: status.sessionId ?? conversation.sessionId,
           streamingMessageId: null,
           updatedAt: Date.now(),
@@ -1166,6 +1308,42 @@ export const useAgentStore = create<AgentState>((set) => ({
         updatedAt: Date.now(),
       })),
     ),
+
+  rebaseMountedResourcePaths: (oldPrefix, newPrefix) => {
+    if (oldPrefix === newPrefix) return
+    set((state) => {
+      let changed = false
+      const conversations = Object.fromEntries(
+        Object.entries(state.conversations).map(([conversationId, conversation]) => {
+          let conversationChanged = false
+          const mountedResources = conversation.mountedResources.map((resource) => {
+            const path = rebaseResourcePath(resource.ref.path, oldPrefix, newPrefix)
+            if (path === resource.ref.path) return resource
+            changed = true
+            conversationChanged = true
+            return {
+              ...resource,
+              id: resource.id.includes(oldPrefix)
+                ? resource.id.replace(oldPrefix, newPrefix)
+                : resource.id,
+              detail:
+                resource.detail === resource.ref.path || resource.detail === oldPrefix
+                  ? path
+                  : resource.detail,
+              ref: { ...resource.ref, path },
+            }
+          })
+          return [
+            conversationId,
+            conversationChanged
+              ? { ...conversation, mountedResources, updatedAt: Date.now() }
+              : conversation,
+          ]
+        }),
+      ) as Record<string, AgentConversationState>
+      return changed ? { conversations } : state
+    })
+  },
 
   clearTransientResources: (conversationId) =>
     set((state) =>

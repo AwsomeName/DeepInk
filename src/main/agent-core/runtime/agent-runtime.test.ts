@@ -9,6 +9,18 @@ class TestBackend implements IAgentBackend {
   scope: unknown = null
   destroy = vi.fn(async () => {})
   sendMessage = vi.fn(async () => {})
+  compact = vi.fn(async () => {})
+  getContextUsage = vi.fn(async () => ({
+    categories: [],
+    totalTokens: 40_000,
+    maxTokens: 200_000,
+    rawMaxTokens: 200_000,
+    percentage: 20,
+    model: 'claude-sonnet',
+    autoCompactThreshold: 190_000,
+    isAutoCompactEnabled: true,
+    capturedAt: 1,
+  }))
   abort = vi.fn(async () => {})
   eventHandler: Parameters<IAgentBackend['onEvent']>[0] | null = null
 
@@ -115,6 +127,39 @@ describe('AgentRuntime session continuity', () => {
         code: 'backend_reconfigured',
       },
     })
+    expect(runtime.getStatus('conversation-1').runId).toBeNull()
+  })
+
+  it('runs compaction against the selected conversation and exposes its SDK usage', async () => {
+    const runtime = new AgentRuntime({
+      config: { type: 'local-claude-code' },
+      deps: {} as never,
+    })
+
+    await runtime.compactConversation('conversation-1', '保留待办', { runId: 'compact-1' })
+
+    const backend = backends.at(-1)
+    expect(backend?.compact).toHaveBeenCalledWith('保留待办', {
+      conversationId: 'conversation-1',
+      runId: 'compact-1',
+    })
+    await expect(runtime.getContextUsage('conversation-1')).resolves.toMatchObject({
+      totalTokens: 40_000,
+      percentage: 20,
+    })
+  })
+
+  it('clears the active run when compaction fails before emitting an event', async () => {
+    const runtime = new AgentRuntime({
+      config: { type: 'local-claude-code' },
+      deps: {} as never,
+    })
+    const backend = runtime.getBackend('conversation-1') as TestBackend
+    backend.compact.mockRejectedValueOnce(new Error('compact unavailable'))
+
+    await expect(
+      runtime.compactConversation('conversation-1', undefined, { runId: 'compact-failed' }),
+    ).rejects.toThrow('compact unavailable')
     expect(runtime.getStatus('conversation-1').runId).toBeNull()
   })
 })

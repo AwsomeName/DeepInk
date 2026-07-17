@@ -15,9 +15,12 @@ import type { McpClientManager, ExternalMcpServer } from '../mcp/client-manager'
 import { verifyAllCapabilities } from '../playwright/verify-capabilities'
 import type { AgentScope } from '../agent/scope'
 import type {
+  AgentCompactConversationPayload,
   AgentCapabilityStatus,
+  AgentConversationContinuity,
   AgentSendMessageInput,
   AgentSendMessagePayload,
+  AgentToolModuleStatus,
 } from '../../shared/ipc/agent'
 import type { WorkspaceRef } from '../../shared/workspace-ref'
 
@@ -28,6 +31,14 @@ interface AgentIpcDeps {
   permissionManager: PermissionManager
   getMcpClientMgr: () => McpClientManager | null
   getCapabilities?: () => AgentCapabilityStatus[]
+  getToolModules?: () => AgentToolModuleStatus[]
+  setToolModuleEnabled?: (
+    moduleId: string,
+    enabled: boolean,
+  ) => Promise<{
+    success: boolean
+    error?: string
+  }>
 }
 
 function normalizeSendMessageInput(input: AgentSendMessageInput): AgentSendMessagePayload {
@@ -40,7 +51,57 @@ function normalizeSendMessageInput(input: AgentSendMessageInput): AgentSendMessa
     sessionId:
       input.sessionId === null || typeof input.sessionId === 'string' ? input.sessionId : undefined,
     workspaceRef: normalizeWorkspaceRef(input.workspaceRef),
+    continuity: normalizeContinuity(input.continuity),
   }
+}
+
+function normalizeContinuity(value: unknown): AgentConversationContinuity | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as {
+    recentMessages?: unknown
+    tasks?: unknown
+  }
+  const recentMessages = Array.isArray(candidate.recentMessages)
+    ? candidate.recentMessages.slice(-10).flatMap((entry) => {
+        if (!entry || typeof entry !== 'object') return []
+        const message = entry as { role?: unknown; text?: unknown }
+        if (
+          (message.role !== 'user' && message.role !== 'assistant' && message.role !== 'system') ||
+          typeof message.text !== 'string' ||
+          !message.text.trim()
+        ) {
+          return []
+        }
+        return [
+          {
+            role: message.role,
+            text: message.text.trim().slice(0, 1200),
+          } as AgentConversationContinuity['recentMessages'][number],
+        ]
+      })
+    : []
+  const tasks = Array.isArray(candidate.tasks)
+    ? candidate.tasks.slice(0, 12).flatMap((entry) => {
+        if (!entry || typeof entry !== 'object') return []
+        const task = entry as { content?: unknown; status?: unknown }
+        if (
+          typeof task.content !== 'string' ||
+          !task.content.trim() ||
+          (task.status !== 'pending' &&
+            task.status !== 'in_progress' &&
+            task.status !== 'completed')
+        ) {
+          return []
+        }
+        return [
+          {
+            content: task.content.trim().slice(0, 300),
+            status: task.status,
+          } as AgentConversationContinuity['tasks'][number],
+        ]
+      })
+    : []
+  return recentMessages.length > 0 || tasks.length > 0 ? { recentMessages, tasks } : undefined
 }
 
 function normalizeWorkspaceRef(value: unknown): WorkspaceRef | undefined {
@@ -85,6 +146,7 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
           skills: payload.skills,
           sessionId: payload.sessionId,
           workspaceRef: payload.workspaceRef,
+          continuity: payload.continuity,
         },
       )
       return { success: true }
@@ -104,6 +166,42 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
     if (!agentBridge) return { connected: false, busy: false, sessionId: null, ready: false }
     return agentBridge.getStatus(conversationId)
   })
+
+  ipcMain.handle('agent:getContextUsage', async (_event, conversationId?: string) => {
+    const agentBridge = requireAgentBridge()
+    if (!agentBridge) return null
+    return agentBridge.getContextUsage(conversationId)
+  })
+
+  ipcMain.handle(
+    'agent:compactConversation',
+    async (_event, conversationId: string, input: AgentCompactConversationPayload) => {
+      const agentBridge = requireAgentBridge()
+      if (!agentBridge) return { success: false, error: 'Agent 后端未就绪' }
+      const sessionId = typeof input?.sessionId === 'string' ? input.sessionId.trim() : ''
+      if (!conversationId?.trim() || !sessionId) {
+        return { success: false, error: '会话或 Claude SDK session 无效' }
+      }
+      try {
+        await agentBridge.compactConversation(conversationId, {
+          sessionId,
+          runId:
+            typeof input.runId === 'string' && input.runId.trim() ? input.runId.trim() : undefined,
+          workspaceRef: normalizeWorkspaceRef(input.workspaceRef),
+          instructions:
+            typeof input.instructions === 'string'
+              ? input.instructions.trim().slice(0, 1000)
+              : undefined,
+        })
+        return { success: true }
+      } catch (error) {
+        return {
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        }
+      }
+    },
+  )
 
   // 设置操作作用域（选择 Agent 操作目标 + 工具收窄）
   // 响应进行中切换会被拒绝（agentBridge 内部回传 error 事件）
@@ -184,6 +282,18 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
   // 获取 Agent 可用能力状态（用于 UI 展示降级原因）
   ipcMain.handle('agent:getCapabilities', () => {
     return deps.getCapabilities?.() ?? []
+  })
+
+  ipcMain.handle('agent:listToolModules', () => deps.getToolModules?.() ?? [])
+
+  ipcMain.handle('agent:setToolModuleEnabled', (_event, moduleId: string, enabled: boolean) => {
+    if (typeof moduleId !== 'string' || !moduleId.trim() || typeof enabled !== 'boolean') {
+      return { success: false, error: '无效的工具模块设置' }
+    }
+    return (
+      deps.setToolModuleEnabled?.(moduleId.trim(), enabled) ??
+      Promise.resolve({ success: false, error: '工具模块管理器未就绪' })
+    )
   })
 
   // ─── 权限管理 ──────────────────────────────────────

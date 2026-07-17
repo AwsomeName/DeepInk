@@ -183,6 +183,16 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
     /** 获取 AI 后端状态 */
     getStatus: (conversationId?: string) => ipcRenderer.invoke('agent:getStatus', conversationId),
 
+    /** 获取 Claude SDK 当前上下文窗口真实占用；空闲时返回最后一次快照。 */
+    getContextUsage: (conversationId?: string) =>
+      ipcRenderer.invoke('agent:getContextUsage', conversationId),
+
+    /** 在指定 Claude SDK session 上手动压缩上下文。 */
+    compactConversation: (
+      conversationId: string,
+      payload: import('../shared/agent-protocol').AgentCompactConversationPayload,
+    ) => ipcRenderer.invoke('agent:compactConversation', conversationId, payload),
+
     /** 设置操作作用域（选择 Agent 操作目标 + 收窄工具域）。响应进行中会被拒绝 */
     setScope: (
       conversationIdOrScope:
@@ -238,11 +248,18 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
         code?: string
         conversationId?: string
         runId?: string
+        operation?: 'message' | 'compact'
       }) => void,
     ) => {
       const listener = (
         _event: Electron.IpcRendererEvent,
-        data: { message: string; code?: string; conversationId?: string; runId?: string },
+        data: {
+          message: string
+          code?: string
+          conversationId?: string
+          runId?: string
+          operation?: 'message' | 'compact'
+        },
       ): void => callback(data)
       ipcRenderer.on('agent:error', listener)
       return () => ipcRenderer.removeListener('agent:error', listener)
@@ -258,6 +275,13 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
 
     /** 获取 Agent 能力状态（browser/editor/android/mcp 等） */
     getCapabilities: () => ipcRenderer.invoke('agent:getCapabilities'),
+
+    /** 列出内置 Agent 工具模块及其真实运行状态 */
+    listToolModules: () => ipcRenderer.invoke('agent:listToolModules'),
+
+    /** 启用或禁用内置 Agent 工具模块 */
+    setToolModuleEnabled: (moduleId: string, enabled: boolean) =>
+      ipcRenderer.invoke('agent:setToolModuleEnabled', moduleId, enabled),
 
     // ─── 权限管理 ──────────────────────────────
     /** 监听工具确认请求 */
@@ -341,6 +365,8 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
     mkdir: (dirPath: string) => ipcRenderer.invoke('fs:mkdir', dirPath),
     /** 重命名 */
     rename: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:rename', oldPath, newPath),
+    /** 移动，不覆盖目标中的同名项 */
+    move: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:move', oldPath, newPath),
     /** 删除文件 */
     delete: (filePath: string) => ipcRenderer.invoke('fs:delete', filePath),
     /** 解压 zip 到同级同名目录 */

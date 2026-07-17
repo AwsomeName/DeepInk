@@ -16,6 +16,12 @@ import type {
   EditorReadRequest,
   EditorSaveRequest,
 } from '../../../../shared/ipc/editor'
+import type { DirEntry } from '../../../fs/file-service'
+
+export interface EditorFileAccess {
+  readFile(filePath: string): Promise<{ content: string; encoding: string }>
+  readDir(dirPath: string, options?: { showHiddenFiles?: boolean }): Promise<DirEntry[]>
+}
 
 /** 等待中的编辑器操作 */
 interface PendingOperation {
@@ -28,7 +34,7 @@ interface PendingOperation {
 const OPERATION_TIMEOUT = 30_000
 
 /**
- * 5 个编辑器工具定义
+ * 编辑器与工作区文本工具定义
  */
 const EDITOR_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
@@ -96,7 +102,8 @@ const EDITOR_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: 'editor_read',
-    description: '读取当前编辑器文档的 Markdown 内容。返回完整的 Markdown 字符串。',
+    description:
+      '读取文本文件。指定 filePath 时直接读取磁盘文件，不要求文件已在编辑器中打开；省略 filePath 时读取当前活跃编辑器内容。不要用浏览器打开本地目录。',
     inputSchema: {
       type: 'object',
       properties: {
@@ -105,6 +112,26 @@ const EDITOR_TOOL_DEFINITIONS: ToolDefinition[] = [
           description: '可选的文件路径。省略则读取当前活跃的编辑器 Tab。',
         },
       },
+    },
+    annotations: { readOnlyHint: true, destructiveHint: false },
+  },
+  {
+    name: 'editor_list',
+    description:
+      '列出本地目录中的文件和子目录，用于先确认项目结构再读取文件。不要猜测文件名，也不要用浏览器打开 file:// 目录。',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        dirPath: {
+          type: 'string',
+          description: '要列出的绝对目录路径。',
+        },
+        showHiddenFiles: {
+          type: 'boolean',
+          description: '是否显示点号开头的隐藏文件，默认 false。',
+        },
+      },
+      required: ['dirPath'],
     },
     annotations: { readOnlyHint: true, destructiveHint: false },
   },
@@ -135,10 +162,12 @@ export class EditorToolModule implements ToolModule {
   readonly tools: ToolDefinition[] = EDITOR_TOOL_DEFINITIONS
 
   private mainWindow: BrowserWindow | null
+  private readonly fileAccess: EditorFileAccess
   private pending: Map<string, PendingOperation> = new Map()
 
-  constructor(mainWindow: BrowserWindow) {
+  constructor(mainWindow: BrowserWindow, fileAccess: EditorFileAccess) {
     this.mainWindow = mainWindow
+    this.fileAccess = fileAccess
   }
 
   async execute(toolName: string, params: Record<string, unknown>): Promise<unknown> {
@@ -157,6 +186,8 @@ export class EditorToolModule implements ToolModule {
         return this.sendContentUpdate('insert', params)
       case 'read':
         return this.requestRead(params)
+      case 'list':
+        return this.listDirectory(params)
       case 'save':
         return this.requestSave(params)
       default:
@@ -198,7 +229,20 @@ export class EditorToolModule implements ToolModule {
   /**
    * 请求读取编辑器内容（renderer → main 返回内容）
    */
-  private requestRead(params: Record<string, unknown>): Promise<unknown> {
+  private async requestRead(params: Record<string, unknown>): Promise<unknown> {
+    const filePath = typeof params.filePath === 'string' ? params.filePath.trim() : ''
+    if (filePath) {
+      const result = await this.fileAccess.readFile(filePath)
+      if (result.encoding !== 'utf-8') {
+        throw new Error(`不支持把二进制文件作为文本读取: ${filePath}`)
+      }
+      return { content: result.content }
+    }
+
+    return this.requestActiveEditorRead()
+  }
+
+  private requestActiveEditorRead(): Promise<unknown> {
     return new Promise((resolve, reject) => {
       const id = randomUUID()
 
@@ -209,12 +253,18 @@ export class EditorToolModule implements ToolModule {
 
       this.pending.set(id, { resolve, reject, timeout })
 
-      const request: EditorReadRequest = {
-        id,
-        filePath: params.filePath as string | undefined,
-      }
+      const request: EditorReadRequest = { id }
       this.mainWindow!.webContents.send('editor:readRequest', request)
     })
+  }
+
+  private async listDirectory(params: Record<string, unknown>): Promise<unknown> {
+    const dirPath = typeof params.dirPath === 'string' ? params.dirPath.trim() : ''
+    if (!dirPath) throw new Error('缺少要列出的目录路径')
+    const entries = await this.fileAccess.readDir(dirPath, {
+      showHiddenFiles: params.showHiddenFiles === true,
+    })
+    return { dirPath, entries }
   }
 
   /**

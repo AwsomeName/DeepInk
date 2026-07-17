@@ -13,6 +13,7 @@ import type { PermissionManager } from '../mcp/permission'
 import type { AgentBridge } from '../agent/agent-bridge'
 import type { AppSettings, PermissionMode } from './types'
 import { detectClaudeCode } from '../agent/claude-code-detector'
+import type { McpToolHost } from '../mcp/tool-host'
 
 /** 合法的 permissionMode 值 */
 const VALID_PERMISSION_MODES = new Set<string>(['auto', 'categorized', 'strict'])
@@ -33,6 +34,7 @@ export function registerSettingsIpc(
   settingsService: SettingsService,
   permissionManager: PermissionManager,
   getAgentBridge: () => AgentBridge | null,
+  getToolHost: () => McpToolHost | null = () => null,
 ): void {
   /** 获取所有设置 */
   ipcMain.handle('settings:getAll', () => {
@@ -60,6 +62,10 @@ export function registerSettingsIpc(
         }
       }
 
+      if (partial.disabledAgentToolModules) {
+        applyToolModuleSettings(getToolHost(), updated.disabledAgentToolModules)
+      }
+
       // API 配置变更：热重载后端
       const agentBridge = getAgentBridge()
       if (agentBridge && Object.keys(partial).some((k) => AGENT_SETTING_KEYS.has(k))) {
@@ -83,6 +89,7 @@ export function registerSettingsIpc(
       const settings = await settingsService.reset()
       // 重置权限模式为默认值
       permissionManager.setMode(settings.permissionMode)
+      applyToolModuleSettings(getToolHost(), settings.disabledAgentToolModules)
 
       // 热重载后端为默认配置
       const agentBridge = getAgentBridge()
@@ -109,6 +116,9 @@ export function registerSettingsIpc(
       // 权限模式重置 → 即时生效
       if (key === 'permissionMode') {
         permissionManager.setMode(updated.permissionMode)
+      }
+      if (key === 'disabledAgentToolModules') {
+        applyToolModuleSettings(getToolHost(), updated.disabledAgentToolModules)
       }
 
       // API 配置重置 → 热重载后端
@@ -139,4 +149,12 @@ export function registerSettingsIpc(
   })
 
   console.log('[SettingsIPC] 设置 IPC 已注册')
+}
+
+function applyToolModuleSettings(toolHost: McpToolHost | null, disabledModules: string[]): void {
+  if (!toolHost) return
+  const disabled = new Set(disabledModules)
+  for (const module of toolHost.getRegisteredModules()) {
+    toolHost.setModuleEnabled(module.name, !disabled.has(module.name))
+  }
 }

@@ -213,7 +213,7 @@ function ProjectsSidebarView({
   activeWorkspaceKind: 'local' | 'remote' | 'global'
   activatingWorkspace: boolean
   openWorkspacePicker: () => Promise<void>
-  openRecentWorkspace: (path: string) => Promise<void>
+  openRecentWorkspace: (path: string) => Promise<boolean>
   closeWorkspace: () => Promise<void>
   switchToGlobalWorkspace: () => Promise<void>
 }): React.ReactElement {
@@ -694,7 +694,7 @@ function ProjectListSection({
   activeWorkspaceKey: string | null
   activeWorkspaceKind: 'local' | 'remote' | 'global'
   openWorkspacePicker: () => Promise<void>
-  openRecentWorkspace: (path: string) => Promise<void>
+  openRecentWorkspace: (path: string) => Promise<boolean>
   closeWorkspace: () => Promise<void>
   switchToGlobalWorkspace: () => Promise<void>
   onPicked: () => void
@@ -722,13 +722,8 @@ function ProjectListSection({
                     onPicked()
                     return
                   }
-                  void openRecentWorkspace(path).then(() => {
-                    if (
-                      workspaceRefKey(useWorkspaceStore.getState().activeWorkspaceRef) ===
-                      workspaceRefKey(ref)
-                    ) {
-                      onPicked()
-                    }
+                  void openRecentWorkspace(path).then((success) => {
+                    if (success) onPicked()
                   })
                 }}
                 disabled={loading || picking}

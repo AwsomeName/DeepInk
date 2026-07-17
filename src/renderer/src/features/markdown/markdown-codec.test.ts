@@ -195,6 +195,16 @@ describe('markdown-codec', () => {
     expect(analyzeMarkdown(source, serialized).safeToSave).toBe(true)
   })
 
+  it('accepts intentional structural edits when the dirty draft is validated as the new source', () => {
+    const saved = ['原始段落', '', '- 旧列表项'].join('\n')
+    const dirtyDraft = ['新段落', '', '---', '', '1. 新列表项'].join('\n')
+
+    // 两个版本本来就不等价；这不能用来判断草稿是否可恢复。
+    expect(analyzeMarkdown(saved, dirtyDraft).safeToSave).toBe(false)
+    expect(analyzeMarkdown(dirtyDraft).safeToEdit).toBe(true)
+    expect(analyzeMarkdown(dirtyDraft, dirtyDraft).safeToSave).toBe(true)
+  })
+
   it('creates stable compact snapshot hashes', () => {
     expect(hashMarkdownSnapshot('same')).toBe(hashMarkdownSnapshot('same'))
     expect(hashMarkdownSnapshot('same')).not.toBe(hashMarkdownSnapshot('other'))

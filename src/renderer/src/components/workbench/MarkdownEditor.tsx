@@ -227,16 +227,9 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
     if (loadedVersionRef.current === version) return
     loadedVersionRef.current = version
     const analysis = analyzeMarkdown(fileState.currentContent)
-    const restoredDraftAnalysis =
-      fileState.dirty && fileState.savedContent
-        ? analyzeMarkdown(fileState.savedContent, fileState.currentContent)
-        : null
-    const initialDiagnostics = [
-      ...analysis.diagnostics,
-      ...(restoredDraftAnalysis?.diagnostics ?? []),
-    ]
+    const initialDiagnostics = analysis.diagnostics
     useEditorStore.getState().setDiagnostics(fileKey, initialDiagnostics)
-    if (!analysis.safeToEdit || restoredDraftAnalysis?.safeToSave === false) {
+    if (!analysis.safeToEdit) {
       const reason =
         initialDiagnostics.find((diagnostic) => diagnostic.severity === 'error')?.message ??
         '当前文件包含暂不支持的 Markdown 语法'
@@ -244,6 +237,9 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
       showToast(reason, 'error')
       return
     }
+
+    // savedContent 是旧的磁盘基线，草稿中的结构变化本来就可能与它不同。
+    // 安全性应由下方的 currentContent -> serialized 回转检查判断。
     hydratingRef.current = true
     let serialized = ''
     try {

@@ -28,6 +28,35 @@ beforeEach(() => {
 })
 
 describe('useTabStore', () => {
+  it('目录移动后同步所有关联 Tab 路径', () => {
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'note',
+          type: 'editor',
+          title: 'note.md',
+          icon: '📝',
+          filePath: '/project/docs/note.md',
+        },
+        {
+          id: 'other',
+          type: 'editor',
+          title: 'other.md',
+          icon: '📝',
+          filePath: '/project/other.md',
+        },
+      ],
+      activeTabId: 'note',
+    })
+
+    useTabStore.getState().rebaseFilePaths('/project/docs', '/project/archive/docs')
+
+    expect(useTabStore.getState().tabs).toEqual([
+      expect.objectContaining({ filePath: '/project/archive/docs/note.md' }),
+      expect.objectContaining({ filePath: '/project/other.md' }),
+    ])
+  })
+
   describe('openTab', () => {
     it('添加新 Tab 并自动激活', () => {
       useTabStore.getState().openTab({ type: 'editor', title: 'README.md', icon: '📄' })
@@ -57,6 +86,40 @@ describe('useTabStore', () => {
       const state = useTabStore.getState()
       expect(state.tabs).toHaveLength(2) // browser + 1 editor
       expect(state.activeTabId).toBe(firstId)
+    })
+
+    it('HTML 允许浏览器和文本两种打开方式并存', () => {
+      useTabStore.getState().openTab({
+        type: 'browser',
+        title: 'index.html',
+        icon: '🌐',
+        filePath: '/project/index.html',
+        initialUrl: 'file:///project/index.html',
+      })
+      const browserId = useTabStore.getState().activeTabId
+
+      useTabStore.getState().openTab({
+        type: 'editor',
+        title: 'index.html',
+        icon: '</>',
+        filePath: '/project/index.html',
+      })
+      const editorId = useTabStore.getState().activeTabId
+
+      useTabStore.getState().openTab({
+        type: 'browser',
+        title: 'index.html',
+        icon: '🌐',
+        filePath: '/project/index.html',
+        initialUrl: 'file:///project/index.html',
+      })
+
+      const htmlTabs = useTabStore
+        .getState()
+        .tabs.filter((tab) => tab.filePath === '/project/index.html')
+      expect(htmlTabs).toHaveLength(2)
+      expect(editorId).not.toBe(browserId)
+      expect(useTabStore.getState().activeTabId).toBe(browserId)
     })
 
     it('browser Tab 不去重（无 forceNew 也能开多个）', () => {

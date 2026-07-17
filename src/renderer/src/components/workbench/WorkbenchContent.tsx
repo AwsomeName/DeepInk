@@ -19,10 +19,12 @@ import { FilePreview } from './FilePreview'
 import { AndroidDisplay } from './AndroidDisplay'
 import { GerberLayerPreview } from './GerberLayerPreview'
 import { MarkdownEditor } from './MarkdownEditor'
+import { SourceTextEditor } from './SourceTextEditor'
 import { ModelViewer } from './ModelViewer'
 import { WorkbenchAgentConversation } from './WorkbenchAgentConversation'
 import { WeChatPreview } from './wechat/WeChatPreview'
 import type { TerminalOutputLine } from '../../stores/terminal-store'
+import { isHtmlFilePath } from '../../utils/html-files'
 
 const EMPTY_TERMINAL_OUTPUT_LINES: TerminalOutputLine[] = []
 
@@ -51,13 +53,20 @@ export function WorkbenchContent({
             {activeTab.type === 'settings' && (
               <SettingsPage initialSection={activeTab.settingsSection} />
             )}
-            {activeTab.type === 'editor' && (
-              <MarkdownEditor
-                key={activeTab.filePath ?? activeTab.id}
-                filePath={activeTab.filePath}
-                tabId={activeTab.id}
-              />
-            )}
+            {activeTab.type === 'editor' &&
+              (activeTab.filePath && isHtmlFilePath(activeTab.filePath) ? (
+                <SourceTextEditor
+                  key={activeTab.filePath}
+                  filePath={activeTab.filePath}
+                  tabId={activeTab.id}
+                />
+              ) : (
+                <MarkdownEditor
+                  key={activeTab.filePath ?? activeTab.id}
+                  filePath={activeTab.filePath}
+                  tabId={activeTab.id}
+                />
+              ))}
             {activeTab.type === 'android' && <AndroidDisplay />}
             {activeTab.type === 'preview' && activeTab.filePath && (
               <WeChatPreview key={activeTab.filePath} filePath={activeTab.filePath} />

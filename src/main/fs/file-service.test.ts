@@ -25,6 +25,25 @@ afterEach(async () => {
 })
 
 describe('FileService', () => {
+  it('moves files without overwriting an existing target', async () => {
+    const service = new FileService()
+    const sourceDir = join(tempDir, 'source')
+    const targetDir = join(tempDir, 'target')
+    await mkdir(sourceDir)
+    await mkdir(targetDir)
+    const sourcePath = join(sourceDir, 'note.md')
+    const targetPath = join(targetDir, 'note.md')
+    await writeFile(sourcePath, 'source', 'utf-8')
+
+    await service.move(sourcePath, targetPath)
+
+    await expect(readFile(targetPath, 'utf-8')).resolves.toBe('source')
+    await writeFile(sourcePath, 'new source', 'utf-8')
+    await expect(service.move(sourcePath, targetPath)).rejects.toThrow('EEXIST')
+    await expect(readFile(targetPath, 'utf-8')).resolves.toBe('source')
+    await expect(readFile(sourcePath, 'utf-8')).resolves.toBe('new source')
+  })
+
   it('reads markdown as UTF-8 text', async () => {
     const service = new FileService()
     const filePath = join(tempDir, 'README.md')

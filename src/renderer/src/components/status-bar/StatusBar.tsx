@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react'
-import type { GitBackupProjectStatus } from '@shared/ipc/git-backup'
+import { useEffect } from 'react'
 import {
   useAgentStore,
   useFsStore,
@@ -7,8 +6,9 @@ import {
   useBrowserStore,
   useUpdateStore,
   useWorkspaceStore,
+  useGitBackupStore,
 } from '../../stores'
-import { IconLink, IconRobot, IconCircle } from '../common/Icons'
+import { IconLink, IconRobot, IconCircle, IconProjects } from '../common/Icons'
 import { useToastStore } from '../common/Toast'
 import {
   workspaceRefKey,
@@ -18,11 +18,11 @@ import {
 
 /** Agent 状态 → 显示文本 */
 const AGENT_STATUS_MAP: Record<string, { text: string; color: string }> = {
-  disconnected: { text: '未连接', color: '#6b7280' },
-  connecting: { text: '连接中...', color: '#facc15' },
+  disconnected: { text: 'Agent 未连接', color: '#6b7280' },
+  connecting: { text: 'Agent 连接中...', color: '#facc15' },
   connected: { text: 'Agent 就绪', color: '#22c55e' },
-  streaming: { text: '响应中...', color: '#3b82f6' },
-  error: { text: '连接失败', color: '#ef4444' },
+  streaming: { text: 'Agent 响应中...', color: '#3b82f6' },
+  error: { text: 'Agent 连接失败', color: '#ef4444' },
 }
 
 /** Tab 类型 → 显示名称 */
@@ -42,36 +42,26 @@ export function StatusBar(): React.ReactElement {
   )
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
   const workspacePath = useFsStore((s) => s.workspacePath)
+  const switchingPath = useFsStore((s) => s.switchingPath)
   const { hasUpdate, latestVersion, downloading, setDownloading, clear } = useUpdateStore()
   const showToast = useToastStore((s) => s.show)
-  const [gitProjectStatus, setGitProjectStatus] = useState<GitBackupProjectStatus | null>(null)
-  const [gitBusy, setGitBusy] = useState(false)
-  const [showGitDialog, setShowGitDialog] = useState(false)
-  const [repositoryInput, setRepositoryInput] = useState('')
-  const [gitError, setGitError] = useState<string | null>(null)
+  const gitProjectStatus = useGitBackupStore((s) => s.projectStatus)
+  const gitBusy = useGitBackupStore((s) => s.busy)
+  const gitError = useGitBackupStore((s) => s.error)
+  const showGitDialog = useGitBackupStore((s) => s.dialogOpen)
+  const repositoryInput = useGitBackupStore((s) => s.repositoryInput)
+  const loadGitWorkspace = useGitBackupStore((s) => s.loadWorkspace)
+  const requestGitBackup = useGitBackupStore((s) => s.requestBackup)
+  const submitFirstGitBackup = useGitBackupStore((s) => s.submitFirstBackup)
+  const setRepositoryInput = useGitBackupStore((s) => s.setRepositoryInput)
+  const closeGitDialog = useGitBackupStore((s) => s.closeDialog)
 
   const agentStatus = AGENT_STATUS_MAP[backendState] ?? AGENT_STATUS_MAP.disconnected
   const tabLabel = activeTab ? (TAB_TYPE_LABEL[activeTab.type] ?? activeTab.title) : ''
 
   useEffect(() => {
-    let cancelled = false
-    setGitProjectStatus(null)
-    setShowGitDialog(false)
-    setRepositoryInput('')
-    setGitError(null)
-    if (!workspacePath) return () => undefined
-    void window.cclinkStudio.gitBackup
-      .getProjectStatus(workspacePath)
-      .then((status) => {
-        if (!cancelled) setGitProjectStatus(status)
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) setGitError(error instanceof Error ? error.message : String(error))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [workspacePath])
+    void loadGitWorkspace(workspacePath)
+  }, [loadGitWorkspace, workspacePath])
 
   const handleDownloadUpdate = async (): Promise<void> => {
     setDownloading(true)
@@ -83,41 +73,15 @@ export function StatusBar(): React.ReactElement {
     }
   }
 
-  const runGitBackup = async (firstRepositoryInput?: string): Promise<void> => {
-    if (!workspacePath || gitBusy) return
-    setGitBusy(true)
-    setGitError(null)
-    try {
-      const result = await window.cclinkStudio.gitBackup.backup({
-        workspacePath,
-        repositoryInput: firstRepositoryInput,
-      })
-      if (!result.success) {
-        setGitError(result.message)
-        showToast(result.message, 'error')
-        return
-      }
-      setShowGitDialog(false)
-      setRepositoryInput('')
-      showToast(result.message, 'success')
-      setGitProjectStatus(await window.cclinkStudio.gitBackup.getProjectStatus(workspacePath))
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error)
-      setGitError(message)
-      showToast(message, 'error')
-    } finally {
-      setGitBusy(false)
-    }
+  const handleGitBackupClick = async (): Promise<void> => {
+    if (!workspacePath) return
+    const result = await requestGitBackup(workspacePath)
+    if (result) showToast(result.message, result.success ? 'success' : 'error')
   }
 
-  const handleGitBackupClick = (): void => {
-    if (!gitProjectStatus || gitProjectStatus.error) return
-    if (gitProjectStatus.bound) {
-      void runGitBackup()
-      return
-    }
-    setGitError(null)
-    setShowGitDialog(true)
+  const handleFirstGitBackup = async (): Promise<void> => {
+    const result = await submitFirstGitBackup()
+    if (result) showToast(result.message, result.success ? 'success' : 'error')
   }
 
   return (
@@ -129,6 +93,13 @@ export function StatusBar(): React.ReactElement {
           {agentStatus.text}
           <IconCircle size={6} filled color={agentStatus.color} />
         </span>
+
+        {switchingPath && (
+          <span className="status-bar-item" title={switchingPath}>
+            <IconProjects size={12} />
+            正在切换到 {switchingPath.split('/').filter(Boolean).at(-1) ?? switchingPath}...
+          </span>
+        )}
 
         {/* 活跃 Tab 信息 */}
         {tabLabel && <span className="status-bar-item">{tabLabel}</span>}
@@ -158,7 +129,7 @@ export function StatusBar(): React.ReactElement {
               gitProjectStatus?.repositoryLabel ??
               '将当前项目全部可备份变更提交并 Push'
             }
-            onClick={handleGitBackupClick}
+            onClick={() => void handleGitBackupClick()}
           >
             <IconLink size={12} />
             {gitBusy
@@ -187,13 +158,13 @@ export function StatusBar(): React.ReactElement {
       </div>
 
       {showGitDialog && (
-        <div className="git-backup-dialog-overlay" onMouseDown={() => setShowGitDialog(false)}>
+        <div className="git-backup-dialog-overlay" onMouseDown={closeGitDialog}>
           <form
             className="git-backup-dialog"
             onMouseDown={(event) => event.stopPropagation()}
             onSubmit={(event) => {
               event.preventDefault()
-              void runGitBackup(repositoryInput)
+              void handleFirstGitBackup()
             }}
           >
             <h2>备份到 Git</h2>
@@ -207,7 +178,7 @@ export function StatusBar(): React.ReactElement {
             />
             {gitError && <div className="git-backup-dialog-error">{gitError}</div>}
             <div className="git-backup-dialog-actions">
-              <button type="button" disabled={gitBusy} onClick={() => setShowGitDialog(false)}>
+              <button type="button" disabled={gitBusy} onClick={closeGitDialog}>
                 取消
               </button>
               <button type="submit" disabled={gitBusy || !repositoryInput.trim()}>

@@ -86,11 +86,24 @@ function conversation({
     sessionId: null,
     streamingMessageId: null,
     lastCost: null,
+    contextUsage: null,
+    contextCompaction: emptyContextCompaction(),
     scope: { kind: 'all' },
     mountedResources: [],
     mountedSkills: [],
     createdAt: Date.now(),
     updatedAt: Date.now(),
     archivedAt,
+  }
+}
+
+function emptyContextCompaction(): AgentConversationState['contextCompaction'] {
+  return {
+    status: 'idle',
+    trigger: null,
+    preTokens: null,
+    postTokens: null,
+    error: null,
+    updatedAt: null,
   }
 }

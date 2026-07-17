@@ -45,6 +45,7 @@ export function ProjectStrip(): React.ReactElement {
   const recentWorkspacePaths = useFsStore((state) => state.recentWorkspacePaths)
   const openRecentWorkspace = useFsStore((state) => state.openRecentWorkspace)
   const closeWorkspace = useFsStore((state) => state.closeWorkspace)
+  const switchingPath = useFsStore((state) => state.switchingPath)
   const activeWorkspaceRef = useWorkspaceStore((state) => state.activeWorkspaceRef)
   const conversations = useAgentStore((state) => state.conversations)
   const showToast = useToastStore((state) => state.show)
@@ -120,10 +121,11 @@ export function ProjectStrip(): React.ReactElement {
 
   const activateProject = async (path: string): Promise<boolean> => {
     if (activePath === path) return true
-    await openRecentWorkspace(path)
-    const active = useWorkspaceStore.getState().activeWorkspaceRef
-    const success = active.kind === 'local' && active.path === path
-    if (!success) showToast('项目切换失败，已保留当前现场', 'error')
+    const success = await openRecentWorkspace(path)
+    if (!success) {
+      const reason = useFsStore.getState().error
+      showToast(reason || '项目切换失败，已保留当前现场', 'error')
+    }
     return success
   }
 
@@ -239,6 +241,7 @@ export function ProjectStrip(): React.ReactElement {
                   data-project-path={path}
                   title={path}
                   aria-current={active ? 'page' : undefined}
+                  disabled={switchingPath !== null}
                   onClick={() => {
                     if (suppressClickRef.current) return
                     void activateProject(path)
@@ -322,6 +325,7 @@ export function ProjectStrip(): React.ReactElement {
                       type="button"
                       className="project-history-item"
                       title={path}
+                      disabled={switchingPath !== null}
                       onClick={() => void openHistoryProject(path)}
                     >
                       <IconProjects size={14} />

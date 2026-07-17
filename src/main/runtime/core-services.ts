@@ -33,7 +33,7 @@ import { CompositeTerminalExecutionAdapter } from '../terminal/terminal-composit
 import { registerTerminalIpc } from '../ipc/terminal-ipc'
 import { registerOfficialIpc } from '../ipc/official-ipc'
 import { loadOfficialIntegration } from '../official/official-integration-loader'
-import { getAgentCapabilities } from './agent-capabilities'
+import { getAgentCapabilities, getAgentToolModules } from './agent-capabilities'
 import { GitBackupService } from '../git-backup/git-backup-service'
 import { registerGitBackupIpc } from '../git-backup/git-backup-ipc'
 import type { CclinkStudioRuntimeState } from './app-runtime'
@@ -80,8 +80,8 @@ export async function bootstrapMainProcessServices(
     `[CCLink Studio] 官方集成接口已注册 (id=${runtime.officialIntegration.id}, profile=${runtime.officialIntegration.buildProfile})`,
   )
 
-  const fileService = new FileService()
-  registerFsIpc(fileService, runtime.settingsService)
+  runtime.fileService = new FileService()
+  registerFsIpc(runtime.fileService, runtime.settingsService)
   console.log('[CCLink Studio] 文件系统 IPC 已注册')
 
   runtime.gitBackupService = new GitBackupService(
@@ -164,9 +164,25 @@ export async function bootstrapMainProcessServices(
     permissionManager: runtime.permissionManager,
     getMcpClientMgr: () => runtime.mcpClientMgr,
     getCapabilities: () => getAgentCapabilities(runtime),
+    getToolModules: () => getAgentToolModules(runtime),
+    setToolModuleEnabled: async (moduleId, enabled) => {
+      if (!runtime.toolHost?.setModuleEnabled(moduleId, enabled)) {
+        return { success: false, error: `未找到工具模块: ${moduleId}` }
+      }
+      const disabled = new Set(runtime.settingsService!.getAll().disabledAgentToolModules)
+      if (enabled) disabled.delete(moduleId)
+      else disabled.add(moduleId)
+      await runtime.settingsService!.set({ disabledAgentToolModules: Array.from(disabled) })
+      return { success: true }
+    },
   })
 
-  registerSettingsIpc(runtime.settingsService, runtime.permissionManager, () => runtime.agentBridge)
+  registerSettingsIpc(
+    runtime.settingsService,
+    runtime.permissionManager,
+    () => runtime.agentBridge,
+    () => runtime.toolHost,
+  )
   console.log('[CCLink Studio] 设置 IPC 已注册')
 
   registerUpdaterIpc(runtime.mainWindow)

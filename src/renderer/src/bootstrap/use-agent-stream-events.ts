@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { useAgentStore } from '../stores/agent-store'
 import type { ContentBlock, PermissionMode, ToolConfirmationRequest } from '../types'
+import type { AgentContextUsageSnapshot } from '@shared/agent-protocol'
 
 type AgentStoreSnapshot = ReturnType<typeof useAgentStore.getState>
 
@@ -10,6 +11,7 @@ type AgentStreamEventPayload = {
   session_id?: string
   conversationId?: string
   runId?: string
+  operation?: 'message' | 'compact'
   message?: {
     role?: string
     content?: Array<{
@@ -36,17 +38,28 @@ type AgentStreamEventPayload = {
       partial_json?: string
     }
   }
+  status?: 'compacting' | 'requesting' | null
+  compact_result?: 'success' | 'failed'
+  compact_error?: string
+  compact_metadata?: {
+    trigger: 'manual' | 'auto'
+    pre_tokens: number
+    post_tokens?: number
+  }
+  contextUsage?: AgentContextUsageSnapshot
 }
 
 type AgentCompletePayload = {
   conversationId?: string
   runId?: string
+  operation?: 'message' | 'compact'
   total_cost_usd?: number
 }
 
 type AgentErrorPayload = {
   conversationId?: string
   runId?: string
+  operation?: 'message' | 'compact'
   code?: string
   message: string
 }
@@ -75,10 +88,45 @@ export function applyAgentStreamEventToStore(
         store.setSessionId(event.session_id, conversationId)
         store.setBackendState('connected', conversationId)
       }
+      if (event.subtype === 'context_usage' && event.contextUsage) {
+        store.setContextUsage(event.contextUsage, conversationId)
+      }
+      if (event.subtype === 'status' && event.status === 'compacting') {
+        store.setContextCompaction(
+          {
+            status: 'compacting',
+            trigger: event.operation === 'compact' ? 'manual' : 'auto',
+            error: null,
+          },
+          conversationId,
+        )
+      }
+      if (event.subtype === 'compact_boundary' && event.compact_metadata) {
+        store.setContextCompaction(
+          {
+            status: 'completed',
+            trigger: event.compact_metadata.trigger,
+            preTokens: event.compact_metadata.pre_tokens,
+            postTokens: event.compact_metadata.post_tokens ?? null,
+            error: null,
+          },
+          conversationId,
+        )
+      }
+      if (event.subtype === 'status' && event.compact_result === 'failed') {
+        store.setContextCompaction(
+          {
+            status: 'failed',
+            error: event.compact_error ?? 'Claude SDK 压缩失败',
+          },
+          conversationId,
+        )
+      }
       break
     }
 
     case 'stream_event': {
+      if (event.operation === 'compact') break
       const innerEvent = event.event
       if (!innerEvent) break
 
@@ -131,6 +179,7 @@ export function applyAgentStreamEventToStore(
     }
 
     case 'user': {
+      if (event.operation === 'compact') break
       for (const block of event.message?.content ?? []) {
         if (block.type !== 'tool_result' || !block.tool_use_id) continue
         store.appendContentBlock(
@@ -178,6 +227,10 @@ export function applyAgentCompleteToStore(
 ): void {
   const conversationId = result.conversationId
   if (!acceptsRunEvent(store, conversationId, result.runId)) return
+  if (result.operation === 'compact') {
+    store.finishContextCompaction(true, conversationId, result.runId)
+    return
+  }
   store.finishStreamingMessage(conversationId, result.runId)
   if (result.total_cost_usd !== undefined) {
     store.setLastCost(result.total_cost_usd, conversationId)
@@ -190,6 +243,11 @@ export function applyAgentErrorToStore(
 ): void {
   const conversationId = error.conversationId
   if (!acceptsRunEvent(store, conversationId, error.runId)) return
+  if (error.operation === 'compact') {
+    store.finishContextCompaction(false, conversationId, error.runId, error.message)
+    store.addSystemMessage(`上下文压缩失败: ${error.message}`, conversationId)
+    return
+  }
   store.cancelStreaming(
     conversationId,
     error.code === 'stream_ended_without_result' ? 'stream-ended' : 'error',

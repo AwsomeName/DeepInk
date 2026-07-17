@@ -32,6 +32,92 @@ describe('buildAgentSendPayload', () => {
     })
   })
 
+  it('includes bounded visible history and the latest todo state for recovery', () => {
+    const conversationId = useAgentStore.getState().createConversation()
+    const conversation = useAgentStore.getState().conversations[conversationId]!
+    conversation.messages = [
+      {
+        id: 'user-1',
+        role: 'user',
+        content: [{ type: 'text', text: '按顺序读取第九篇和第十篇' }],
+        rawText: '按顺序读取第九篇和第十篇',
+        timestamp: 1,
+      },
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: [
+          { type: 'thinking', thinking: '不应进入连续性快照' },
+          { type: 'text', text: '第九篇已经处理完成，接下来读取第十篇。' },
+          {
+            type: 'tool_use',
+            id: 'todo-1',
+            name: 'TodoWrite',
+            input: {
+              todos: [
+                { content: '总结第九篇', status: 'completed' },
+                { content: '读取第十篇', status: 'in_progress' },
+              ],
+            },
+          },
+        ],
+        rawText: '不应进入连续性快照第九篇已经处理完成，接下来读取第十篇。',
+        timestamp: 2,
+      },
+      {
+        id: 'user-current',
+        role: 'user',
+        content: [{ type: 'text', text: '继续' }],
+        rawText: '继续',
+        timestamp: 3,
+      },
+    ]
+
+    const payload = buildAgentSendPayload('继续', conversation)
+
+    expect(payload.continuity).toEqual({
+      recentMessages: [
+        { role: 'user', text: '按顺序读取第九篇和第十篇' },
+        { role: 'assistant', text: '第九篇已经处理完成，接下来读取第十篇。' },
+      ],
+      tasks: [
+        { content: '总结第九篇', status: 'completed' },
+        { content: '读取第十篇', status: 'in_progress' },
+      ],
+    })
+    expect(JSON.stringify(payload.continuity)).not.toContain('不应进入连续性快照')
+  })
+
+  it('keeps recent user intent when assistant progress messages fill the tail', () => {
+    const conversationId = useAgentStore.getState().createConversation()
+    const conversation = useAgentStore.getState().conversations[conversationId]!
+    conversation.messages = [
+      {
+        id: 'user-goal',
+        role: 'user',
+        content: [{ type: 'text', text: '先完成第九篇，再继续第十篇' }],
+        rawText: '先完成第九篇，再继续第十篇',
+        timestamp: 1,
+      },
+      ...Array.from({ length: 12 }, (_, index) => ({
+        id: `assistant-${index}`,
+        role: 'assistant' as const,
+        content: [{ type: 'text' as const, text: `进度 ${index + 1}` }],
+        rawText: `进度 ${index + 1}`,
+        timestamp: index + 2,
+      })),
+    ]
+
+    const continuity = buildAgentSendPayload('继续', conversation).continuity
+
+    expect(continuity?.recentMessages[0]).toEqual({
+      role: 'user',
+      text: '先完成第九篇，再继续第十篇',
+    })
+    expect(continuity?.recentMessages.at(-1)).toEqual({ role: 'assistant', text: '进度 12' })
+    expect(continuity?.recentMessages.length).toBeLessThanOrEqual(10)
+  })
+
   it('sends the immutable markdown range snapshot with its source coordinates', () => {
     const conversationId = useAgentStore.getState().createConversation()
     const resource = fileRangeResource({

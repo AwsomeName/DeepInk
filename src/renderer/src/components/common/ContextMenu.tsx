@@ -11,6 +11,11 @@ import { useTabStore } from '../../stores/tab-store'
 import { useFsStore } from '../../stores/fs-store'
 import { useAgentStore } from '../../stores/agent-store'
 import { useToastStore } from './Toast'
+import {
+  buildHtmlBrowserTabDraft,
+  buildHtmlTextTabDraft,
+  isHtmlFileExtension,
+} from '../../utils/html-files'
 
 function toWorkspaceRelativePath(filePath: string, workspacePath: string | null): string {
   if (!workspacePath) return filePath
@@ -166,6 +171,18 @@ export function ContextMenu(): React.ReactElement | null {
     hide()
   }
 
+  const handleOpenHtmlInBrowser = (): void => {
+    if (!node || node.type !== 'file') return
+    openTab(buildHtmlBrowserTabDraft(node.path, node.name))
+    hide()
+  }
+
+  const handleOpenHtmlAsText = (): void => {
+    if (!node || node.type !== 'file') return
+    openTab(buildHtmlTextTabDraft(node.path, node.name))
+    hide()
+  }
+
   /** 导出微信格式：转换 + 复制到剪贴板 */
   const handleExport = async (): Promise<void> => {
     if (!node) return
@@ -195,6 +212,7 @@ export function ContextMenu(): React.ReactElement | null {
 
   const isDir = node.type === 'directory'
   const isMd = node.extension === '.md'
+  const isHtml = node.type === 'file' && isHtmlFileExtension(node.extension)
   const isZip = node.type === 'file' && node.extension === '.zip'
 
   // 确保菜单不超出视口右侧和底部
@@ -221,6 +239,19 @@ export function ContextMenu(): React.ReactElement | null {
             </div>
           </>
         )}
+        {isHtml && (
+          <>
+            <div className="context-menu-item" onClick={handleOpenHtmlInBrowser}>
+              <span className="context-menu-icon">🌐</span>
+              <span>用浏览器打开</span>
+            </div>
+            <div className="context-menu-item" onClick={handleOpenHtmlAsText}>
+              <span className="context-menu-icon">&lt;/&gt;</span>
+              <span>以文本打开</span>
+            </div>
+            <div className="context-menu-separator" />
+          </>
+        )}
         <div className="context-menu-item" onClick={handleSendToSession}>
           <span className="context-menu-icon">↗</span>
           <span>发送到当前会话</span>
@@ -243,7 +274,7 @@ export function ContextMenu(): React.ReactElement | null {
             <span>解压到同名文件夹</span>
           </div>
         )}
-        <div className="context-menu-separator" />
+        {!isHtml && <div className="context-menu-separator" />}
 
         {/* 微信格式操作 */}
         {isMd ? (
@@ -257,12 +288,12 @@ export function ContextMenu(): React.ReactElement | null {
               <span>导出微信格式</span>
             </div>
           </>
-        ) : (
+        ) : !isHtml ? (
           <div className="context-menu-item disabled">
             <span className="context-menu-icon">ℹ️</span>
             <span>微信格式仅支持 Markdown 文件</span>
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   )

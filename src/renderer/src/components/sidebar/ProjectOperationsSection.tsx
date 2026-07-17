@@ -8,6 +8,7 @@ import {
   resolveProjectOperationsLoginStatus,
   type ProjectOperationsLoginStatus,
 } from './project-operations-status'
+import { GitBackupSidebarCard } from './GitBackupSidebarCard'
 
 function draftTitle(platform: ProjectOpsPlatform): string {
   return `${platform.name}宣发稿`
@@ -182,12 +183,11 @@ export function ProjectOperationsSection({
     )
   }
 
+  let platformContent: React.ReactNode
   if (!accounts && !loadError) {
-    return <div className="project-operations-message">正在读取运营配置</div>
-  }
-
-  if (loadError || accounts?.error || (accounts?.issues.length ?? 0) > 0) {
-    return (
+    platformContent = <div className="project-operations-message">正在读取运营配置</div>
+  } else if (loadError || accounts?.error || (accounts?.issues.length ?? 0) > 0) {
+    platformContent = (
       <div className="project-operations-message project-operations-error">
         <span>{loadError || accounts?.error || '运营配置格式不正确'}</span>
         {accounts?.issues[0] ? (
@@ -197,10 +197,8 @@ export function ProjectOperationsSection({
         ) : null}
       </div>
     )
-  }
-
-  if (!accounts?.exists) {
-    return (
+  } else if (!accounts?.exists) {
+    platformContent = (
       <div className="project-operations-message">
         <span>尚未配置运营平台</span>
         <button className="project-operations-create" onClick={() => void createDefaultConfig()}>
@@ -209,36 +207,41 @@ export function ProjectOperationsSection({
         </button>
       </div>
     )
+  } else {
+    platformContent = platforms.map((platform) => {
+      const status = loginStatuses[platform.id]
+      return (
+        <button
+          key={platform.id}
+          className="project-panel-row"
+          onClick={() => openPlatformSession(platform)}
+          title={`${platform.url}\n${formatProjectOperationsLoginStatus(status)}`}
+        >
+          <IconGlobe size={14} />
+          <span className="project-panel-row-main">
+            <span className="project-panel-row-title project-operations-title">
+              <span>{platform.name}</span>
+              <span
+                className={`project-operations-status ${status?.authenticated ? 'authenticated' : ''}`}
+                aria-hidden="true"
+              />
+            </span>
+            <span className="project-panel-row-meta">
+              {platform.account ? `${platform.account} · ` : ''}
+              {formatProjectOperationsLoginStatus(status)}
+            </span>
+          </span>
+        </button>
+      )
+    })
   }
 
   return (
-    <div className="sidebar-section">
-      {platforms.map((platform) => {
-        const status = loginStatuses[platform.id]
-        return (
-          <button
-            key={platform.id}
-            className="project-panel-row"
-            onClick={() => openPlatformSession(platform)}
-            title={`${platform.url}\n${formatProjectOperationsLoginStatus(status)}`}
-          >
-            <IconGlobe size={14} />
-            <span className="project-panel-row-main">
-              <span className="project-panel-row-title project-operations-title">
-                <span>{platform.name}</span>
-                <span
-                  className={`project-operations-status ${status?.authenticated ? 'authenticated' : ''}`}
-                  aria-hidden="true"
-                />
-              </span>
-              <span className="project-panel-row-meta">
-                {platform.account ? `${platform.account} · ` : ''}
-                {formatProjectOperationsLoginStatus(status)}
-              </span>
-            </span>
-          </button>
-        )
-      })}
+    <div className="sidebar-section project-operations-sections">
+      <div className="project-operations-group-label">项目备份</div>
+      <GitBackupSidebarCard workspacePath={workspacePath} />
+      <div className="project-operations-group-label">网站运营</div>
+      {platformContent}
     </div>
   )
 }

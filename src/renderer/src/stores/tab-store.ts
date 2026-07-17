@@ -10,6 +10,7 @@ import {
 } from '../utils/workspace-state'
 import { workspaceRefFromKey } from '../utils/conversation-workspace'
 import { workspaceRefKey } from '@shared/workspace-ref'
+import { isHtmlFilePath } from '../utils/html-files'
 
 /** 自增 ID 计数器 */
 let nextId = 1
@@ -179,6 +180,8 @@ interface TabState {
   updateTabTerminal: (id: string, terminal: NonNullable<Tab['terminal']>) => void
   /** 更新 Tab 关联的文件路径（Save-As 后回填） */
   updateTabFilePath: (id: string, filePath: string) => void
+  /** 文件或目录移动后批量同步相关 Tab 路径。 */
+  rebaseFilePaths: (oldPrefix: string, newPrefix: string) => void
   /** 复制 Tab（浏览器克隆 URL；编辑器克隆内容为未命名副本） */
   duplicateTab: (id: string) => void
   /** 获取当前活跃 Tab */
@@ -213,9 +216,11 @@ export const useTabStore = create<TabState>((set, get) => ({
     set((state) => {
       // forceNew 跳过所有去重
       if (!forceNew) {
-        // 文件 Tab：按 filePath 去重
+        // HTML 可同时保留浏览器预览和源码文本；其他文件仍按 filePath 去重。
         if (filePath) {
-          const existing = state.tabs.find((t) => t.filePath === filePath)
+          const existing = state.tabs.find(
+            (tab) => tab.filePath === filePath && (!isHtmlFilePath(filePath) || tab.type === type),
+          )
           if (existing) {
             const nextTabs = state.tabs.map((tab) =>
               tab.id === existing.id
@@ -225,6 +230,7 @@ export const useTabStore = create<TabState>((set, get) => ({
                     title,
                     icon,
                     dirty: false,
+                    initialUrl: type === 'browser' ? initialUrl : tab.initialUrl,
                     initialContent:
                       type === 'model' || type === 'file-preview' ? undefined : tab.initialContent,
                     hardwareGerber,
@@ -352,6 +358,30 @@ export const useTabStore = create<TabState>((set, get) => ({
     set((state) => ({
       tabs: state.tabs.map((t) => (t.id === id ? { ...t, filePath } : t)),
     })),
+
+  rebaseFilePaths: (oldPrefix, newPrefix) => {
+    if (oldPrefix === newPrefix) return
+    const rebasePath = (path: string | undefined): string | undefined => {
+      if (!path) return path
+      if (path === oldPrefix) return newPrefix
+      if (path.startsWith(oldPrefix + '/')) return newPrefix + path.slice(oldPrefix.length)
+      return path
+    }
+    set((state) => ({
+      tabs: state.tabs.map((tab) => {
+        const filePath = rebasePath(tab.filePath)
+        const packagePath = rebasePath(tab.hardwareGerber?.packagePath)
+        if (filePath === tab.filePath && packagePath === tab.hardwareGerber?.packagePath) return tab
+        return {
+          ...tab,
+          filePath,
+          hardwareGerber: tab.hardwareGerber
+            ? { ...tab.hardwareGerber, packagePath: packagePath ?? tab.hardwareGerber.packagePath }
+            : undefined,
+        }
+      }),
+    }))
+  },
 
   duplicateTab: (id) => {
     const tab = get().tabs.find((t) => t.id === id)

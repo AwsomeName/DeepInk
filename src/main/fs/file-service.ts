@@ -366,6 +366,31 @@ export class FileService {
     await rename(safeOld, safeNew)
   }
 
+  /** 移动文件/目录，不允许覆盖目标中的同名项。 */
+  async move(oldPath: string, newPath: string): Promise<void> {
+    const safeOld = this.validatePath(oldPath)
+    const safeNew = this.validatePath(newPath)
+    if (safeOld === safeNew) return
+
+    const source = await stat(safeOld)
+    const targetParent = await stat(dirname(safeNew))
+    if (!targetParent.isDirectory()) throw new Error('ENOTDIR: 移动目标不是文件夹')
+    if (source.isDirectory()) {
+      const nestedPath = relative(safeOld, safeNew)
+      if (nestedPath && nestedPath !== '..' && !nestedPath.startsWith(`..${sep}`)) {
+        throw new Error('EINVAL: 文件夹不能移动到自身或其子目录')
+      }
+    }
+
+    try {
+      await stat(safeNew)
+      throw new Error('EEXIST: 目标文件夹中已存在同名文件或文件夹')
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error
+    }
+    await rename(safeOld, safeNew)
+  }
+
   /** 删除文件 */
   async delete(filePath: string): Promise<void> {
     const safe = this.validatePath(filePath)

@@ -90,6 +90,41 @@ describe('McpToolHost tool session context', () => {
     )
     expect(execute).toHaveBeenCalledWith('test_write', { value: 2 }, { confirmationGranted: true })
   })
+
+  it('hides disabled module tools and rejects calls from stale clients', async () => {
+    const execute = vi.fn(async () => ({ ok: true }))
+    host = new McpToolHost({
+      needsConfirmation: () => false,
+      requestConfirmation: vi.fn(async () => true),
+    })
+    host.registerModule(createModule(execute))
+
+    expect(host.getAllTools()).toHaveLength(1)
+    expect(host.setModuleEnabled('test', false)).toBe(true)
+    expect(host.getAllTools()).toEqual([])
+    expect(host.getRegisteredModules()).toMatchObject([
+      { name: 'test', enabled: false, tools: [{ name: 'test_write' }] },
+    ])
+
+    const port = await host.start()
+    const response = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'test_write', arguments: {} },
+      }),
+    })
+    const payload = (await response.json()) as {
+      result: { content: Array<{ text: string }>; isError?: boolean }
+    }
+
+    expect(payload.result.isError).toBe(true)
+    expect(payload.result.content[0]?.text).toContain('已在设置中禁用')
+    expect(execute).not.toHaveBeenCalled()
+  })
 })
 
 function createModule(execute = vi.fn(async () => ({ ok: true }))): ToolModule {

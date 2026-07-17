@@ -1,4 +1,8 @@
-import type { AgentSendResource, AgentSendSkill } from '../../shared/ipc/agent'
+import type {
+  AgentConversationContinuity,
+  AgentSendResource,
+  AgentSendSkill,
+} from '../../shared/ipc/agent'
 import type { AgentResourceContextSnapshot } from '../../shared/agent-resource-context'
 import type { WorkspaceRef } from '../../shared/workspace-ref'
 
@@ -9,6 +13,7 @@ export interface AgentSendMessageContext {
   sessionId?: string | null
   workspaceRef?: WorkspaceRef
   resourceContext?: AgentResourceContextSnapshot
+  continuity?: AgentConversationContinuity
 }
 
 const MAX_CONTEXT_RESOURCES = 20
@@ -23,15 +28,13 @@ export function buildAgentMessageWithContext(
 ): string {
   const resources = normalizeResources(context?.resources)
   const skills = normalizeSkills(context?.skills)
-  const resourceContext = context?.resourceContext
-  if (resources.length === 0 && skills.length === 0 && !resourceContext) return message
+  if (resources.length === 0 && skills.length === 0) return message
 
   return [
     'CCLink Studio 会话上下文:',
-    '以下是 CCLink Studio 当前资源事实包、用户显式挂载到当前会话的资源索引和 Skill。资源事实包是真实运行态快照；不要把资源索引当作资源正文。需要读取文件、查看网页或操作 Tab 时，必须使用可用工具并遵守权限确认。Skill 表示用户希望本轮遵循的流程风格，不代表可以执行未授权代码。',
+    '以下是用户显式挂载到当前消息的资源索引和 Skill。不要把资源索引当作资源正文。需要读取文件、查看网页或操作 Tab 时，必须使用可用工具并遵守权限确认。Skill 表示用户希望本轮遵循的流程风格，不代表可以执行未授权代码。',
     JSON.stringify(
       {
-        activeResourceContext: resourceContext,
         mountedResources: resources,
         mountedSkills: skills,
       },

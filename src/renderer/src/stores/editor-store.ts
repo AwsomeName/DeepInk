@@ -82,6 +82,9 @@ interface EditorState {
   /** 获取并消费指定文件的待处理更新 */
   consumePendingUpdates: (filePath: string | undefined) => EditorContentUpdate[]
 
+  /** 文件或目录移动后同步编辑缓冲和待处理更新的路径。 */
+  rebaseFilePaths: (oldPrefix: string, newPrefix: string) => void
+
   /** 初始化虚拟文件（Agent 创建的无路径文档 / 复制 Tab 的种子内容） */
   initVirtualFile: (key: string, seed?: string) => void
 
@@ -134,6 +137,13 @@ function saveStoredEditorFiles(state: EditorState): void {
   } catch {
     // WorkspaceState 镜像失败不应影响当前编辑器状态。
   }
+}
+
+function rebasePath(path: string | undefined, oldPrefix: string, newPrefix: string): string | undefined {
+  if (!path) return path
+  if (path === oldPrefix) return newPrefix
+  if (path.startsWith(oldPrefix + '/')) return newPrefix + path.slice(oldPrefix.length)
+  return path
 }
 
 export const useEditorStore = create<EditorState>((set, get) => ({
@@ -386,6 +396,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }))
     }
     return updates
+  },
+
+  rebaseFilePaths: (oldPrefix, newPrefix) => {
+    if (oldPrefix === newPrefix) return
+    set((state) => {
+      let changed = false
+      const files: Record<string, EditorFileState> = {}
+      for (const [path, file] of Object.entries(state.files)) {
+        const nextPath = rebasePath(path, oldPrefix, newPrefix) ?? path
+        if (nextPath !== path) changed = true
+        files[nextPath] = file
+      }
+      const pendingUpdates = state.pendingUpdates.map((update) => {
+        const filePath = rebasePath(update.filePath, oldPrefix, newPrefix)
+        if (filePath === update.filePath) return update
+        changed = true
+        return { ...update, filePath }
+      })
+      return changed ? { files, pendingUpdates } : state
+    })
   },
 
   initVirtualFile: (key, seed = '') => {

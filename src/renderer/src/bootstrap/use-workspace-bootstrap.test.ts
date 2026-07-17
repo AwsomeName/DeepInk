@@ -353,8 +353,9 @@ describe('restoreWorkspaceState', () => {
     expect(agentState.conversations[conversationId].messages.at(-1)?.rawText).toBe(
       '恢复这条工作消息',
     )
-    expect(agentState.conversations[conversationId].loading).toBe(false)
-    expect(agentState.conversations[conversationId].streamingMessageId).toBeNull()
+    expect(agentState.conversations[conversationId].loading).toBe(true)
+    expect(agentState.conversations[conversationId].backendState).toBe('connecting')
+    expect(agentState.conversations[conversationId].streamingMessageId).toBe('streaming-message')
     expect(agentState.messages.at(-1)?.rawText).toBe('恢复这条工作消息')
   })
 })

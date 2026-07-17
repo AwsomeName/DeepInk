@@ -64,6 +64,35 @@ export class AgentRuntime {
     })
   }
 
+  async compactConversation(
+    conversationId = DEFAULT_CONVERSATION_ID,
+    instructions?: string,
+    options?: AgentSendOptions,
+  ): Promise<void> {
+    const conversation = this.ensureConversation(conversationId)
+    if (!conversation.backend.compact) {
+      throw new Error('当前 Agent 后端不支持手动压缩上下文')
+    }
+    conversation.activeRunId =
+      options?.runId ?? `compact-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    try {
+      await conversation.backend.compact(instructions, {
+        ...options,
+        conversationId,
+        runId: conversation.activeRunId,
+      })
+    } catch (error) {
+      conversation.activeRunId = null
+      throw error
+    }
+  }
+
+  async getContextUsage(
+    conversationId = DEFAULT_CONVERSATION_ID,
+  ): Promise<import('../../../shared/agent-protocol').AgentContextUsageSnapshot | null> {
+    return (await this.ensureConversation(conversationId).backend.getContextUsage?.()) ?? null
+  }
+
   async abort(conversationId = DEFAULT_CONVERSATION_ID): Promise<void> {
     const conversation = this.ensureConversation(conversationId)
     await conversation.backend.abort()

@@ -72,6 +72,9 @@ export function WorkbenchAgentConversation({
   const beginRun = useAgentStore((state) => state.beginRun)
   const cancelStreaming = useAgentStore((state) => state.cancelStreaming)
   const setBackendState = useAgentStore((state) => state.setBackendState)
+  const setContextUsage = useAgentStore((state) => state.setContextUsage)
+  const beginContextCompaction = useAgentStore((state) => state.beginContextCompaction)
+  const finishContextCompaction = useAgentStore((state) => state.finishContextCompaction)
   const restoreArchivedConversation = useAgentStore((state) => state.restoreArchivedConversation)
   const pendingConfirmations = useAgentStore((state) => state.pendingConfirmations)
   const permissionMode = useAgentStore((state) => state.permissionMode)
@@ -125,9 +128,20 @@ export function WorkbenchAgentConversation({
     void loadSavedQueries()
   }, [loadDataSources, loadSavedQueries])
 
+  useEffect(() => {
+    let cancelled = false
+    void window.cclinkStudio.agent.getContextUsage(conversationId).then((usage) => {
+      if (!cancelled && usage) setContextUsage(usage, conversationId)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [conversationId, setContextUsage])
+
   const conversationInput = conversation?.input ?? ''
   const mountedResources = conversation?.mountedResources ?? []
   const mountedSkills = conversation?.mountedSkills ?? []
+  const contextCompacting = conversation?.contextCompaction.status === 'compacting'
   const composerWorkspaceRef = conversation?.runtime.workspaceRef ?? activeWorkspaceRef
   const savedQueries = useMemo(
     () => Object.values(savedQueriesBySourceId).flat(),
@@ -231,6 +245,37 @@ export function WorkbenchAgentConversation({
     },
     [permissionMode, setPermissionMode],
   )
+
+  const handleCompactContext = useCallback(
+    async (instructions: string) => {
+      if (!conversation?.sessionId || conversation.loading || contextCompacting) return
+      const runId = beginContextCompaction(conversationId)
+      try {
+        const result = await window.cclinkStudio.agent.compactConversation(conversationId, {
+          runId,
+          sessionId: conversation.sessionId,
+          workspaceRef: conversation.runtime.workspaceRef,
+          instructions: instructions.trim() || undefined,
+        })
+        if (!result.success) {
+          finishContextCompaction(false, conversationId, runId, result.error)
+          addSystemMessage(`上下文压缩失败: ${result.error ?? '未知错误'}`, conversationId)
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        finishContextCompaction(false, conversationId, runId, message)
+        addSystemMessage(`上下文压缩失败: ${message}`, conversationId)
+      }
+    },
+    [
+      addSystemMessage,
+      beginContextCompaction,
+      contextCompacting,
+      conversation,
+      conversationId,
+      finishContextCompaction,
+    ],
+  )
   const handleOpenAgentSettings = useCallback(() => {
     openTab({ type: 'settings', title: 'Agent 设置', icon: '⚙️', settingsSection: 'agent' })
   }, [openTab])
@@ -320,7 +365,11 @@ export function WorkbenchAgentConversation({
       return
     }
 
-    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    if (
+      event.key === 'Enter' &&
+      (event.metaKey || event.ctrlKey) &&
+      !contextCompacting
+    ) {
       event.preventDefault()
       setResourceQuery(null)
       setSkillQuery(null)
@@ -402,8 +451,12 @@ export function WorkbenchAgentConversation({
               <AgentComposerToolbar
                 permissionMode={permissionMode}
                 settings={settings}
-                loading={conversation.loading}
-                canSend={Boolean(conversation.input.trim())}
+                loading={conversation.loading || contextCompacting}
+                canSend={Boolean(conversation.input.trim()) && !contextCompacting}
+                contextUsage={conversation.contextUsage}
+                contextCompaction={conversation.contextCompaction}
+                canCompact={Boolean(conversation.sessionId) && !conversation.loading}
+                onCompactContext={handleCompactContext}
                 onPermissionModeChange={handlePermissionModeChange}
                 onOpenResourceMenu={() => setResourceQuery('')}
                 onOpenSkillMenu={() => setSkillQuery('')}
@@ -415,7 +468,7 @@ export function WorkbenchAgentConversation({
                     </button>
                   ) : (
                     <button
-                      disabled={!conversation.input.trim()}
+                      disabled={!conversation.input.trim() || contextCompacting}
                       onClick={() => {
                         setResourceQuery(null)
                         setSkillQuery(null)

@@ -7,7 +7,11 @@ import {
   applyAgentCompleteToStore,
   applyAgentStreamEventToStore,
 } from '../bootstrap/use-agent-stream-events'
-import { hydrateRuntimeSections, persistRuntimeSections } from './workspace-runtime'
+import {
+  hydrateRuntimeSections,
+  persistRuntimeSections,
+  reconcileAgentRuntimeStatuses,
+} from './workspace-runtime'
 
 beforeEach(() => {
   vi.stubGlobal('window', {
@@ -299,7 +303,148 @@ describe('workspace-runtime', () => {
       runStatus: 'starting',
     })
   })
+
+  it('恢复后主进程仍在执行时继续接管原运行', async () => {
+    hydrateRecoveringConversation()
+    const getStatus = vi.fn().mockResolvedValue({
+      connected: true,
+      busy: true,
+      ready: true,
+      runId: 'run-before-reload',
+      sessionId: 'session-1',
+    })
+    ;(window.cclinkStudio as unknown as { agent: { getStatus: typeof getStatus } }).agent = {
+      getStatus,
+    }
+
+    await reconcileAgentRuntimeStatuses(null)
+
+    expect(useAgentStore.getState().conversations.recovering).toMatchObject({
+      loading: true,
+      backendState: 'streaming',
+      runStatus: 'running',
+      activeRunId: 'run-before-reload',
+      lastRunTerminalReason: null,
+    })
+  })
+
+  it('恢复后主进程可用但运行已消失时标记为意外丢失', async () => {
+    hydrateRecoveringConversation()
+    const getStatus = vi.fn().mockResolvedValue({
+      connected: false,
+      busy: false,
+      ready: true,
+      runId: null,
+      sessionId: 'session-1',
+    })
+    ;(window.cclinkStudio as unknown as { agent: { getStatus: typeof getStatus } }).agent = {
+      getStatus,
+    }
+
+    await reconcileAgentRuntimeStatuses(null)
+
+    expect(useAgentStore.getState().conversations.recovering).toMatchObject({
+      loading: false,
+      backendState: 'connected',
+      runStatus: 'interrupted',
+      activeRunId: null,
+      streamingMessageId: null,
+      lastRunTerminalReason: 'runtime-lost',
+    })
+  })
+
+  it('主进程状态查询失败时记录运行时不可用，而不是用户取消', async () => {
+    hydrateRecoveringConversation()
+    const getStatus = vi.fn().mockRejectedValue(new Error('ipc unavailable'))
+    ;(window.cclinkStudio as unknown as { agent: { getStatus: typeof getStatus } }).agent = {
+      getStatus,
+    }
+
+    await reconcileAgentRuntimeStatuses(null)
+
+    expect(useAgentStore.getState().conversations.recovering).toMatchObject({
+      loading: false,
+      backendState: 'disconnected',
+      runStatus: 'interrupted',
+      lastRunTerminalReason: 'runtime-unavailable',
+    })
+  })
+
+  it('状态查询期间收到完成事件时忽略过期的 busy 回复', async () => {
+    hydrateRecoveringConversation()
+    let resolveStatus!: (value: {
+      connected: boolean
+      busy: boolean
+      ready: boolean
+      runId: string
+      sessionId: string
+    }) => void
+    const getStatus = vi.fn().mockReturnValue(
+      new Promise((resolve) => {
+        resolveStatus = resolve
+      }),
+    )
+    ;(window.cclinkStudio as unknown as { agent: { getStatus: typeof getStatus } }).agent = {
+      getStatus,
+    }
+
+    const reconciliation = reconcileAgentRuntimeStatuses(null)
+    useAgentStore.getState().finishStreamingMessage('recovering', 'run-before-reload')
+    resolveStatus({
+      connected: true,
+      busy: true,
+      ready: true,
+      runId: 'run-before-reload',
+      sessionId: 'session-1',
+    })
+    await reconciliation
+
+    expect(useAgentStore.getState().conversations.recovering).toMatchObject({
+      loading: false,
+      runStatus: 'completed',
+      activeRunId: null,
+      lastRunTerminalReason: 'completed',
+    })
+  })
 })
+
+function hydrateRecoveringConversation(): void {
+  const now = Date.now()
+  useAgentStore.getState().hydrateFromWorkspaceState({
+    conversations: {
+      recovering: {
+        id: 'recovering',
+        title: '恢复中的任务',
+        messages: [
+          {
+            id: 'streaming-message',
+            role: 'assistant',
+            content: [{ type: 'text', text: '部分结果' }],
+            rawText: '部分结果',
+            timestamp: now,
+            isStreaming: true,
+          },
+        ],
+        input: '',
+        loading: true,
+        backendState: 'streaming',
+        runStatus: 'running',
+        activeRunId: 'run-before-reload',
+        lastRunEventAt: now,
+        lastRunTerminalReason: null,
+        sessionId: 'session-1',
+        streamingMessageId: 'streaming-message',
+        lastCost: null,
+        scope: { kind: 'all' },
+        createdAt: now,
+        updatedAt: now,
+        archivedAt: null,
+      },
+    },
+    conversationOrder: ['recovering'],
+    activeConversationId: 'recovering',
+  })
+}
 
 function workspaceSnapshot(
   workspaceKey: string,

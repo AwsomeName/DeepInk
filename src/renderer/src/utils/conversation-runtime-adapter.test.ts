@@ -28,6 +28,15 @@ function localConversation(
     updatedAt: 1,
     archivedAt: null,
     ...overrides,
+    contextUsage: overrides.contextUsage ?? null,
+    contextCompaction: overrides.contextCompaction ?? {
+      status: 'idle',
+      trigger: null,
+      preTokens: null,
+      postTokens: null,
+      error: null,
+      updatedAt: null,
+    },
   }
 }
 

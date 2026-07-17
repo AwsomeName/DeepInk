@@ -35,6 +35,7 @@ describe('fs-store workspace switching', () => {
           readDir: vi.fn().mockResolvedValue([]),
           isDirectory: vi.fn().mockResolvedValue(true),
           rename: vi.fn().mockResolvedValue(undefined),
+          move: vi.fn().mockResolvedValue(undefined),
           mkdir: vi.fn().mockResolvedValue(undefined),
           writeFile: vi.fn().mockResolvedValue(undefined),
           watchDir: vi.fn().mockResolvedValue(vi.fn()),
@@ -137,8 +138,9 @@ describe('fs-store workspace switching', () => {
       return Promise.resolve(snapshot(key, {}))
     })
 
-    await useFsStore.getState().openRecentWorkspace(workspacePath)
+    const switched = await useFsStore.getState().openRecentWorkspace(workspacePath)
 
+    expect(switched).toBe(true)
     expect(getWorkspaceState).toHaveBeenCalledWith(workspacePath, 'local:owner-1')
     expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual({
       kind: 'local',
@@ -147,6 +149,70 @@ describe('fs-store workspace switching', () => {
     expect(useOpenProjectsStore.getState().openProjectPaths).toEqual([workspacePath])
     expect(useAgentStore.getState().activeConversationId).toBe(conversationId)
     expect(useAgentStore.getState().messages.at(-1)?.rawText).toBe('恢复项目里的这条消息')
+  })
+
+  it('switches projects with a dirty draft without using a native confirmation dialog', async () => {
+    const currentPath = '/Users/apple/current-project'
+    const nextPath = '/Users/apple/next-project'
+    const confirm = vi.fn(() => false)
+    Object.assign(window, { confirm })
+    useWorkspaceStore.getState().activateLocalWorkspace(currentPath)
+    useFsStore.setState({ workspacePath: currentPath })
+    useEditorStore.getState().initVirtualFile('virtual:draft', '未保存草稿')
+
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
+    getWorkspaceState.mockResolvedValue(snapshot(nextPath, {}))
+
+    const switched = await useFsStore.getState().openRecentWorkspace(nextPath)
+
+    expect(switched).toBe(true)
+    expect(confirm).not.toHaveBeenCalled()
+    expect(useFsStore.getState().switchingPath).toBeNull()
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual({
+      kind: 'local',
+      path: nextPath,
+    })
+    expect(window.cclinkStudio.workspaceState.setSection).toHaveBeenCalledWith(
+      currentPath,
+      'editorDrafts',
+      expect.anything(),
+      'local:owner-1',
+    )
+  })
+
+  it('reports project switch failures and clears the switching state', async () => {
+    const nextPath = '/Users/apple/missing-project'
+    const resolveLocalWorkspace = window.cclinkStudio.workspaceState
+      .resolveLocalWorkspace as ReturnType<typeof vi.fn>
+    resolveLocalWorkspace.mockResolvedValue({ valid: false, workspacePath: null })
+
+    const switched = await useFsStore.getState().openRecentWorkspace(nextPath)
+
+    expect(switched).toBe(false)
+    expect(useFsStore.getState().switchingPath).toBeNull()
+    expect(useFsStore.getState().error).toBe('该工作空间已不存在或不可访问')
+  })
+
+  it('exposes the target project while an asynchronous switch is in progress', async () => {
+    const nextPath = '/Users/apple/slow-project'
+    let finishResolve: ((value: { valid: true; workspacePath: string }) => void) | undefined
+    const resolveLocalWorkspace = window.cclinkStudio.workspaceState
+      .resolveLocalWorkspace as ReturnType<typeof vi.fn>
+    resolveLocalWorkspace.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishResolve = resolve
+        }),
+    )
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
+    getWorkspaceState.mockResolvedValue(snapshot(nextPath, {}))
+
+    const switching = useFsStore.getState().openRecentWorkspace(nextPath)
+
+    expect(useFsStore.getState().switchingPath).toBe(nextPath)
+    finishResolve?.({ valid: true, workspacePath: nextPath })
+    await expect(switching).resolves.toBe(true)
+    expect(useFsStore.getState().switchingPath).toBeNull()
   })
 
   it('restores recent projects from last workspace and local fallback after restart', async () => {
@@ -351,6 +417,128 @@ describe('fs-store workspace switching', () => {
     ])
     expect(useFsStore.getState().error).toBeNull()
     expect(useFsStore.getState().operationError).toBeNull()
+  })
+
+  it('moves an open dirty markdown file and rebases its tab and editor buffer', async () => {
+    const workspacePath = '/Users/apple/project'
+    const sourcePath = `${workspacePath}/note.md`
+    const targetDir = `${workspacePath}/docs`
+    const destinationPath = `${targetDir}/note.md`
+    let moved = false
+    const move = window.cclinkStudio.fs.move as ReturnType<typeof vi.fn>
+    move.mockImplementation(async () => {
+      moved = true
+    })
+    const readDir = window.cclinkStudio.fs.readDir as ReturnType<typeof vi.fn>
+    readDir.mockImplementation((path: string) => {
+      if (path === workspacePath) {
+        return Promise.resolve([
+          {
+            name: 'docs',
+            path: targetDir,
+            type: 'directory',
+            size: 0,
+            modifiedAt: 1,
+          },
+          ...(moved
+            ? []
+            : [
+                {
+                  name: 'note.md',
+                  path: sourcePath,
+                  type: 'file',
+                  extension: '.md',
+                  size: 10,
+                  modifiedAt: 1,
+                },
+              ]),
+        ])
+      }
+      if (path === targetDir) {
+        return Promise.resolve(
+          moved
+            ? [
+                {
+                  name: 'note.md',
+                  path: destinationPath,
+                  type: 'file',
+                  extension: '.md',
+                  size: 10,
+                  modifiedAt: 2,
+                },
+              ]
+            : [],
+        )
+      }
+      return Promise.resolve([])
+    })
+
+    await useFsStore.getState().setWorkspace(workspacePath)
+    useFsStore.getState().setSelectedPath(sourcePath)
+    useTabStore.getState().openTab({
+      type: 'editor',
+      title: 'note.md',
+      icon: '📝',
+      filePath: sourcePath,
+    })
+    useEditorStore.setState({
+      files: {
+        [sourcePath]: {
+          savedContent: 'saved',
+          currentContent: 'unsaved edit',
+          dirty: true,
+          loading: false,
+        },
+      },
+      pendingUpdates: [],
+    })
+    useAgentStore.getState().addMountedResource({
+      id: `file:${sourcePath}`,
+      kind: 'file',
+      label: 'note.md',
+      detail: sourcePath,
+      ref: { type: 'file', path: sourcePath },
+    })
+
+    await expect(useFsStore.getState().moveEntry(sourcePath, targetDir)).resolves.toBe(true)
+
+    expect(move).toHaveBeenCalledWith(sourcePath, destinationPath)
+    expect(useFsStore.getState().selectedPath).toBe(destinationPath)
+    expect(useFsStore.getState().expandedPaths).toContain(targetDir)
+    expect(useTabStore.getState().tabs.at(-1)?.filePath).toBe(destinationPath)
+    expect(useEditorStore.getState().files[sourcePath]).toBeUndefined()
+    expect(useEditorStore.getState().files[destinationPath]).toMatchObject({
+      currentContent: 'unsaved edit',
+      dirty: true,
+    })
+    const activeConversationId = useAgentStore.getState().activeConversationId
+    expect(
+      useAgentStore.getState().conversations[activeConversationId].mountedResources[0],
+    ).toMatchObject({
+      id: `file:${destinationPath}`,
+      detail: destinationPath,
+      ref: { path: destinationPath },
+    })
+    expect(useFsStore.getState().tree).toEqual([
+      expect.objectContaining({
+        path: targetDir,
+        expanded: true,
+        children: [expect.objectContaining({ path: destinationPath })],
+      }),
+    ])
+  })
+
+  it('rejects moving a directory into itself or its descendant', async () => {
+    const workspacePath = '/Users/apple/project'
+    const sourceDir = `${workspacePath}/docs`
+    await useFsStore.getState().setWorkspace(workspacePath)
+
+    await expect(useFsStore.getState().moveEntry(sourceDir, `${sourceDir}/archive`)).resolves.toBe(
+      false,
+    )
+
+    expect(window.cclinkStudio.fs.move).not.toHaveBeenCalled()
+    expect(useFsStore.getState().operationError).toContain('不能移动到自身或其子目录')
   })
 
   it('refreshes workspace and reloads expanded directories', async () => {

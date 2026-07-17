@@ -161,7 +161,7 @@ describe('buildAgentMessageWithContext', () => {
     expect(message).toContain('用户消息:\n评审这个计划')
   })
 
-  it('injects active resource context as runtime facts', () => {
+  it('does not persist the per-run resource context inside user message history', () => {
     const message = buildAgentMessageWithContext('登录我的知乎', {
       resourceContext: {
         version: 1,
@@ -204,9 +204,6 @@ describe('buildAgentMessageWithContext', () => {
       },
     })
 
-    expect(message).toContain('"activeResourceContext"')
-    expect(message).toContain('"host": "www.baidu.com"')
-    expect(message).toContain('"expectedHosts"')
-    expect(message).toContain('真实运行态快照')
+    expect(message).toBe('登录我的知乎')
   })
 })

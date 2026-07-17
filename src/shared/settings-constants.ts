@@ -57,6 +57,8 @@ export interface AppSettings {
   backendType: BackendType
   /** Agent 权限模式 */
   permissionMode: PermissionMode
+  /** 被用户禁用的内置 Agent 工具模块 */
+  disabledAgentToolModules: string[]
   /** 单次对话最大 AI 调用费用（USD） */
   maxBudgetUsd: number
   /** Claude Code CLI 路径；空串表示自动检测 / PATH 解析 */
@@ -185,6 +187,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   agentEngine: 'local-claude-code',
   backendType: 'claude-code',
   permissionMode: 'auto',
+  disabledAgentToolModules: [],
   maxBudgetUsd: 1.0,
   claudeCodePath: '',
   defaultZoomMode: 'fit',

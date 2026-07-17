@@ -103,7 +103,6 @@ export async function reconcileAgentRuntimeStatuses(
   workspaceKey: string | null = getWorkspaceStateKey(),
 ): Promise<void> {
   const getStatus = window.cclinkStudio?.agent?.getStatus
-  if (!getStatus) return
 
   const state = useAgentStore.getState()
   const conversationIds = state.conversationOrder.filter((conversationId) => {
@@ -114,18 +113,44 @@ export async function reconcileAgentRuntimeStatuses(
       : workspaceKey
     return conversationWorkspaceKey === workspaceKey
   })
-  const statuses = await Promise.allSettled(
-    conversationIds.map(async (conversationId) => ({
-      conversationId,
-      status: await getStatus(conversationId),
-    })),
-  )
+  const statuses = getStatus
+    ? await Promise.allSettled(
+        conversationIds.map(async (conversationId) => {
+          const conversation = useAgentStore.getState().conversations[conversationId]
+          return {
+            conversationId,
+            observedRunId: conversation?.activeRunId ?? null,
+            observedEventAt: conversation?.lastRunEventAt ?? null,
+            status: await getStatus(conversationId),
+          }
+        }),
+      )
+    : conversationIds.map(() => ({ status: 'rejected' as const, reason: 'Agent IPC unavailable' }))
   if (getWorkspaceStateKey() !== workspaceKey) return
 
-  for (const result of statuses) {
-    if (result.status !== 'fulfilled') continue
-    useAgentStore
-      .getState()
-      .reconcileRuntimeStatus(result.value.status, result.value.conversationId)
+  for (const [index, result] of statuses.entries()) {
+    const conversationId = conversationIds[index]
+    if (result.status === 'fulfilled') {
+      const current = useAgentStore.getState().conversations[conversationId]
+      if (
+        current?.activeRunId !== result.value.observedRunId ||
+        current?.lastRunEventAt !== result.value.observedEventAt
+      ) {
+        continue
+      }
+      useAgentStore.getState().reconcileRuntimeStatus(result.value.status, conversationId)
+      continue
+    }
+    const conversation = useAgentStore.getState().conversations[conversationId]
+    useAgentStore.getState().reconcileRuntimeStatus(
+      {
+        connected: false,
+        busy: false,
+        runId: null,
+        sessionId: conversation?.sessionId ?? null,
+        ready: false,
+      },
+      conversationId,
+    )
   }
 }

@@ -45,6 +45,14 @@ export interface IAgentBackend {
   /** 发送用户消息 */
   sendMessage(message: string, options?: AgentSendOptions): Promise<void>
 
+  /** 在当前 SDK session 上执行手动上下文压缩。 */
+  compact?(instructions?: string, options?: AgentSendOptions): Promise<void>
+
+  /** 返回最近一次 SDK 上下文窗口占用；运行中可刷新真实值。 */
+  getContextUsage?(): Promise<
+    import('../../../shared/agent-protocol').AgentContextUsageSnapshot | null
+  >
+
   /** 中止当前响应 */
   abort(): Promise<void>
 
@@ -81,6 +89,8 @@ export interface AgentSendOptions {
   forceVisibleBrowser?: boolean
   /** 宿主采样的结构化资源事实包，供后端 prompt 和诊断使用。 */
   resourceContext?: import('../../../shared/agent-resource-context').AgentResourceContextSnapshot
+  /** UI 保存的最近对话与任务状态，用于长会话压缩或进程恢复后的连续性兜底。 */
+  continuity?: import('../../../shared/ipc/agent').AgentConversationContinuity
 }
 
 /** 后端配置 */

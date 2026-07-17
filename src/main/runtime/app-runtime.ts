@@ -31,6 +31,7 @@ import type { TerminalCommandOrchestrator } from '../terminal/terminal-command-o
 import type { TerminalExecutionAdapter } from '../terminal/terminal-execution-adapter'
 import type { OfficialIntegration } from '../official/official-integration'
 import type { GitBackupService } from '../git-backup/git-backup-service'
+import type { FileService } from '../fs/file-service'
 
 export interface CclinkStudioRuntimeState {
   isDev: boolean
@@ -46,6 +47,7 @@ export interface CclinkStudioRuntimeState {
   permissionManager: PermissionManager | null
   mcpClientMgr: McpClientManager | null
   localIdentityService: LocalIdentityService | null
+  fileService: FileService | null
   editorModule: EditorToolModule | null
   adbBridge: AdbBridge | null
   activeDeviceManager: ActiveDeviceManager | null
@@ -84,6 +86,7 @@ export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
     permissionManager: null,
     mcpClientMgr: null,
     localIdentityService: null,
+    fileService: null,
     editorModule: null,
     adbBridge: null,
     activeDeviceManager: null,

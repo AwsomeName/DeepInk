@@ -58,6 +58,10 @@ export class SettingsService {
       // 防御性校验：只取合法值覆盖默认值，丢弃文件中的非法枚举值
       for (const key of Object.keys(parsed) as Array<keyof AppSettings>) {
         const val = (parsed as unknown as Record<string, unknown>)[key]
+        if (key === 'disabledAgentToolModules') {
+          this.store.disabledAgentToolModules = normalizeModuleIds(val)
+          continue
+        }
         const validSet = VALID_VALUES[key]
         if (validSet && typeof val === 'string' && !validSet.has(val)) {
           console.warn(`[SettingsService] 加载配置时忽略无效值: ${key}=${val}`)
@@ -101,6 +105,10 @@ export class SettingsService {
     for (const key of Object.keys(partial)) {
       if (!SETTINGS_KEYS.has(key)) continue
       const val = (partial as Record<string, unknown>)[key]
+      if (key === 'disabledAgentToolModules') {
+        ;(filtered as unknown as Record<string, unknown>)[key] = normalizeModuleIds(val)
+        continue
+      }
       // 对有枚举约束的字段做值校验；数值字段（如 maxBudgetUsd）跳过枚举检查
       const validSet = VALID_VALUES[key]
       if (validSet && typeof val === 'string' && !validSet.has(val)) {
@@ -139,4 +147,11 @@ export class SettingsService {
     await this.saveState()
     return this.getAll()
   }
+}
+
+function normalizeModuleIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return Array.from(
+    new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)),
+  )
 }

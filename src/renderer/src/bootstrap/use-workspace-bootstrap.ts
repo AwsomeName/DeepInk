@@ -18,7 +18,7 @@ import {
   type WorkspaceBootstrapDeps,
   type WorkspaceBootstrapResult,
 } from './workspace-bootstrap-core'
-import { persistRuntimeSections } from '../utils/workspace-runtime'
+import { persistRuntimeSections, reconcileAgentRuntimeStatuses } from '../utils/workspace-runtime'
 import { runOpenProjectsBootstrapOnce } from '../stores/open-projects-store'
 
 export type { WorkspaceBootstrapDeps } from './workspace-bootstrap-core'
@@ -77,7 +77,10 @@ export function useWorkspaceBootstrap(): boolean {
 
     async function bootstrap(): Promise<void> {
       const result = await runWorkspaceBootstrapOnce()
-      if (result.canPersistRuntime) await persistRuntimeSections()
+      if (result.canPersistRuntime) {
+        await reconcileAgentRuntimeStatuses(result.workspacePath)
+        await persistRuntimeSections()
+      }
       await runOpenProjectsBootstrapOnce(useFsStore.getState().workspacePath)
       if (!cancelled) setReady(true)
     }

@@ -183,4 +183,68 @@ describe('applyAgentStreamEventToStore', () => {
     expect(conversation.messages.filter((message) => message.isStreaming)).toHaveLength(0)
     expect(conversation.runStatus).toBe('completed')
   })
+
+  it('按会话写入 SDK 上下文用量，不污染当前查看的其他会话', () => {
+    const firstId = useAgentStore.getState().activeConversationId
+    const secondId = useAgentStore.getState().createConversation()
+
+    applyAgentStreamEventToStore({
+      type: 'system',
+      subtype: 'context_usage',
+      conversationId: firstId,
+      contextUsage: {
+        categories: [{ name: 'messages', tokens: 60_000 }],
+        totalTokens: 60_000,
+        maxTokens: 200_000,
+        rawMaxTokens: 200_000,
+        percentage: 30,
+        model: 'claude-sonnet',
+        autoCompactThreshold: 190_000,
+        isAutoCompactEnabled: true,
+        capturedAt: 1,
+      },
+    })
+
+    const state = useAgentStore.getState()
+    expect(state.activeConversationId).toBe(secondId)
+    expect(state.contextUsage).toBeNull()
+    expect(state.conversations[firstId].contextUsage?.percentage).toBe(30)
+  })
+
+  it('手动压缩事件不创建消息，并只结束对应会话的压缩运行', () => {
+    const conversationId = useAgentStore.getState().activeConversationId
+    const initialMessageCount = useAgentStore.getState().messages.length
+    const runId = useAgentStore.getState().beginContextCompaction(conversationId)
+
+    applyAgentStreamEventToStore({
+      type: 'stream_event',
+      operation: 'compact',
+      conversationId,
+      runId,
+      event: { type: 'message_start', message: { id: 'compact-output' } },
+    })
+    applyAgentStreamEventToStore({
+      type: 'system',
+      subtype: 'compact_boundary',
+      operation: 'compact',
+      conversationId,
+      runId,
+      compact_metadata: {
+        trigger: 'manual',
+        pre_tokens: 160_000,
+        post_tokens: 28_000,
+      },
+    })
+    applyAgentCompleteToStore({ operation: 'compact', conversationId, runId })
+
+    const conversation = useAgentStore.getState().conversations[conversationId]
+    expect(conversation.messages).toHaveLength(initialMessageCount)
+    expect(conversation.contextCompaction).toMatchObject({
+      status: 'completed',
+      trigger: 'manual',
+      preTokens: 160_000,
+      postTokens: 28_000,
+    })
+    expect(conversation.activeRunId).toBeNull()
+  })
 })

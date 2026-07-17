@@ -13,8 +13,10 @@ import {
   prepareWorkspaceRuntimeTransition,
 } from '../utils/workspace-transition'
 import { hydrateRuntimeSections } from '../utils/workspace-runtime'
-import { useEditorStore } from './editor-store'
+import { useAgentStore } from './agent-store'
 import { useOpenProjectsStore } from './open-projects-store'
+import { useEditorStore } from './editor-store'
+import { useTabStore } from './tab-store'
 import { useWorkspaceStore } from './workspace-store'
 
 /** setWorkspace 的最新请求序号（模块级，用于丢弃过期的并发结果，避免竞态） */
@@ -28,6 +30,14 @@ function parentDir(filePath: string): string {
 
 function hasPathSeparator(name: string): boolean {
   return name.includes('/') || name.includes('\\')
+}
+
+function baseName(path: string): string {
+  return path.slice(path.lastIndexOf('/') + 1)
+}
+
+function isPathWithin(root: string, path: string): boolean {
+  return path === root || path.startsWith(root + '/')
 }
 
 function replacePathPrefix(
@@ -46,6 +56,9 @@ function describeError(err: unknown): string {
   const raw = err instanceof Error ? err.message : typeof err === 'string' ? err : String(err)
   if (/not in allowed|路径不在允许范围内/i.test(raw)) {
     return '该目录不在允许访问的范围内，请选择用户主目录（~）下的工作空间文件夹'
+  }
+  if (/EEXIST|already exists|file exists/i.test(raw)) {
+    return '目标文件夹中已存在同名文件或文件夹'
   }
   return raw
 }
@@ -100,23 +113,6 @@ function saveRecentWorkspaceFallback(paths: string[]): void {
   } catch {
     // 最近项目 fallback 写入失败不影响当前工作区。
   }
-}
-
-function hasUnsavedEditorDrafts(): boolean {
-  return Object.entries(useEditorStore.getState().files).some(([key, file]) => {
-    if (file.dirty) return true
-    return key.startsWith('virtual:') && file.currentContent.trim().length > 0
-  })
-}
-
-function confirmProjectSwitch(currentPath: string | null, nextPath?: string | null): boolean {
-  if (!currentPath || nextPath === currentPath || !hasUnsavedEditorDrafts()) return true
-  persistWorkspaceSection('editorDrafts', { files: useEditorStore.getState().files }, currentPath)
-  if (typeof window === 'undefined') return true
-  const action = nextPath === null ? '切换到未归档后' : '切换工作空间后'
-  return window.confirm(
-    `当前工作空间有未保存草稿。${action}，草稿会保留在当前工作空间，稍后切回可继续。是否继续？`,
-  )
 }
 
 function loadFsPanelState(): { expandedPaths: string[]; selectedPath: string | null } {
@@ -234,6 +230,8 @@ interface FsState {
   loading: boolean
   /** 正在弹出文件夹选择对话框（防重入 + 按钮禁用） */
   picking: boolean
+  /** 正在切换到的本地项目；与 Agent 运行状态相互独立 */
+  switchingPath: string | null
   /** 错误信息 */
   error: string | null
   /** 文件操作错误，不影响工作区加载态 */
@@ -268,7 +266,7 @@ interface FsState {
   /** 弹出文件夹选择对话框选择工作区，成功后持久化 */
   openWorkspacePicker: () => Promise<void>
   /** 切换到最近打开过的工作区路径 */
-  openRecentWorkspace: (path: string) => Promise<void>
+  openRecentWorkspace: (path: string) => Promise<boolean>
   /** 切换到未归档，回到隐藏系统工作空间 */
   closeWorkspace: () => Promise<void>
   /** 刷新指定目录 */
@@ -292,6 +290,8 @@ interface FsState {
   clearOperationError: () => void
   /** 确认重命名 */
   confirmRename: (oldPath: string, newName: string) => Promise<void>
+  /** 把文件或目录移动到当前工作空间内的目标目录。 */
+  moveEntry: (sourcePath: string, targetDir: string) => Promise<boolean>
   /** 确认新建文件夹（从 state.newFolderParent 读取父目录） */
   confirmNewFolder: (name: string) => Promise<void>
   /** 确认新建文件（从 state.newFolderParent 读取父目录） */
@@ -307,6 +307,7 @@ export const useFsStore = create<FsState>((set, get) => ({
   tree: [],
   loading: false,
   picking: false,
+  switchingPath: null,
   error: null,
   operationError: null,
   editingPath: null,
@@ -460,8 +461,7 @@ export const useFsStore = create<FsState>((set, get) => ({
   },
 
   openWorkspacePicker: async () => {
-    if (get().picking) return // 防重入：避免叠加多个模态对话框（macOS 会抛错）
-    if (!confirmProjectSwitch(get().workspacePath)) return
+    if (get().picking || get().switchingPath) return
     set({ picking: true, error: null, operationError: null })
     try {
       const result = await window.cclinkStudio.dialog.showOpenDialog({
@@ -475,6 +475,7 @@ export const useFsStore = create<FsState>((set, get) => ({
         if (!path) set({ error: '无法打开所选工作空间' })
         return
       }
+      set({ switchingPath: path })
       const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef(path), {
         generation,
       })
@@ -501,48 +502,60 @@ export const useFsStore = create<FsState>((set, get) => ({
     } catch (err) {
       set({ error: describeError(err) })
     } finally {
-      set({ picking: false })
+      set({ picking: false, switchingPath: null })
     }
   },
 
   openRecentWorkspace: async (path) => {
-    if (!path) return
+    if (!path) return false
     if (
       path === get().workspacePath &&
       useWorkspaceStore.getState().activeWorkspaceRef.kind === 'local'
     )
-      return
-    if (!confirmProjectSwitch(get().workspacePath, path)) return
-    const generation = beginWorkspaceRuntimeTransition()
-    const resolvedPath = await resolveWorkspaceCandidate(path)
-    if (!resolvedPath || !isWorkspaceRuntimeTransitionCurrent(generation)) {
-      if (!resolvedPath) set({ error: '该工作空间已不存在或不可访问' })
-      return
+      return true
+    if (get().switchingPath) {
+      set({ error: '另一个项目正在切换，请稍候' })
+      return false
     }
-    const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef(resolvedPath), {
-      generation,
-    })
-    if (!isWorkspaceRuntimeTransitionCurrent(generation)) return
-    const ok = await get().setWorkspace(resolvedPath, {
-      restoredFileTree: transition.snapshot?.sections.fileTree,
-      commitGuard: () => isWorkspaceRuntimeTransitionCurrent(generation),
-    })
-    if (ok) {
+
+    set({ switchingPath: path, error: null, operationError: null })
+    try {
+      const generation = beginWorkspaceRuntimeTransition()
+      const resolvedPath = await resolveWorkspaceCandidate(path)
+      if (!resolvedPath || !isWorkspaceRuntimeTransitionCurrent(generation)) {
+        if (!resolvedPath) set({ error: '该工作空间已不存在或不可访问' })
+        return false
+      }
+      const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef(resolvedPath), {
+        generation,
+      })
+      if (!isWorkspaceRuntimeTransitionCurrent(generation)) return false
+      const ok = await get().setWorkspace(resolvedPath, {
+        restoredFileTree: transition.snapshot?.sections.fileTree,
+        commitGuard: () => isWorkspaceRuntimeTransitionCurrent(generation),
+      })
+      if (!ok) return false
+
       useWorkspaceStore.getState().activateLocalWorkspace(resolvedPath)
-      if (!applyWorkspaceRuntimeTransition(transition)) return
+      if (!applyWorkspaceRuntimeTransition(transition)) return false
       useOpenProjectsStore.getState().addProject(resolvedPath)
       const recentWorkspacePaths = get().recentWorkspacePaths
       saveRecentWorkspaceFallback(recentWorkspacePaths)
       await window.cclinkStudio.settings
         .set({ lastWorkspacePath: resolvedPath, recentWorkspacePaths })
         .catch(() => {})
+      return true
+    } catch (err) {
+      set({ error: describeError(err) })
+      return false
+    } finally {
+      if (get().switchingPath === path) set({ switchingPath: null })
     }
   },
 
   closeWorkspace: async () => {
     const currentPath = get().workspacePath
     if (!currentPath) return
-    if (!confirmProjectSwitch(currentPath, null)) return
 
     set({ loading: true, error: null, operationError: null })
     saveFsPanelState(
@@ -743,6 +756,56 @@ export const useFsStore = create<FsState>((set, get) => ({
     } catch (err) {
       await get().refreshDir(parent)
       set({ operationError: '重命名失败: ' + describeError(err) })
+    }
+  },
+
+  moveEntry: async (sourcePath, targetDir) => {
+    const workspacePath = get().workspacePath
+    if (!workspacePath || !isPathWithin(workspacePath, sourcePath) || !isPathWithin(workspacePath, targetDir)) {
+      set({ operationError: '移动失败: 只能在当前项目内移动文件' })
+      return false
+    }
+    if (sourcePath === workspacePath) {
+      set({ operationError: '移动失败: 不能移动项目根目录' })
+      return false
+    }
+    if (targetDir === sourcePath || targetDir.startsWith(sourcePath + '/')) {
+      set({ operationError: '移动失败: 文件夹不能移动到自身或其子目录' })
+      return false
+    }
+
+    const destinationPath = `${targetDir}/${baseName(sourcePath)}`
+    if (destinationPath === sourcePath) {
+      set({ operationError: null })
+      return false
+    }
+
+    try {
+      await window.cclinkStudio.fs.move(sourcePath, destinationPath)
+      useEditorStore.getState().rebaseFilePaths(sourcePath, destinationPath)
+      useTabStore.getState().rebaseFilePaths(sourcePath, destinationPath)
+      useAgentStore.getState().rebaseMountedResourcePaths(sourcePath, destinationPath)
+      set((state) => {
+        const expandedPaths = state.expandedPaths
+          .map((path) => replacePathPrefix(path, sourcePath, destinationPath) ?? path)
+          .filter((path, index, paths) => paths.indexOf(path) === index)
+        if (!expandedPaths.includes(targetDir)) expandedPaths.push(targetDir)
+        return {
+          expandedPaths,
+          selectedPath: replacePathPrefix(state.selectedPath, sourcePath, destinationPath),
+          operationError: null,
+        }
+      })
+      await get().refreshWorkspace()
+      saveFsPanelState(
+        { expandedPaths: get().expandedPaths, selectedPath: get().selectedPath },
+        workspacePath,
+      )
+      return true
+    } catch (err) {
+      await get().refreshWorkspace()
+      set({ operationError: '移动失败: ' + describeError(err) })
+      return false
     }
   },
 

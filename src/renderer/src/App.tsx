@@ -7,13 +7,7 @@ import { Workbench } from './components/workbench/Workbench'
 import { AgentPanel } from './components/agent-panel/AgentPanel'
 import { StatusBar } from './components/status-bar/StatusBar'
 import { ResizeHandle } from './components/common/ResizeHandle'
-import {
-  IconArrowLeft,
-  IconArrowRight,
-  IconFolder,
-  IconPanelLeft,
-  IconPanelRight,
-} from './components/common/Icons'
+import { IconFolder, IconPanelLeft, IconPanelRight } from './components/common/Icons'
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { PanelErrorFallback } from './components/common/ErrorFallback'
 import { CommandPalette } from './components/command-palette/CommandPalette'
@@ -109,12 +103,6 @@ function MainLayout(): React.ReactElement {
             title={sidebarVisible ? '收起左侧栏' : '展开左侧栏'}
           >
             <IconPanelLeft size={15} />
-          </button>
-          <button className="app-topbar-icon muted" disabled title="后退">
-            <IconArrowLeft size={14} />
-          </button>
-          <button className="app-topbar-icon muted" disabled title="前进">
-            <IconArrowRight size={14} />
           </button>
           <button
             className="app-topbar-open-project"

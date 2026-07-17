@@ -107,7 +107,10 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const input = useAgentStore((s) => s.input)
   const loading = useAgentStore((s) => s.loading)
   const backendState = useAgentStore((s) => s.backendState)
+  const sessionId = useAgentStore((s) => s.sessionId)
   const lastCost = useAgentStore((s) => s.lastCost)
+  const contextUsage = useAgentStore((s) => s.contextUsage)
+  const contextCompaction = useAgentStore((s) => s.contextCompaction)
   const pendingConfirmations = useAgentStore((s) => s.pendingConfirmations)
   const permissionMode = useAgentStore((s) => s.permissionMode)
   const setInput = useAgentStore((s) => s.setInput)
@@ -116,6 +119,9 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const beginRun = useAgentStore((s) => s.beginRun)
   const cancelStreaming = useAgentStore((s) => s.cancelStreaming)
   const setBackendState = useAgentStore((s) => s.setBackendState)
+  const setContextUsage = useAgentStore((s) => s.setContextUsage)
+  const beginContextCompaction = useAgentStore((s) => s.beginContextCompaction)
+  const finishContextCompaction = useAgentStore((s) => s.finishContextCompaction)
   const removePendingConfirmation = useAgentStore((s) => s.removePendingConfirmation)
   const setPermissionMode = useAgentStore((s) => s.setPermissionMode)
   const addMountedResource = useAgentStore((s) => s.addMountedResource)
@@ -174,6 +180,17 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     `${workspaceRefKey(activeWorkspaceRef) ?? '__global__'}::${activeConversationId}`,
     scrollRevision,
   )
+  const contextCompacting = contextCompaction.status === 'compacting'
+
+  useEffect(() => {
+    let cancelled = false
+    void window.cclinkStudio.agent.getContextUsage(activeConversationId).then((usage) => {
+      if (!cancelled && usage) setContextUsage(usage, activeConversationId)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [activeConversationId, setContextUsage])
 
   const clampComposerHeight = useCallback((height: number): number => {
     const mainHeight = conversationMainRef.current?.getBoundingClientRect().height ?? 0
@@ -359,7 +376,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   // 发送消息
   const handleSend = useCallback(async () => {
     const text = input.trim()
-    if (!text || loading) return
+    if (!text || loading || contextCompacting) return
     const conversationId = activeConversationId
     conversationScroll.followLatest()
     setInput('', conversationId)
@@ -393,9 +410,44 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     conversationScroll,
     input,
     loading,
+    contextCompacting,
     setBackendState,
     setInput,
   ])
+
+  const handleCompactContext = useCallback(
+    async (instructions: string) => {
+      if (loading || contextCompacting || !sessionId) return
+      const conversationId = activeConversationId
+      const conversation = useAgentStore.getState().conversations[conversationId]
+      const runId = beginContextCompaction(conversationId)
+      try {
+        const result = await window.cclinkStudio.agent.compactConversation(conversationId, {
+          runId,
+          sessionId,
+          workspaceRef: conversation?.runtime.workspaceRef,
+          instructions: instructions.trim() || undefined,
+        })
+        if (!result.success) {
+          finishContextCompaction(false, conversationId, runId, result.error)
+          showToast(result.error ?? '上下文压缩失败', 'error')
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        finishContextCompaction(false, conversationId, runId, message)
+        showToast(message, 'error')
+      }
+    },
+    [
+      activeConversationId,
+      beginContextCompaction,
+      contextCompacting,
+      finishContextCompaction,
+      loading,
+      sessionId,
+      showToast,
+    ],
+  )
 
   const updateMentionQueryFromInput = useCallback((text: string) => {
     const match = /(?:^|\s)([@/])([^\s@/]*)$/.exec(text)
@@ -957,8 +1009,12 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
                 <AgentComposerToolbar
                   permissionMode={permissionMode}
                   settings={settings}
-                  loading={loading}
-                  canSend={Boolean(input.trim())}
+                  loading={loading || contextCompacting}
+                  canSend={Boolean(input.trim()) && !contextCompacting}
+                  contextUsage={contextUsage}
+                  contextCompaction={contextCompaction}
+                  canCompact={Boolean(sessionId) && !loading}
+                  onCompactContext={handleCompactContext}
                   onPermissionModeChange={handlePermissionModeChange}
                   onOpenResourceMenu={() => setResourceQuery('')}
                   onOpenSkillMenu={() => setSkillQuery('')}
@@ -967,7 +1023,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
                     <button
                       className="agent-start-send"
                       onClick={handleSend}
-                      disabled={!input.trim()}
+                      disabled={!input.trim() || contextCompacting}
                       title="发送"
                     >
                       <IconSend size={16} />
@@ -1158,8 +1214,12 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
             <AgentComposerToolbar
               permissionMode={permissionMode}
               settings={settings}
-              loading={loading}
-              canSend={Boolean(input.trim())}
+              loading={loading || contextCompacting}
+              canSend={Boolean(input.trim()) && !contextCompacting}
+              contextUsage={contextUsage}
+              contextCompaction={contextCompaction}
+              canCompact={Boolean(sessionId) && !loading}
+              onCompactContext={handleCompactContext}
               onPermissionModeChange={handlePermissionModeChange}
               onOpenResourceMenu={() => setResourceQuery('')}
               onOpenSkillMenu={() => setSkillQuery('')}
@@ -1173,7 +1233,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
                   <button
                     className="agent-send-btn"
                     onClick={handleSend}
-                    disabled={!input.trim()}
+                    disabled={!input.trim() || contextCompacting}
                     title="发送"
                   >
                     <IconSend size={17} />

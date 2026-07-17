@@ -143,6 +143,7 @@ export interface FsApiContract {
   isDirectory: (filePath: string) => Promise<boolean>
   mkdir: (dirPath: string) => Promise<void>
   rename: (oldPath: string, newPath: string) => Promise<void>
+  move: (oldPath: string, newPath: string) => Promise<void>
   delete: (filePath: string) => Promise<void>
   extractZip: (filePath: string) => Promise<FsExtractZipResult>
   openPath: (path: string) => Promise<void>

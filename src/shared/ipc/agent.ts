@@ -63,6 +63,17 @@ export interface AgentSendSkill {
   source?: 'builtin' | 'user' | 'workspace'
 }
 
+export interface AgentConversationContinuity {
+  recentMessages: Array<{
+    role: 'user' | 'assistant' | 'system'
+    text: string
+  }>
+  tasks: Array<{
+    content: string
+    status: 'pending' | 'in_progress' | 'completed'
+  }>
+}
+
 export interface AgentSendMessagePayload {
   message: string
   /** 当前发送对应的运行实例；用于跨项目流事件关联和丢弃过期事件。 */
@@ -73,6 +84,8 @@ export interface AgentSendMessagePayload {
   sessionId?: string | null
   /** 会话绑定的工作空间；Agent cwd 必须跟随会话，而不是全局当前项目。 */
   workspaceRef?: WorkspaceRef
+  /** UI 持久化历史生成的有界连续性快照；用于 SDK 压缩或进程恢复后的任务续接。 */
+  continuity?: AgentConversationContinuity
 }
 
 export type AgentSendMessageInput = string | AgentSendMessagePayload

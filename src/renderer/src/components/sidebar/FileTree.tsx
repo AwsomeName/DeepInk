@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react'
+import { useRef, useState, useEffect, useCallback, type DragEvent } from 'react'
 import { useFsStore, useTabStore } from '../../stores'
 import { useContextMenuStore } from '../../stores/context-menu-store'
 import type { FileTreeNode } from '../../stores/fs-store'
@@ -12,6 +12,7 @@ import {
 } from '../common/Icons'
 import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
 import { isGerberFileExtension } from '../../utils/hardware-files'
+import { buildHtmlBrowserTabDraft, isHtmlFileExtension } from '../../utils/html-files'
 
 const FILE_TREE_SCROLL_KEY = 'cclink-studio-file-tree-scroll'
 
@@ -43,6 +44,7 @@ const FILE_ICONS: Record<string, string> = {
   '.css': '🎨',
   '.json': '📋',
   '.html': '🌐',
+  '.htm': '🌐',
   '.py': '🐍',
   '.pdf': '📕',
   '.doc': '📘',
@@ -111,9 +113,12 @@ export function FileTree(): React.ReactElement {
   const confirmNewFile = useFsStore((s) => s.confirmNewFile)
   const cancelEditing = useFsStore((s) => s.cancelEditing)
   const clearOperationError = useFsStore((s) => s.clearOperationError)
+  const moveEntry = useFsStore((s) => s.moveEntry)
   const openTab = useTabStore((s) => s.openTab)
   const treeRef = useRef<HTMLDivElement>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [draggingPath, setDraggingPath] = useState<string | null>(null)
+  const [dropTargetPath, setDropTargetPath] = useState<string | null>(null)
 
   useEffect(() => {
     const el = treeRef.current
@@ -160,7 +165,7 @@ export function FileTree(): React.ReactElement {
     }
   }, [workspacePath, refreshWorkspace])
 
-  /** 点击文件 → 打开编辑器 Tab */
+  /** 点击文件 → HTML 默认预览，其他文件按类型打开 */
   const handleFileClick = (node: FileTreeNode): void => {
     if (node.type === 'file') {
       setSelectedPath(node.path)
@@ -176,6 +181,10 @@ export function FileTree(): React.ReactElement {
             entry: node.name,
           },
         })
+        return
+      }
+      if (isHtmlFileExtension(node.extension)) {
+        openTab(buildHtmlBrowserTabDraft(node.path, node.name))
         return
       }
       openTab({
@@ -194,6 +203,50 @@ export function FileTree(): React.ReactElement {
       toggleDir(node.path)
     }
   }
+
+  const canDropTo = useCallback(
+    (targetDir: string): boolean => {
+      if (!draggingPath) return false
+      if (targetDir === draggingPath || targetDir.startsWith(draggingPath + '/')) return false
+      return `${targetDir}/${draggingPath.slice(draggingPath.lastIndexOf('/') + 1)}` !== draggingPath
+    },
+    [draggingPath],
+  )
+
+  const resetDragState = useCallback(() => {
+    setDraggingPath(null)
+    setDropTargetPath(null)
+  }, [])
+
+  const handleDragStart = useCallback((node: FileTreeNode, event: DragEvent<HTMLDivElement>) => {
+    setDraggingPath(node.path)
+    setDropTargetPath(null)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', node.path)
+  }, [])
+
+  const handleDirectoryDragOver = useCallback(
+    (node: FileTreeNode, event: DragEvent<HTMLDivElement>) => {
+      event.stopPropagation()
+      if (!canDropTo(node.path)) return
+      event.preventDefault()
+      event.dataTransfer.dropEffect = 'move'
+      setDropTargetPath(node.path)
+    },
+    [canDropTo],
+  )
+
+  const handleDirectoryDrop = useCallback(
+    (node: FileTreeNode, event: DragEvent<HTMLDivElement>) => {
+      event.stopPropagation()
+      if (!draggingPath || !canDropTo(node.path)) return
+      event.preventDefault()
+      const sourcePath = draggingPath
+      resetDragState()
+      void moveEntry(sourcePath, node.path)
+    },
+    [canDropTo, draggingPath, moveEntry, resetDragState],
+  )
 
   if (loading) {
     return <div className="file-tree-loading">加载中...</div>
@@ -269,14 +322,36 @@ export function FileTree(): React.ReactElement {
           {operationError}
         </button>
       )}
-      <div className="file-tree" ref={treeRef}>
+      <div
+        className={`file-tree ${dropTargetPath === workspacePath ? 'drop-target-root' : ''}`}
+        ref={treeRef}
+        onDragOver={(event) => {
+          if (!canDropTo(workspacePath)) return
+          event.preventDefault()
+          event.dataTransfer.dropEffect = 'move'
+          setDropTargetPath(workspacePath)
+        }}
+        onDrop={(event) => {
+          if (!draggingPath || !canDropTo(workspacePath)) return
+          event.preventDefault()
+          const sourcePath = draggingPath
+          resetDragState()
+          void moveEntry(sourcePath, workspacePath)
+        }}
+      >
         {tree.map((node) => (
           <FileTreeNodeView
             key={node.path}
             node={node}
             depth={0}
+            draggingPath={draggingPath}
+            dropTargetPath={dropTargetPath}
             onDirClick={handleDirClick}
             onFileClick={handleFileClick}
+            onDragStart={handleDragStart}
+            onDragEnd={resetDragState}
+            onDirectoryDragOver={handleDirectoryDragOver}
+            onDirectoryDrop={handleDirectoryDrop}
           />
         ))}
         {/* 根目录新建输入框 */}
@@ -306,13 +381,25 @@ export function FileTree(): React.ReactElement {
 function FileTreeNodeView({
   node,
   depth,
+  draggingPath,
+  dropTargetPath,
   onDirClick,
   onFileClick,
+  onDragStart,
+  onDragEnd,
+  onDirectoryDragOver,
+  onDirectoryDrop,
 }: {
   node: FileTreeNode
   depth: number
+  draggingPath: string | null
+  dropTargetPath: string | null
   onDirClick: (node: FileTreeNode) => void
   onFileClick: (node: FileTreeNode) => void
+  onDragStart: (node: FileTreeNode, event: DragEvent<HTMLDivElement>) => void
+  onDragEnd: () => void
+  onDirectoryDragOver: (node: FileTreeNode, event: DragEvent<HTMLDivElement>) => void
+  onDirectoryDrop: (node: FileTreeNode, event: DragEvent<HTMLDivElement>) => void
 }): React.ReactElement {
   const isDir = node.type === 'directory'
   const icon = getFileIcon(node)
@@ -336,8 +423,19 @@ function FileTreeNodeView({
     <div className="file-tree-node">
       {/* 节点行 */}
       <div
-        className={`file-tree-item ${isDir ? 'directory' : 'file'} ${isRenaming ? 'renaming' : ''} ${selectedPath === node.path ? 'selected' : ''}`}
+        className={`file-tree-item ${isDir ? 'directory' : 'file'} ${isRenaming ? 'renaming' : ''} ${selectedPath === node.path ? 'selected' : ''} ${draggingPath === node.path ? 'dragging' : ''} ${dropTargetPath === node.path ? 'drop-target' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
+        draggable={!isRenaming}
+        onDragStart={(event) => onDragStart(node, event)}
+        onDragEnd={onDragEnd}
+        onDragOver={(event) => {
+          if (isDir) onDirectoryDragOver(node, event)
+          else event.stopPropagation()
+        }}
+        onDrop={(event) => {
+          if (isDir) onDirectoryDrop(node, event)
+          else event.stopPropagation()
+        }}
         onClick={() => {
           if (!isRenaming) {
             if (isDir) onDirClick(node)
@@ -380,8 +478,14 @@ function FileTreeNodeView({
               key={child.path}
               node={child}
               depth={depth + 1}
+              draggingPath={draggingPath}
+              dropTargetPath={dropTargetPath}
               onDirClick={onDirClick}
               onFileClick={onFileClick}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDirectoryDragOver={onDirectoryDragOver}
+              onDirectoryDrop={onDirectoryDrop}
             />
           ))}
           {/* 在此目录下新建文件夹 */}

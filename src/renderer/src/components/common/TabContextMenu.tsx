@@ -11,6 +11,11 @@ import { useTabStore } from '../../stores/tab-store'
 import { useAgentStore } from '../../stores/agent-store'
 import { closeTabWithDraftPolicy } from '../../utils/close-tab'
 import { resolveConversationTab } from '../../utils/conversation-tab'
+import {
+  buildHtmlBrowserTabDraft,
+  buildHtmlTextTabDraft,
+  isHtmlFilePath,
+} from '../../utils/html-files'
 import { IconCheck } from './Icons'
 
 export function renameWorkbenchTab(tabId: string, requestedTitle: string | null): boolean {
@@ -37,6 +42,7 @@ export function TabContextMenu(): React.ReactElement | null {
 
   const tabs = useTabStore((s) => s.tabs)
   const duplicateTab = useTabStore((s) => s.duplicateTab)
+  const openTab = useTabStore((s) => s.openTab)
   const ref = useRef<HTMLDivElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
   const [renaming, setRenaming] = useState(false)
@@ -88,10 +94,21 @@ export function TabContextMenu(): React.ReactElement | null {
   const canDuplicate = tab.type === 'browser' || tab.type === 'editor'
   const canClose = tabs.length > 0
   const isTerminalLike = tab.type === 'terminal' || tab.type === 'terminal-record'
+  const isHtml = isHtmlFilePath(tab.filePath)
   const closeLabel = isTerminalLike ? '关闭 Terminal' : '关闭'
 
   const handleDuplicate = (): void => {
     duplicateTab(tabId)
+    hide()
+  }
+
+  const handleOpenHtmlAlternative = (): void => {
+    if (!tab.filePath) return
+    openTab(
+      tab.type === 'browser'
+        ? buildHtmlTextTabDraft(tab.filePath, tab.title)
+        : buildHtmlBrowserTabDraft(tab.filePath, tab.title),
+    )
     hide()
   }
 
@@ -114,7 +131,7 @@ export function TabContextMenu(): React.ReactElement | null {
   const menuStyle: React.CSSProperties = {
     position: 'fixed',
     left: Math.min(x, window.innerWidth - 180),
-    top: Math.max(8, Math.min(y, window.innerHeight - 150)),
+    top: Math.max(8, Math.min(y, window.innerHeight - (isHtml ? 220 : 150))),
   }
 
   return (
@@ -149,6 +166,15 @@ export function TabContextMenu(): React.ReactElement | null {
           </div>
         )}
         <div className="context-menu-separator" />
+        {isHtml && (
+          <>
+            <div className="context-menu-item" onClick={handleOpenHtmlAlternative}>
+              <span className="context-menu-icon">{tab.type === 'browser' ? '</>' : '🌐'}</span>
+              <span>{tab.type === 'browser' ? '以文本打开' : '用浏览器打开'}</span>
+            </div>
+            <div className="context-menu-separator" />
+          </>
+        )}
         {!isTerminalLike && (
           <>
             <div

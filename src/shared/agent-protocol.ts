@@ -105,8 +105,18 @@ export interface ClaudeStreamEventData {
   type: string
   conversationId?: string
   runId?: string
+  operation?: 'message' | 'compact'
   subtype?: string
   session_id?: string
+  status?: 'compacting' | 'requesting' | null
+  compact_result?: 'success' | 'failed'
+  compact_error?: string
+  compact_metadata?: {
+    trigger: 'manual' | 'auto'
+    pre_tokens: number
+    post_tokens?: number
+  }
+  contextUsage?: AgentContextUsageSnapshot
   event?: {
     type: string
     index?: number
@@ -127,6 +137,7 @@ export interface ClaudeStreamEventData {
 export interface ClaudeResultEventData {
   conversationId?: string
   runId?: string
+  operation?: 'message' | 'compact'
   subtype: string
   is_error: boolean
   duration_ms: number
@@ -174,6 +185,33 @@ export interface AgentCommandResult {
   error?: string
 }
 
+export interface AgentContextUsageCategory {
+  name: string
+  tokens: number
+  color?: string
+  isDeferred?: boolean
+}
+
+/** Claude Agent SDK 返回的当前上下文窗口真实占用快照。 */
+export interface AgentContextUsageSnapshot {
+  totalTokens: number
+  maxTokens: number
+  rawMaxTokens: number
+  percentage: number
+  model: string
+  categories: AgentContextUsageCategory[]
+  autoCompactThreshold: number | null
+  isAutoCompactEnabled: boolean
+  capturedAt: number
+}
+
+export interface AgentCompactConversationPayload {
+  runId?: string
+  sessionId: string
+  workspaceRef?: import('./workspace-ref').WorkspaceRef
+  instructions?: string
+}
+
 export interface AgentStatus {
   connected: boolean
   /** 当前会话是否仍有一轮 Agent 查询在执行。 */
@@ -218,6 +256,25 @@ export interface ExternalMcpServerSummary {
   enabled: boolean
 }
 
+export type AgentToolRisk = 'read' | 'write' | 'destructive'
+
+export interface AgentToolSummary {
+  name: string
+  description: string
+  risk: AgentToolRisk
+}
+
+export interface AgentToolModuleStatus {
+  id: string
+  label: string
+  description: string
+  enabled: boolean
+  available: boolean
+  reason?: string
+  toolCount: number
+  tools: AgentToolSummary[]
+}
+
 export interface AgentApiContract {
   sendMessage: {
     (message: string): Promise<AgentCommandResult>
@@ -233,6 +290,11 @@ export interface AgentApiContract {
   resetSession(conversationId?: string): Promise<void>
   restoreConversation(conversationId: string, sessionId: string | null): Promise<void>
   closeConversation(conversationId: string): Promise<void>
+  getContextUsage(conversationId?: string): Promise<AgentContextUsageSnapshot | null>
+  compactConversation(
+    conversationId: string,
+    payload: AgentCompactConversationPayload,
+  ): Promise<AgentCommandResult>
 
   onStreamEvent(callback: (event: ClaudeStreamEventData) => void): () => void
   onComplete(callback: (result: ClaudeResultEventData) => void): () => void
@@ -242,6 +304,7 @@ export interface AgentApiContract {
       code?: string
       conversationId?: string
       runId?: string
+      operation?: 'message' | 'compact'
     }) => void,
   ): () => void
 
@@ -249,6 +312,8 @@ export interface AgentApiContract {
   verifyCapabilities(): Promise<AgentCapabilityCheckResult[]>
   getPlaywrightStatus(): Promise<AgentPlaywrightStatus>
   getCapabilities(): Promise<AgentCapabilityStatus[]>
+  listToolModules(): Promise<AgentToolModuleStatus[]>
+  setToolModuleEnabled(moduleId: string, enabled: boolean): Promise<AgentCommandResult>
 
   onRequestConfirmation(callback: (request: ToolConfirmationRequest) => void): () => void
   resolveToolConfirmation(id: string, approved: boolean, alwaysAllow?: boolean): Promise<void>
