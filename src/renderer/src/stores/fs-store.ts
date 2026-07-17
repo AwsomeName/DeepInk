@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { AppSettings } from '../../../shared/ipc/settings'
+import type { FsDirEntry } from '../../../shared/ipc/fs'
 import { globalWorkspaceRef, localWorkspaceRef } from '../../../shared/workspace-ref'
 import {
   getWorkspaceStateOwnerKey,
@@ -21,6 +22,8 @@ import { useWorkspaceStore } from './workspace-store'
 
 /** setWorkspace 的最新请求序号（模块级，用于丢弃过期的并发结果，避免竞态） */
 let setWorkspaceSeq = 0
+let refreshWorkspacePromise: Promise<void> | null = null
+let refreshWorkspaceQueued = false
 
 /** 提取父目录路径 */
 function parentDir(filePath: string): string {
@@ -200,11 +203,71 @@ function saveFsPanelState(
 }
 
 function applyExpandedFlags(nodes: FileTreeNode[], expandedPaths: Set<string>): FileTreeNode[] {
-  return nodes.map((node) => ({
-    ...node,
-    expanded: expandedPaths.has(node.path),
-    children: node.children ? applyExpandedFlags(node.children, expandedPaths) : node.children,
-  }))
+  let changed = false
+  const nextNodes = nodes.map((node) => {
+    const expanded = expandedPaths.has(node.path)
+    const children = node.children
+      ? applyExpandedFlags(node.children, expandedPaths)
+      : node.children
+    if (node.expanded === expanded && children === node.children) return node
+    changed = true
+    return { ...node, expanded, children }
+  })
+  return changed ? nextNodes : nodes
+}
+
+function reconcileDirectoryEntries(
+  entries: FsDirEntry[],
+  currentNodes: FileTreeNode[],
+  expandedPaths: Set<string>,
+): FileTreeNode[] {
+  const currentByPath = new Map(currentNodes.map((node) => [node.path, node]))
+  const nextNodes = entries.map((entry) => {
+    const current = currentByPath.get(entry.path)
+    const expanded = expandedPaths.has(entry.path)
+    if (
+      current &&
+      current.name === entry.name &&
+      current.type === entry.type &&
+      current.extension === entry.extension &&
+      current.expanded === expanded
+    ) {
+      return current
+    }
+    return {
+      name: entry.name,
+      path: entry.path,
+      type: entry.type,
+      extension: entry.extension,
+      children: current?.type === 'directory' ? current.children : undefined,
+      expanded,
+    }
+  })
+  return nextNodes.length === currentNodes.length &&
+    nextNodes.every((node, index) => node === currentNodes[index])
+    ? currentNodes
+    : nextNodes
+}
+
+function replaceDirectoryChildren(
+  nodes: FileTreeNode[],
+  dirPath: string,
+  children: FileTreeNode[],
+): FileTreeNode[] {
+  let changed = false
+  const nextNodes = nodes.map((node) => {
+    if (node.path === dirPath) {
+      if (node.children === children && node.loading !== true) return node
+      changed = true
+      return { ...node, children, loading: false }
+    }
+    if (!node.children) return node
+    const nextChildren = replaceDirectoryChildren(node.children, dirPath, children)
+    if (nextChildren === node.children) return node
+    changed = true
+    return { ...node, children: nextChildren }
+  })
+  return changed ? nextNodes : nodes
 }
 
 /** 目录树节点 */
@@ -603,31 +666,22 @@ export const useFsStore = create<FsState>((set, get) => ({
   refreshDir: async (dirPath) => {
     try {
       const entries = await window.cclinkStudio.fs.readDir(dirPath)
-      const expandedSet = new Set(get().expandedPaths)
-      const newChildren: FileTreeNode[] = entries.map((e) => ({
-        name: e.name,
-        path: e.path,
-        type: e.type,
-        extension: e.extension,
-        children: undefined,
-        expanded: expandedSet.has(e.path),
-      }))
-
-      // 递归更新树中指定路径的节点
-      const updateChildren = (nodes: FileTreeNode[]): FileTreeNode[] =>
-        nodes.map((node) => {
-          if (node.path === dirPath) {
-            return { ...node, children: newChildren, loading: false }
-          }
-          if (node.children) {
-            return { ...node, children: updateChildren(node.children) }
-          }
-          return node
-        })
-
-      set((state) => ({
-        tree: dirPath === state.workspacePath ? newChildren : updateChildren(state.tree),
-      }))
+      set((state) => {
+        const currentChildren =
+          dirPath === state.workspacePath
+            ? state.tree
+            : (findNode(state.tree, dirPath)?.children ?? [])
+        const newChildren = reconcileDirectoryEntries(
+          entries,
+          currentChildren,
+          new Set(state.expandedPaths),
+        )
+        const tree =
+          dirPath === state.workspacePath
+            ? newChildren
+            : replaceDirectoryChildren(state.tree, dirPath, newChildren)
+        return tree === state.tree ? state : { tree }
+      })
     } catch (err) {
       // 子目录加载失败（如无权限）不应污染全局 error（会让 FileTree 切错误态隐藏整棵树），静默即可
       console.warn('[fs-store] refreshDir 失败:', dirPath, err)
@@ -635,10 +689,23 @@ export const useFsStore = create<FsState>((set, get) => ({
   },
 
   refreshWorkspace: async () => {
-    const workspacePath = get().workspacePath
-    if (!workspacePath) return
-    await get().refreshDir(workspacePath)
-    await restoreExpandedDirs(workspacePath, get, set)
+    if (refreshWorkspacePromise) {
+      refreshWorkspaceQueued = true
+      return refreshWorkspacePromise
+    }
+    refreshWorkspacePromise = (async () => {
+      do {
+        refreshWorkspaceQueued = false
+        const workspacePath = get().workspacePath
+        if (!workspacePath) return
+        await get().refreshDir(workspacePath)
+        if (get().workspacePath !== workspacePath) continue
+        await restoreExpandedDirs(workspacePath, get, set, true)
+      } while (refreshWorkspaceQueued)
+    })().finally(() => {
+      refreshWorkspacePromise = null
+    })
+    return refreshWorkspacePromise
   },
 
   toggleDir: async (dirPath) => {
@@ -761,7 +828,11 @@ export const useFsStore = create<FsState>((set, get) => ({
 
   moveEntry: async (sourcePath, targetDir) => {
     const workspacePath = get().workspacePath
-    if (!workspacePath || !isPathWithin(workspacePath, sourcePath) || !isPathWithin(workspacePath, targetDir)) {
+    if (
+      !workspacePath ||
+      !isPathWithin(workspacePath, sourcePath) ||
+      !isPathWithin(workspacePath, targetDir)
+    ) {
       set({ operationError: '移动失败: 只能在当前项目内移动文件' })
       return false
     }
@@ -879,6 +950,7 @@ async function restoreExpandedDirs(
   workspacePath: string,
   get: () => FsState,
   set: (partial: Partial<FsState> | ((state: FsState) => Partial<FsState>)) => void,
+  refreshLoaded = false,
 ): Promise<void> {
   const paths = get()
     .expandedPaths.filter((p) => p !== workspacePath && p.startsWith(workspacePath + '/'))
@@ -888,11 +960,12 @@ async function restoreExpandedDirs(
     const node = findNode(get().tree, dirPath)
     if (!node || node.type !== 'directory') continue
 
-    set((state) => ({
-      tree: applyExpandedFlags(state.tree, new Set([...state.expandedPaths, dirPath])),
-    }))
+    set((state) => {
+      const tree = applyExpandedFlags(state.tree, new Set([...state.expandedPaths, dirPath]))
+      return tree === state.tree ? state : { tree }
+    })
 
-    if (findNode(get().tree, dirPath)?.children === undefined) {
+    if (refreshLoaded || findNode(get().tree, dirPath)?.children === undefined) {
       await get().refreshDir(dirPath)
     }
   }

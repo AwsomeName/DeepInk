@@ -592,6 +592,39 @@ describe('fs-store workspace switching', () => {
     ])
   })
 
+  it('keeps unchanged expanded nodes mounted while refreshing their parent', async () => {
+    const workspacePath = '/Users/apple/project'
+    const childDir = `${workspacePath}/docs`
+    const readDir = window.cclinkStudio.fs.readDir as ReturnType<typeof vi.fn>
+    readDir.mockImplementation((path: string) => {
+      if (path === workspacePath) {
+        return Promise.resolve([
+          { name: 'docs', path: childDir, type: 'directory', size: 0, modifiedAt: 1 },
+        ])
+      }
+      return Promise.resolve([
+        {
+          name: 'keep.md',
+          path: `${childDir}/keep.md`,
+          type: 'file',
+          extension: '.md',
+          size: 0,
+          modifiedAt: 1,
+        },
+      ])
+    })
+
+    await useFsStore.getState().setWorkspace(workspacePath)
+    await useFsStore.getState().toggleDir(childDir)
+    const nodeBeforeRefresh = useFsStore.getState().tree[0]
+    const childrenBeforeRefresh = nodeBeforeRefresh?.children
+
+    await useFsStore.getState().refreshDir(workspacePath)
+
+    expect(useFsStore.getState().tree[0]).toBe(nodeBeforeRefresh)
+    expect(useFsStore.getState().tree[0]?.children).toBe(childrenBeforeRefresh)
+  })
+
   it('keeps workspace visible when rename fails', async () => {
     const workspacePath = '/Users/apple/project'
     const readDir = window.cclinkStudio.fs.readDir as ReturnType<typeof vi.fn>

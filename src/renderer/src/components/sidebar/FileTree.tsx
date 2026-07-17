@@ -13,6 +13,7 @@ import {
 import { getModelFileIcon, getTabTypeForFile, isModelFileExtension } from '../../utils/model-files'
 import { isGerberFileExtension } from '../../utils/hardware-files'
 import { buildHtmlBrowserTabDraft, isHtmlFileExtension } from '../../utils/html-files'
+import { getFileTreeRefreshDirectory } from './file-tree-watch'
 
 const FILE_TREE_SCROLL_KEY = 'cclink-studio-file-tree-scroll'
 
@@ -109,6 +110,7 @@ export function FileTree(): React.ReactElement {
   const startEditing = useFsStore((s) => s.startEditing)
   const setSelectedPath = useFsStore((s) => s.setSelectedPath)
   const refreshWorkspace = useFsStore((s) => s.refreshWorkspace)
+  const refreshDir = useFsStore((s) => s.refreshDir)
   const confirmNewFolder = useFsStore((s) => s.confirmNewFolder)
   const confirmNewFile = useFsStore((s) => s.confirmNewFile)
   const cancelEditing = useFsStore((s) => s.cancelEditing)
@@ -117,6 +119,7 @@ export function FileTree(): React.ReactElement {
   const openTab = useTabStore((s) => s.openTab)
   const treeRef = useRef<HTMLDivElement>(null)
   const refreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingRefreshDirsRef = useRef<Set<string>>(new Set())
   const [draggingPath, setDraggingPath] = useState<string | null>(null)
   const [dropTargetPath, setDropTargetPath] = useState<string | null>(null)
 
@@ -134,11 +137,16 @@ export function FileTree(): React.ReactElement {
 
     let dispose: (() => void) | null = null
     let cancelled = false
-    const scheduleRefresh = (): void => {
+    const scheduleRefresh = (event: Parameters<typeof getFileTreeRefreshDirectory>[1]): void => {
+      const refreshDirectory = getFileTreeRefreshDirectory(workspacePath, event)
+      if (!refreshDirectory) return
+      pendingRefreshDirsRef.current.add(refreshDirectory)
       if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current)
       refreshTimerRef.current = setTimeout(() => {
         refreshTimerRef.current = null
-        void refreshWorkspace()
+        const directories = Array.from(pendingRefreshDirsRef.current)
+        pendingRefreshDirsRef.current.clear()
+        void Promise.all(directories.map((directory) => refreshDir(directory)))
       }, 300)
     }
 
@@ -162,8 +170,9 @@ export function FileTree(): React.ReactElement {
         clearTimeout(refreshTimerRef.current)
         refreshTimerRef.current = null
       }
+      pendingRefreshDirsRef.current.clear()
     }
-  }, [workspacePath, refreshWorkspace])
+  }, [workspacePath, refreshDir])
 
   /** 点击文件 → HTML 默认预览，其他文件按类型打开 */
   const handleFileClick = (node: FileTreeNode): void => {
@@ -208,7 +217,9 @@ export function FileTree(): React.ReactElement {
     (targetDir: string): boolean => {
       if (!draggingPath) return false
       if (targetDir === draggingPath || targetDir.startsWith(draggingPath + '/')) return false
-      return `${targetDir}/${draggingPath.slice(draggingPath.lastIndexOf('/') + 1)}` !== draggingPath
+      return (
+        `${targetDir}/${draggingPath.slice(draggingPath.lastIndexOf('/') + 1)}` !== draggingPath
+      )
     },
     [draggingPath],
   )
