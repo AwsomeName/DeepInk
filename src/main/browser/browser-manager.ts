@@ -12,6 +12,14 @@ import type {
   BrowserZoomModeType,
 } from '../../shared/ipc/browser'
 import { installBrowserCompatibilityHeaders, normalizeDesktopUserAgent } from './browser-stealth'
+import {
+  isAllowedBrowserAuthCookie,
+  isSupportedBrowserAuthRequest,
+  resolveBrowserAuthReturnUrl,
+  sanitizeBrowserAuthMainUrl,
+  type BrowserAuthCompleteMessage,
+  type BrowserAuthRequest,
+} from './browser-auth-contract'
 import { shouldDestroyBrowserViewDuringReconcile } from './browser-view-reconciliation'
 
 /** 移动版模拟时的目标视口宽度（CSS px，约等于 iPhone Pro 逻辑宽度） */
@@ -110,6 +118,7 @@ export class BrowserManager {
   private readonly cookieChanges: Array<
     BrowserCookieChangeDiagnosticEntry & { partition: string }
   > = []
+  private browserAuthRequestHandler: ((request: BrowserAuthRequest) => void) | null = null
 
   constructor(mainWindow: BrowserWindow, defaults?: { zoomMode?: ZoomMode; viewMode?: ViewMode }) {
     this.mainWindow = mainWindow
@@ -149,6 +158,10 @@ export class BrowserManager {
   /** 绑定浏览历史存储。 */
   attachInstanceStore(store: BrowserInstanceStore): void {
     this.instanceStore = store
+  }
+
+  attachBrowserAuthRequestHandler(handler: (request: BrowserAuthRequest) => void): void {
+    this.browserAuthRequestHandler = handler
   }
 
   /**
@@ -198,6 +211,10 @@ export class BrowserManager {
       workspaceKey?: string | null
     },
   ): void {
+    const requestedProfileId = this.normalizeProfileId(opts?.profileId)
+    const safeInitialUrl = initialUrl
+      ? sanitizeBrowserAuthMainUrl(requestedProfileId, initialUrl)
+      : undefined
     let existing = this.views.get(tabId)
     const workspaceKey = opts?.workspaceKey ?? null
     if (existing && existing.workspaceKey !== workspaceKey) {
@@ -210,7 +227,9 @@ export class BrowserManager {
         existing.zoomMode = opts.restore.zoomMode
         existing.manualZoom = opts.restore.manualZoom
         if (opts.restore.history?.length) {
-          existing.history = opts.restore.history
+          existing.history = opts.restore.history.map((url) =>
+            sanitizeBrowserAuthMainUrl(existing.profileId, url),
+          )
           existing.historyIndex =
             typeof opts.restore.historyIndex === 'number'
               ? Math.min(Math.max(opts.restore.historyIndex, 0), opts.restore.history.length - 1)
@@ -220,18 +239,18 @@ export class BrowserManager {
           existing.viewMode === 'mobile' ? MOBILE_UA : existing.desktopUA,
         )
       }
-      if (initialUrl && existing.url === DEFAULT_URL) {
-        existing.pendingUrl = initialUrl
-        existing.url = initialUrl
+      if (safeInitialUrl && existing.url === DEFAULT_URL) {
+        existing.pendingUrl = safeInitialUrl
+        existing.url = safeInitialUrl
         if (existing.boundsReceived) {
-          void existing.view.webContents.loadURL(initialUrl)
+          void existing.view.webContents.loadURL(safeInitialUrl)
         }
       }
       return
     }
     if (!this.win()) return
 
-    const profileId = this.normalizeProfileId(opts?.profileId)
+    const profileId = requestedProfileId
     const viewSession = profileId
       ? session.fromPartition(`persist:cclink-studio-profile-${profileId}`)
       : undefined
@@ -265,9 +284,11 @@ export class BrowserManager {
       effectiveZoom: 1,
       desktopUA,
       fitDebounce: null,
-      pendingUrl: initialUrl ?? DEFAULT_URL,
-      url: initialUrl ?? DEFAULT_URL,
-      history: opts?.restore?.history?.length ? opts.restore.history : [initialUrl ?? DEFAULT_URL],
+      pendingUrl: safeInitialUrl ?? DEFAULT_URL,
+      url: safeInitialUrl ?? DEFAULT_URL,
+      history: opts?.restore?.history?.length
+        ? opts.restore.history.map((url) => sanitizeBrowserAuthMainUrl(profileId, url))
+        : [safeInitialUrl ?? DEFAULT_URL],
       historyIndex:
         typeof opts?.restore?.historyIndex === 'number'
           ? Math.min(
@@ -282,6 +303,15 @@ export class BrowserManager {
 
     // 监听导航事件（闭包捕获 tabId，发出的事件携带 tabId）
     const wc = view.webContents
+    wc.on('will-navigate', (event, url) => {
+      if (this.routeBrowserAuth(tabId, entry, url)) event.preventDefault()
+    })
+    wc.on('will-redirect', (event, url) => {
+      if (this.routeBrowserAuth(tabId, entry, url)) event.preventDefault()
+    })
+    wc.setWindowOpenHandler(({ url }) => {
+      return this.routeBrowserAuth(tabId, entry, url) ? { action: 'deny' } : { action: 'allow' }
+    })
     wc.on('did-navigate', (_event, url) => this.onNavigate(tabId, url))
     wc.on('did-navigate-in-page', (_event, url) => this.onNavigate(tabId, url))
     // 每次页面加载完成后，按当前模式重新计算并应用缩放
@@ -310,6 +340,14 @@ export class BrowserManager {
     if (!profileId) return null
     const normalized = profileId.trim()
     return PROFILE_ID_PATTERN.test(normalized) ? normalized : null
+  }
+
+  private routeBrowserAuth(tabId: string, entry: ViewEntry, url: string): boolean {
+    if (!entry.profileId || !this.browserAuthRequestHandler) return false
+    const request = { tabId, profileId: entry.profileId, url }
+    if (!isSupportedBrowserAuthRequest(request)) return false
+    this.browserAuthRequestHandler(request)
+    return true
   }
 
   /** 导航事件：记录 URL 并同步给渲染进程 */
@@ -741,6 +779,7 @@ export class BrowserManager {
   async navigate(tabId: string, url: string): Promise<void> {
     const entry = this.views.get(tabId)
     if (!entry) return
+    if (this.routeBrowserAuth(tabId, entry, url)) return
     entry.pendingUrl = url
     entry.url = url
     await entry.view.webContents.loadURL(url)
@@ -793,6 +832,44 @@ export class BrowserManager {
     const entry = this.views.get(tabId)
     if (!entry) return ''
     return entry.view.webContents.getTitle()
+  }
+
+  async completeBrowserAuth(message: BrowserAuthCompleteMessage): Promise<void> {
+    const entry = this.views.get(message.tabId)
+    if (!entry) throw new Error(`登录对应的浏览器 Tab 已关闭: ${message.tabId}`)
+    if (entry.profileId !== message.profileId) throw new Error('登录 Profile 与目标 Tab 不一致')
+
+    const cookies = message.cookies.filter((cookie) =>
+      isAllowedBrowserAuthCookie(message.profileId, cookie),
+    )
+    if (!cookies.some((cookie) => cookie.name === 'A2')) {
+      throw new Error('登录进程未返回 V2EX 登录 Cookie')
+    }
+
+    const targetSession = entry.view.webContents.session
+    for (const cookie of cookies) {
+      const host = cookie.domain.replace(/^\./, '')
+      await targetSession.cookies.set({
+        url: `${cookie.secure ? 'https' : 'http'}://${host}${cookie.path || '/'}`,
+        name: cookie.name,
+        value: cookie.value,
+        domain: cookie.domain,
+        path: cookie.path || '/',
+        secure: cookie.secure,
+        httpOnly: cookie.httpOnly,
+        sameSite: cookie.sameSite,
+        ...(typeof cookie.expirationDate === 'number'
+          ? { expirationDate: cookie.expirationDate }
+          : {}),
+      })
+    }
+    await targetSession.cookies.flushStore()
+    await targetSession.flushStorageData()
+
+    const returnUrl = resolveBrowserAuthReturnUrl(message.profileId, message.returnUrl)
+    entry.pendingUrl = returnUrl
+    entry.url = returnUrl
+    await entry.view.webContents.loadURL(returnUrl)
   }
 
   /** 查询指定持久化 Profile 的 Cookie 元数据；不需要先创建可见 BrowserView。 */
@@ -972,6 +1049,7 @@ export class BrowserManager {
       this.destroyView(tabId)
     }
     this.activeViewId = null
+    this.browserAuthRequestHandler = null
     // 清空 mainWindow 引用，防止后续访问已销毁的窗口
     this.mainWindow = null as unknown as BrowserWindow
   }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_SETTINGS, PROVIDER_PRESETS, getPresetBaseUrl } from '@shared/ipc/settings'
 import type {
   ApiFormat,
@@ -8,12 +8,14 @@ import type {
   Provider,
 } from '@shared/ipc/settings'
 import type { CadBackendStatus, CadCacheStatus } from '@shared/ipc/cad'
+import type { GitBackupAccountStatus } from '@shared/ipc/git-backup'
 import { useSettingsStore } from '../../stores'
 import { useThemeStore, type Theme } from '../../stores/theme-store'
 import {
   IconFile,
   IconGlobe,
   IconKeyboard,
+  IconLink,
   IconMonitor,
   IconPaintbrush,
   IconRobot,
@@ -27,6 +29,7 @@ type SettingsSectionId =
   | 'agent'
   | 'browser'
   | 'editor'
+  | 'git-backup'
   | 'cad'
   | 'shortcuts'
   | 'about'
@@ -41,6 +44,7 @@ const SETTINGS_SECTIONS: Array<{
   { id: 'agent', label: 'Agent', icon: IconRobot },
   { id: 'browser', label: '浏览器', icon: IconGlobe },
   { id: 'editor', label: '编辑器', icon: IconFile },
+  { id: 'git-backup', label: 'Git 备份', icon: IconLink },
   { id: 'cad', label: '硬件与 CAD', icon: IconMonitor },
   { id: 'shortcuts', label: '快捷键', icon: IconKeyboard },
   { id: 'about', label: '关于', icon: IconSettings },
@@ -81,6 +85,12 @@ const SETTINGS_SEARCH_INDEX: Array<{
     label: '硬件与 CAD',
     description: '启用 STEP/STP 结构件预览，配置本机 FreeCAD 和 CAD 转换缓存。',
     keywords: ['cad', 'freecad', 'step', 'stp', 'hardware', '结构件', '硬件', '预览'],
+  },
+  {
+    sectionId: 'git-backup',
+    label: 'Git 备份',
+    description: '配置 GitHub 账号并手动备份当前项目。',
+    keywords: ['git', 'github', 'backup', '备份', '仓库', 'token'],
   },
   {
     sectionId: 'about',
@@ -173,6 +183,11 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
   const [cadCacheStatus, setCadCacheStatus] = useState<CadCacheStatus | null>(null)
   const [cadChecking, setCadChecking] = useState(false)
   const [cadActionError, setCadActionError] = useState<string | null>(null)
+  const [gitUsername, setGitUsername] = useState('')
+  const [gitToken, setGitToken] = useState('')
+  const [gitStatus, setGitStatus] = useState<GitBackupAccountStatus | null>(null)
+  const [gitBusy, setGitBusy] = useState(false)
+  const [gitMessage, setGitMessage] = useState<string | null>(null)
   const settings = useSettingsStore((state) => state.settings)
   const loading = useSettingsStore((state) => state.loading)
   const error = useSettingsStore((state) => state.error)
@@ -183,6 +198,15 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
   const theme = useThemeStore((state) => state.theme)
   const setTheme = useThemeStore((state) => state.setTheme)
 
+  const refreshGitStatus = useCallback(async (): Promise<void> => {
+    try {
+      const status = await window.cclinkStudio.gitBackup.getAccountStatus()
+      setGitStatus(status)
+    } catch (nextError: unknown) {
+      setGitMessage(nextError instanceof Error ? nextError.message : String(nextError))
+    }
+  }, [])
+
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
@@ -190,6 +214,14 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
   useEffect(() => {
     if (initialSection) setActiveSection(normalizeSection(initialSection))
   }, [initialSection])
+
+  useEffect(() => {
+    setGitUsername(settings.gitBackupUsername)
+  }, [settings.gitBackupUsername])
+
+  useEffect(() => {
+    if (activeSection === 'git-backup') void refreshGitStatus()
+  }, [activeSection, refreshGitStatus])
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -263,6 +295,63 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
         setCadActionError(nextError instanceof Error ? nextError.message : String(nextError))
       })
       .finally(() => setCadChecking(false))
+  }
+
+  const saveGitAccount = async (): Promise<void> => {
+    setGitBusy(true)
+    setGitMessage(null)
+    try {
+      const result = await window.cclinkStudio.gitBackup.saveAccount({
+        username: gitUsername,
+        token: gitToken || undefined,
+      })
+      if (!result.success) {
+        setGitMessage(result.error ?? 'Git 备份账号保存失败')
+        return
+      }
+      setGitToken('')
+      setGitStatus(result.account ?? null)
+      setGitMessage(result.message ?? 'Git 备份账号已保存')
+      await loadSettings()
+    } catch (nextError: unknown) {
+      setGitMessage(nextError instanceof Error ? nextError.message : String(nextError))
+    } finally {
+      setGitBusy(false)
+    }
+  }
+
+  const testGitAccount = async (): Promise<void> => {
+    setGitBusy(true)
+    setGitMessage(null)
+    try {
+      const result = await window.cclinkStudio.gitBackup.testAccount({
+        username: gitUsername,
+        token: gitToken || undefined,
+      })
+      setGitMessage(result.message ?? result.error ?? 'GitHub 连接测试失败')
+      if (result.account) setGitStatus(result.account)
+    } catch (nextError: unknown) {
+      setGitMessage(nextError instanceof Error ? nextError.message : String(nextError))
+    } finally {
+      setGitBusy(false)
+    }
+  }
+
+  const clearGitAccount = async (): Promise<void> => {
+    setGitBusy(true)
+    setGitMessage(null)
+    try {
+      const result = await window.cclinkStudio.gitBackup.clearAccount()
+      setGitToken('')
+      setGitUsername('')
+      setGitStatus(result.account ?? null)
+      setGitMessage(result.message ?? result.error ?? 'Git 备份账号已清除')
+      await loadSettings()
+    } catch (nextError: unknown) {
+      setGitMessage(nextError instanceof Error ? nextError.message : String(nextError))
+    } finally {
+      setGitBusy(false)
+    }
   }
 
   return (
@@ -626,6 +715,93 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
           </section>
         )}
 
+        {activeSection === 'git-backup' && (
+          <section className="settings-section">
+            <h2>Git 备份</h2>
+            <div className="settings-group">
+              <div className="settings-row">
+                <div className="settings-label">
+                  <span>本机 Git</span>
+                  <span className="settings-description">
+                    {gitStatus?.gitAvailable
+                      ? gitStatus.gitVersion || 'Git 已安装'
+                      : gitStatus
+                        ? '未检测到 Git，请先安装 Git。'
+                        : '正在检测…'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-label">
+                  <span>GitHub 账号</span>
+                  <span className="settings-description">
+                    只用于按项目名创建私人仓库和 HTTPS Push。
+                  </span>
+                </div>
+                <div className="settings-control">
+                  <input
+                    className="settings-input"
+                    value={gitUsername}
+                    maxLength={39}
+                    placeholder="GitHub 用户名"
+                    onChange={(event) => setGitUsername(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-label">
+                  <span>访问 Token</span>
+                  <span className="settings-description">
+                    {gitStatus?.tokenConfigured
+                      ? '已加密保存；留空表示继续使用现有 Token。'
+                      : 'Token 通过系统安全存储加密保存，无法读回明文。'}
+                  </span>
+                </div>
+                <div className="settings-control">
+                  <input
+                    className="settings-input"
+                    type="password"
+                    value={gitToken}
+                    maxLength={2048}
+                    placeholder={gitStatus?.tokenConfigured ? '已配置' : 'GitHub Token'}
+                    autoComplete="off"
+                    onChange={(event) => setGitToken(event.target.value)}
+                  />
+                </div>
+              </div>
+
+              <div className="settings-row">
+                <div className="settings-label">
+                  <span>连接状态</span>
+                  <span className="settings-description">
+                    {gitMessage ??
+                      (gitStatus?.connected
+                        ? `已连接 ${gitStatus.connectedLogin}`
+                        : gitStatus?.tokenConfigured
+                          ? '账号已配置，可测试连接。'
+                          : '尚未配置账号。')}
+                  </span>
+                </div>
+                <div className="settings-control settings-control-inline">
+                  <button type="button" disabled={gitBusy} onClick={() => void testGitAccount()}>
+                    {gitBusy ? '处理中…' : '测试连接'}
+                  </button>
+                  <button type="button" disabled={gitBusy} onClick={() => void saveGitAccount()}>
+                    保存
+                  </button>
+                  {gitStatus?.tokenConfigured && (
+                    <button type="button" disabled={gitBusy} onClick={() => void clearGitAccount()}>
+                      清除
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
         {activeSection === 'cad' && (
           <section className="settings-section">
             <h2>硬件与 CAD</h2>
@@ -650,9 +826,7 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
                     <option value="managed-freecad" disabled>
                       托管 FreeCAD（未实现）
                     </option>
-                    <option value="occt-experimental">
-                      OpenCascade 实验后端
-                    </option>
+                    <option value="occt-experimental">OpenCascade 实验后端</option>
                   </select>
                 </div>
               </SettingsRow>

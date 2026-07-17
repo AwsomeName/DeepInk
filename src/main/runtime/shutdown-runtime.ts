@@ -8,6 +8,10 @@ export async function shutdownRuntime(runtime: CclinkStudioRuntimeState): Promis
   const registry = new ServiceRegistry()
   registry.register({ name: 'BrowserManager', stop: () => runtime.browserManager?.destroy() })
   registry.register({
+    name: 'BrowserAuthProcessService',
+    stop: () => runtime.browserAuthProcessService?.destroy(),
+  })
+  registry.register({
     name: 'PlaywrightBridge',
     stop: () => runtime.playwrightBridge?.disconnect(),
   })

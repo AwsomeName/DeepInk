@@ -113,6 +113,13 @@ const IPC_HANDLE_CHANNELS = [
   'settings:reset',
   'settings:resetKey',
   'settings:detectClaudeCode',
+  // git-backup-ipc
+  'gitBackup:getAccountStatus',
+  'gitBackup:saveAccount',
+  'gitBackup:clearAccount',
+  'gitBackup:testAccount',
+  'gitBackup:getProjectStatus',
+  'gitBackup:backup',
   // official-ipc
   'official:getStatus',
   // cad-ipc

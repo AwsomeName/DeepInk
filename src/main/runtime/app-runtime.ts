@@ -2,6 +2,7 @@ import type { BrowserWindow } from 'electron'
 import type { BrowserManager } from '../browser/browser-manager'
 import type { BrowserTaskRuntime } from '../browser/browser-task-runtime'
 import type { BrowserDownloadStore } from '../browser/browser-download-store'
+import type { BrowserAuthProcessService } from '../browser/browser-auth-process-service'
 import type { BrowserInstanceStore } from '../persistence/browser-instance-store'
 import type { PlaywrightBridge } from '../playwright/playwright-bridge'
 import type { AgentBridge } from '../agent/agent-bridge'
@@ -29,6 +30,7 @@ import type { TerminalSessionStore } from '../terminal/terminal-session-store'
 import type { TerminalCommandOrchestrator } from '../terminal/terminal-command-orchestrator'
 import type { TerminalExecutionAdapter } from '../terminal/terminal-execution-adapter'
 import type { OfficialIntegration } from '../official/official-integration'
+import type { GitBackupService } from '../git-backup/git-backup-service'
 
 export interface CclinkStudioRuntimeState {
   isDev: boolean
@@ -36,6 +38,7 @@ export interface CclinkStudioRuntimeState {
   browserManager: BrowserManager | null
   browserTaskRuntime: BrowserTaskRuntime | null
   browserDownloadStore: BrowserDownloadStore | null
+  browserAuthProcessService: BrowserAuthProcessService | null
   browserInstanceStore: BrowserInstanceStore | null
   playwrightBridge: PlaywrightBridge | null
   agentBridge: AgentBridge | null
@@ -63,6 +66,7 @@ export interface CclinkStudioRuntimeState {
   terminalCommandOrchestrator: TerminalCommandOrchestrator | null
   terminalExecutionAdapter: TerminalExecutionAdapter | null
   officialIntegration: OfficialIntegration | null
+  gitBackupService: GitBackupService | null
 }
 
 export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
@@ -72,6 +76,7 @@ export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
     browserManager: null,
     browserTaskRuntime: null,
     browserDownloadStore: null,
+    browserAuthProcessService: null,
     browserInstanceStore: null,
     playwrightBridge: null,
     agentBridge: null,
@@ -99,5 +104,6 @@ export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
     terminalCommandOrchestrator: null,
     terminalExecutionAdapter: null,
     officialIntegration: null,
+    gitBackupService: null,
   }
 }

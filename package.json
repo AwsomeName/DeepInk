@@ -45,6 +45,7 @@
     "smoke:ui": "node scripts/ui-smoke.mjs",
     "smoke:workflow": "node scripts/workflow-smoke.mjs",
     "smoke:restore": "node scripts/restore-smoke.mjs",
+    "smoke:auth-window": "node scripts/auth-window-smoke.cjs",
     "smoke:standalone": "pnpm smoke:local && pnpm smoke:ui && pnpm smoke:workflow && pnpm smoke:restore",
     "lint": "eslint src/",
     "format": "prettier --write 'src/**/*.{ts,tsx,css}'",

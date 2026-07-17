@@ -34,6 +34,8 @@ import { registerTerminalIpc } from '../ipc/terminal-ipc'
 import { registerOfficialIpc } from '../ipc/official-ipc'
 import { loadOfficialIntegration } from '../official/official-integration-loader'
 import { getAgentCapabilities } from './agent-capabilities'
+import { GitBackupService } from '../git-backup/git-backup-service'
+import { registerGitBackupIpc } from '../git-backup/git-backup-ipc'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 
 export async function bootstrapStateServices(runtime: CclinkStudioRuntimeState): Promise<void> {
@@ -81,6 +83,14 @@ export async function bootstrapMainProcessServices(
   const fileService = new FileService()
   registerFsIpc(fileService, runtime.settingsService)
   console.log('[CCLink Studio] 文件系统 IPC 已注册')
+
+  runtime.gitBackupService = new GitBackupService(
+    runtime.settingsService,
+    runtime.workspaceStateService!,
+  )
+  await runtime.gitBackupService.load()
+  registerGitBackupIpc(runtime.gitBackupService)
+  console.log('[CCLink Studio] 手动 Git 备份服务已初始化')
 
   runtime.projectOpsService = new ProjectOpsService()
   registerProjectOpsIpc(runtime.projectOpsService)

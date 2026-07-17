@@ -282,6 +282,13 @@ export class WorkspaceStateService {
     }
   }
 
+  /** Resolve a local workspace and ensure its stable project identity exists. */
+  async getLocalProjectId(workspacePath: string): Promise<string | null> {
+    const resolvedPath = await this.resolveLocalWorkspacePath(workspacePath)
+    const context = await this.ensureProjectContext(resolvedPath)
+    return context.projectId
+  }
+
   async getSnapshot(
     workspaceKey?: string | null,
     ownerKey?: string | null,

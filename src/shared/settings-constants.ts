@@ -122,6 +122,11 @@ export interface AppSettings {
   /** 最近打开的工作区路径列表（产品侧显示为最近项目） */
   recentWorkspacePaths: string[]
 
+  // ─── 手动 Git 备份 ───
+
+  /** GitHub 用户名；访问 Token 独立加密保存，不进入普通设置。 */
+  gitBackupUsername: string
+
   // ─── 文件浏览 ───
 
   /** 文件树是否显示隐藏文件（. 开头） */
@@ -214,6 +219,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   // 工作区
   lastWorkspacePath: '',
   recentWorkspacePaths: [],
+
+  // 手动 Git 备份
+  gitBackupUsername: '',
 
   // 文件浏览
   showHiddenFiles: false,

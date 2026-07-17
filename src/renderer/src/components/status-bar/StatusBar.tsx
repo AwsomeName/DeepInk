@@ -1,11 +1,15 @@
+import { useEffect, useState } from 'react'
+import type { GitBackupProjectStatus } from '@shared/ipc/git-backup'
 import {
   useAgentStore,
+  useFsStore,
   useTabStore,
   useBrowserStore,
   useUpdateStore,
   useWorkspaceStore,
 } from '../../stores'
 import { IconLink, IconRobot, IconCircle } from '../common/Icons'
+import { useToastStore } from '../common/Toast'
 import {
   workspaceRefKey,
   workspaceRefLabel,
@@ -37,10 +41,37 @@ export function StatusBar(): React.ReactElement {
     activeTab?.type === 'browser' ? s.tabs[activeTab.id]?.url : undefined,
   )
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
+  const workspacePath = useFsStore((s) => s.workspacePath)
   const { hasUpdate, latestVersion, downloading, setDownloading, clear } = useUpdateStore()
+  const showToast = useToastStore((s) => s.show)
+  const [gitProjectStatus, setGitProjectStatus] = useState<GitBackupProjectStatus | null>(null)
+  const [gitBusy, setGitBusy] = useState(false)
+  const [showGitDialog, setShowGitDialog] = useState(false)
+  const [repositoryInput, setRepositoryInput] = useState('')
+  const [gitError, setGitError] = useState<string | null>(null)
 
   const agentStatus = AGENT_STATUS_MAP[backendState] ?? AGENT_STATUS_MAP.disconnected
   const tabLabel = activeTab ? (TAB_TYPE_LABEL[activeTab.type] ?? activeTab.title) : ''
+
+  useEffect(() => {
+    let cancelled = false
+    setGitProjectStatus(null)
+    setShowGitDialog(false)
+    setRepositoryInput('')
+    setGitError(null)
+    if (!workspacePath) return () => undefined
+    void window.cclinkStudio.gitBackup
+      .getProjectStatus(workspacePath)
+      .then((status) => {
+        if (!cancelled) setGitProjectStatus(status)
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) setGitError(error instanceof Error ? error.message : String(error))
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspacePath])
 
   const handleDownloadUpdate = async (): Promise<void> => {
     setDownloading(true)
@@ -52,46 +83,141 @@ export function StatusBar(): React.ReactElement {
     }
   }
 
+  const runGitBackup = async (firstRepositoryInput?: string): Promise<void> => {
+    if (!workspacePath || gitBusy) return
+    setGitBusy(true)
+    setGitError(null)
+    try {
+      const result = await window.cclinkStudio.gitBackup.backup({
+        workspacePath,
+        repositoryInput: firstRepositoryInput,
+      })
+      if (!result.success) {
+        setGitError(result.message)
+        showToast(result.message, 'error')
+        return
+      }
+      setShowGitDialog(false)
+      setRepositoryInput('')
+      showToast(result.message, 'success')
+      setGitProjectStatus(await window.cclinkStudio.gitBackup.getProjectStatus(workspacePath))
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      setGitError(message)
+      showToast(message, 'error')
+    } finally {
+      setGitBusy(false)
+    }
+  }
+
+  const handleGitBackupClick = (): void => {
+    if (!gitProjectStatus || gitProjectStatus.error) return
+    if (gitProjectStatus.bound) {
+      void runGitBackup()
+      return
+    }
+    setGitError(null)
+    setShowGitDialog(true)
+  }
+
   return (
-    <div className="status-bar">
-      {/* 左侧：Agent 状态 */}
-      <span className="status-bar-item">
-        <IconRobot size={12} />
-        {agentStatus.text}
-        <IconCircle size={6} filled color={agentStatus.color} />
-      </span>
-
-      {/* 活跃 Tab 信息 */}
-      {tabLabel && <span className="status-bar-item">{tabLabel}</span>}
-
-      <span className="status-bar-item" title={workspaceRefKey(activeWorkspaceRef) ?? '未归档'}>
-        {workspaceRefSourceLabel(activeWorkspaceRef)} · {workspaceRefLabel(activeWorkspaceRef)}
-      </span>
-
-      {/* 浏览器 URL（截断显示） */}
-      {activeTab?.type === 'browser' && currentUrl && (
-        <span className="status-bar-item status-bar-url">
-          <IconLink size={12} />
-          {truncateUrl(currentUrl)}
+    <>
+      <div className="status-bar">
+        {/* 左侧：Agent 状态 */}
+        <span className="status-bar-item">
+          <IconRobot size={12} />
+          {agentStatus.text}
+          <IconCircle size={6} filled color={agentStatus.color} />
         </span>
+
+        {/* 活跃 Tab 信息 */}
+        {tabLabel && <span className="status-bar-item">{tabLabel}</span>}
+
+        <span className="status-bar-item" title={workspaceRefKey(activeWorkspaceRef) ?? '未归档'}>
+          {workspaceRefSourceLabel(activeWorkspaceRef)} · {workspaceRefLabel(activeWorkspaceRef)}
+        </span>
+
+        {/* 浏览器 URL（截断显示） */}
+        {activeTab?.type === 'browser' && currentUrl && (
+          <span className="status-bar-item status-bar-url">
+            <IconLink size={12} />
+            {truncateUrl(currentUrl)}
+          </span>
+        )}
+
+        <span style={{ flex: 1 }} />
+
+        {workspacePath && (
+          <button
+            type="button"
+            className={`status-bar-item git-backup-status ${gitError ? 'error' : ''}`}
+            disabled={gitBusy || !gitProjectStatus || Boolean(gitProjectStatus.error)}
+            title={
+              gitError ??
+              gitProjectStatus?.error ??
+              gitProjectStatus?.repositoryLabel ??
+              '将当前项目全部可备份变更提交并 Push'
+            }
+            onClick={handleGitBackupClick}
+          >
+            <IconLink size={12} />
+            {gitBusy
+              ? 'Git 备份中…'
+              : gitError
+                ? 'Git 备份失败'
+                : gitProjectStatus?.lastBackupAt
+                  ? `Git 已备份 · ${formatBackupTime(gitProjectStatus.lastBackupAt)}`
+                  : '备份到 Git'}
+          </button>
+        )}
+
+        {/* 更新提示（主进程检查到新版本时显示） */}
+        {hasUpdate && (
+          <button
+            className="status-bar-item update-badge"
+            onClick={handleDownloadUpdate}
+            title={`下载 v${latestVersion} 到下载文件夹并打开`}
+          >
+            🆕 新版本 v{latestVersion} {downloading ? '下载中...' : '立即下载'}
+          </button>
+        )}
+
+        {/* 右侧：版本 */}
+        <span className="status-bar-item">CCLink Studio v0.1.0</span>
+      </div>
+
+      {showGitDialog && (
+        <div className="git-backup-dialog-overlay" onMouseDown={() => setShowGitDialog(false)}>
+          <form
+            className="git-backup-dialog"
+            onMouseDown={(event) => event.stopPropagation()}
+            onSubmit={(event) => {
+              event.preventDefault()
+              void runGitBackup(repositoryInput)
+            }}
+          >
+            <h2>备份到 Git</h2>
+            <p>填写完整远程仓库地址，或者只填写 GitHub 项目名。</p>
+            <input
+              autoFocus
+              value={repositoryInput}
+              maxLength={2048}
+              placeholder="my-project 或 https://github.com/user/repo.git"
+              onChange={(event) => setRepositoryInput(event.target.value)}
+            />
+            {gitError && <div className="git-backup-dialog-error">{gitError}</div>}
+            <div className="git-backup-dialog-actions">
+              <button type="button" disabled={gitBusy} onClick={() => setShowGitDialog(false)}>
+                取消
+              </button>
+              <button type="submit" disabled={gitBusy || !repositoryInput.trim()}>
+                {gitBusy ? '备份中…' : '备份当前全部变更'}
+              </button>
+            </div>
+          </form>
+        </div>
       )}
-
-      <span style={{ flex: 1 }} />
-
-      {/* 更新提示（主进程检查到新版本时显示） */}
-      {hasUpdate && (
-        <button
-          className="status-bar-item update-badge"
-          onClick={handleDownloadUpdate}
-          title={`下载 v${latestVersion} 到下载文件夹并打开`}
-        >
-          🆕 新版本 v{latestVersion} {downloading ? '下载中...' : '立即下载'}
-        </button>
-      )}
-
-      {/* 右侧：版本 */}
-      <span className="status-bar-item">CCLink Studio v0.1.0</span>
-    </div>
+    </>
   )
 }
 
@@ -104,4 +230,10 @@ function truncateUrl(url: string): string {
   } catch {
     return url.slice(0, 40) + (url.length > 40 ? '...' : '')
   }
+}
+
+function formatBackupTime(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '已完成'
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }

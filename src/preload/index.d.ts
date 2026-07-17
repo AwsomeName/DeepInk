@@ -6,6 +6,7 @@ import type { DataSourceApiContract } from '../shared/ipc/data-source'
 import type { DialogApiContract } from '../shared/ipc/dialog'
 import type { EditorApiContract } from '../shared/ipc/editor'
 import type { FsApiContract } from '../shared/ipc/fs'
+import type { GitBackupApiContract } from '../shared/ipc/git-backup'
 import type { HardwareApiContract } from '../shared/ipc/hardware'
 import type { IdentityApiContract } from '../shared/ipc/identity'
 import type { MeshyApiContract } from '../shared/ipc/meshy'
@@ -38,6 +39,8 @@ export interface CCLinkStudioAPI {
   android: AndroidApiContract
 
   fs: FsApiContract
+
+  gitBackup: GitBackupApiContract
 
   projectOps: ProjectOpsApiContract
 

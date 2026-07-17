@@ -6134,6 +6134,88 @@ body.is-resizing-composer .agent-composer-resize-handle::after {
   background: rgba(59, 130, 246, 0.45);
 }
 
+.status-bar-item.git-backup-status {
+  border: 0;
+  background: transparent;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.status-bar-item.git-backup-status:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.status-bar-item.git-backup-status.error {
+  background: rgba(220, 38, 38, 0.3);
+}
+
+.status-bar-item.git-backup-status:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.git-backup-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10040;
+  display: flex;
+  justify-content: center;
+  padding-top: 18vh;
+  background: rgba(0, 0, 0, 0.48);
+}
+
+.git-backup-dialog {
+  width: min(520px, calc(100vw - 40px));
+  height: fit-content;
+  padding: 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-elevated);
+}
+
+.git-backup-dialog h2 {
+  margin: 0 0 8px;
+  color: var(--text-primary);
+  font-size: 16px;
+}
+
+.git-backup-dialog p {
+  margin: 0 0 14px;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.git-backup-dialog input {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  outline: none;
+}
+
+.git-backup-dialog input:focus {
+  border-color: var(--border-focus);
+}
+
+.git-backup-dialog-error {
+  margin-top: 10px;
+  color: #f87171;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.git-backup-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
 /* ====== 通用动画 ====== */
 
 @keyframes fadeIn {

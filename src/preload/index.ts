@@ -373,6 +373,17 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
       ipcRenderer.invoke('projectOps:appendPublicationRecord', workspacePath, input),
   },
 
+  // 单用户手动 Git 备份。Token 仅发送给主进程，不提供读回接口。
+  gitBackup: {
+    getAccountStatus: () => ipcRenderer.invoke('gitBackup:getAccountStatus'),
+    saveAccount: (input: unknown) => ipcRenderer.invoke('gitBackup:saveAccount', input),
+    clearAccount: () => ipcRenderer.invoke('gitBackup:clearAccount'),
+    testAccount: (input?: unknown) => ipcRenderer.invoke('gitBackup:testAccount', input),
+    getProjectStatus: (workspacePath: string) =>
+      ipcRenderer.invoke('gitBackup:getProjectStatus', workspacePath),
+    backup: (input: unknown) => ipcRenderer.invoke('gitBackup:backup', input),
+  },
+
   // 硬件工作区：硬件项目识别、生产包检查。
   hardware: {
     scanWorkspace: (workspacePath: string) =>

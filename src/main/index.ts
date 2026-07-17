@@ -11,63 +11,80 @@ import { createWindowRuntime } from './runtime/window-runtime'
 import { bootstrapRuntime } from './runtime/bootstrap-runtime'
 import { shutdownRuntime } from './runtime/shutdown-runtime'
 import { configureFixedUserDataPath } from './runtime/user-data-path'
+import { parseBrowserAuthChildOptions } from './browser/browser-auth-contract'
+import { configureBrowserAuthChildApp, runBrowserAuthChild } from './browser/browser-auth-child'
 
-configureFixedUserDataPath(app)
-ensureSingleInstance(app)
-configureAppCommandLine(app)
-registerProcessErrorHandlers()
+const browserAuthChildOptions = parseBrowserAuthChildOptions(process.argv)
 
-const runtime = createRuntimeState(!app.isPackaged)
-const windowOptions = {
-  preloadPath: join(__dirname, '../preload/index.js'),
-  rendererUrl: process.env['ELECTRON_RENDERER_URL'],
-  rendererHtmlPath: join(__dirname, '../renderer/index.html'),
+if (browserAuthChildOptions) {
+  startBrowserAuthChild()
+} else {
+  startMainApplication()
 }
 
-app.whenReady().then(async () => {
-  await bootstrapRuntime(runtime, windowOptions)
+function startBrowserAuthChild(): void {
+  configureBrowserAuthChildApp(app, browserAuthChildOptions!)
+  registerProcessErrorHandlers()
 
-  app.on('activate', () => {
-    // macOS: 点击 Dock 图标时触发。CCLink Studio 当前 window-all-closed 会退出，通常不会走到这里。
-    if (BrowserWindow.getAllWindows().length === 0) {
-      cleanupIpcHandlers()
-      createWindowRuntime(runtime, windowOptions)
-    }
+  void app.whenReady().then(async () => {
+    await runBrowserAuthChild(browserAuthChildOptions!)
   })
-
-  app.on('second-instance', () => {
-    if (runtime.mainWindow) {
-      if (runtime.mainWindow.isMinimized()) runtime.mainWindow.restore()
-      runtime.mainWindow.focus()
-    }
-  })
-})
-
-let shutdownStarted = false
-
-/**
- * 清理所有资源并退出。
- * will-quit 会阻止默认退出以等待异步清理，避免 Playwright/MCP/scrcpy/adb 留下孤儿进程。
- */
-async function gracefulShutdown(): Promise<void> {
-  if (shutdownStarted) return
-  shutdownStarted = true
-
-  console.log('[CCLink Studio] 开始优雅退出...')
-  await shutdownRuntime(runtime)
-  console.log('[CCLink Studio] 优雅退出完成')
+  app.on('window-all-closed', () => app.quit())
 }
 
-app.on('will-quit', async (event) => {
-  event.preventDefault()
-  try {
-    await gracefulShutdown()
-  } catch (error) {
-    console.error('[CCLink Studio] 优雅退出失败:', error)
+function startMainApplication(): void {
+  configureFixedUserDataPath(app)
+  if (!ensureSingleInstance(app)) return
+  configureAppCommandLine(app)
+  registerProcessErrorHandlers()
+
+  const runtime = createRuntimeState(!app.isPackaged)
+  const windowOptions = {
+    preloadPath: join(__dirname, '../preload/index.js'),
+    rendererUrl: process.env['ELECTRON_RENDERER_URL'],
+    rendererHtmlPath: join(__dirname, '../renderer/index.html'),
   }
-  app.exit(0)
-})
 
-app.on('window-all-closed', () => {
-  app.quit()
-})
+  void app.whenReady().then(async () => {
+    await bootstrapRuntime(runtime, windowOptions)
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) {
+        cleanupIpcHandlers()
+        createWindowRuntime(runtime, windowOptions)
+      }
+    })
+
+    app.on('second-instance', () => {
+      if (runtime.mainWindow) {
+        if (runtime.mainWindow.isMinimized()) runtime.mainWindow.restore()
+        runtime.mainWindow.focus()
+      }
+    })
+  })
+
+  let shutdownStarted = false
+
+  async function gracefulShutdown(): Promise<void> {
+    if (shutdownStarted) return
+    shutdownStarted = true
+
+    console.log('[CCLink Studio] 开始优雅退出...')
+    await shutdownRuntime(runtime)
+    console.log('[CCLink Studio] 优雅退出完成')
+  }
+
+  app.on('will-quit', async (event) => {
+    event.preventDefault()
+    try {
+      await gracefulShutdown()
+    } catch (error) {
+      console.error('[CCLink Studio] 优雅退出失败:', error)
+    }
+    app.exit(0)
+  })
+
+  app.on('window-all-closed', () => {
+    app.quit()
+  })
+}

@@ -1,6 +1,7 @@
 import { BrowserManager } from '../browser/browser-manager'
 import { BrowserTaskRuntime } from '../browser/browser-task-runtime'
 import { BrowserDownloadStore } from '../browser/browser-download-store'
+import { BrowserAuthProcessService } from '../browser/browser-auth-process-service'
 import { registerBrowserIpc } from '../ipc/browser-ipc'
 import { BrowserInstanceStore } from '../persistence/browser-instance-store'
 import { registerDialogIpc } from '../ipc/dialog-ipc'
@@ -43,6 +44,13 @@ export function createWindowRuntime(
   runtime.browserInstanceStore = new BrowserInstanceStore()
   void runtime.browserInstanceStore.load().then(() => runtime.browserInstanceStore?.clear())
   runtime.browserManager.attachInstanceStore(runtime.browserInstanceStore)
+  runtime.browserAuthProcessService = new BrowserAuthProcessService(
+    runtime.mainWindow,
+    runtime.browserManager,
+  )
+  runtime.browserManager.attachBrowserAuthRequestHandler((request) =>
+    runtime.browserAuthProcessService?.open(request),
+  )
   runtime.browserTaskRuntime = new BrowserTaskRuntime(runtime.mainWindow)
   runtime.browserDownloadStore = new BrowserDownloadStore(
     runtime.mainWindow,
