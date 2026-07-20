@@ -5,11 +5,57 @@
  * 提供「复制到公众号」和「保存为 HTML」两个操作。
  */
 
-import { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { useToastStore } from '../../common/Toast'
 
 interface WeChatPreviewProps {
   filePath: string
+}
+
+const WECHAT_PREVIEW_CSP = [
+  "default-src 'none'",
+  'img-src https: http: data: blob:',
+  "style-src 'unsafe-inline'",
+  'font-src data:',
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ')
+
+export function buildWechatPreviewDocument(html: string): string {
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="${WECHAT_PREVIEW_CSP}">
+  <meta name="referrer" content="no-referrer">
+  <style>
+    html, body { min-height: 100%; margin: 0; }
+    body { box-sizing: border-box; padding: 20px 16px; background: #fff; overflow-wrap: anywhere; }
+  </style>
+</head>
+<body>${html}</body>
+</html>`
+}
+
+export function escapeHtmlText(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+export function WeChatPreviewFrame({ html }: { html: string }): React.ReactElement {
+  return (
+    <iframe
+      className="wechat-preview-body"
+      title="微信公众号内容预览"
+      sandbox=""
+      referrerPolicy="no-referrer"
+      srcDoc={buildWechatPreviewDocument(html)}
+    />
+  )
 }
 
 export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElement {
@@ -73,7 +119,7 @@ export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElem
       if (result && !result.canceled && result.filePath) {
         const fullHtml = `<!DOCTYPE html>
 <html lang="zh-CN">
-<head><meta charset="utf-8"><title>${fileName}</title></head>
+<head><meta charset="utf-8"><title>${escapeHtmlText(fileName)}</title></head>
 <body style="background:#fff;padding:20px;">${html}</body>
 </html>`
         await window.cclinkStudio.fs.writeFile(result.filePath, fullHtml)
@@ -122,7 +168,7 @@ export function WeChatPreview({ filePath }: WeChatPreviewProps): React.ReactElem
 
       {/* 预览区（模拟手机宽度） */}
       <div className="wechat-preview-phone">
-        <div className="wechat-preview-body" dangerouslySetInnerHTML={{ __html: html }} />
+        <WeChatPreviewFrame html={html} />
       </div>
     </div>
   )

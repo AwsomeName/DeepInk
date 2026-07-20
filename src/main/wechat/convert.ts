@@ -271,7 +271,7 @@ const THEME_CSS = `
 // ─── 初始化 markdown-it 解析器 ──────────────────────────
 
 const md = new MarkdownIt({
-  html: true,
+  html: false,
   breaks: true,
   linkify: true,
 })

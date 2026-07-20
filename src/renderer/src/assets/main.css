@@ -9610,11 +9610,13 @@ button.file-tree-item {
 
 .wechat-preview-body {
   width: 375px;
+  height: 100%;
   min-height: 100%;
+  display: block;
+  border: 0;
   background: #ffffff;
   border-radius: 8px;
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  padding: 20px 16px;
 }
 
 .wechat-preview-loading,

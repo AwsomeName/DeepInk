@@ -18,7 +18,7 @@ export function createMainWindow(options: CreateMainWindowOptions): BrowserWindo
     titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: options.preloadPath,
-      sandbox: false,
+      sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
     },
