@@ -100,7 +100,7 @@ pnpm smoke:standalone
 CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window
 ```
 
-本机、干净 worktree 和 GitHub CI 必须得到一致结果。
+候选分支本机和干净 worktree 必须执行严格 Google 联网检查。GitHub CI 必须执行 `pnpm verify`、`pnpm smoke:standalone` 和默认 `pnpm smoke:auth-window`，验证确定性的窗口、Profile 和持久化机制；CI 网络无法访问 Google 时允许明确报告 `inconclusive-network`，但窗口机制失败或 Google 明确拒绝纯净窗口仍必须失败。严格联网结果由本地候选和 H3 真人验收共同保证。
 
 #### S0.5：核心流程人工验收
 
@@ -119,7 +119,7 @@ CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window
 - 工作树干净，没有未知未跟踪文件。
 - 改动按领域形成可审计提交，跨域集成点有明确说明。
 - `pnpm verify` 在本机、干净 worktree 和 CI 全部通过。
-- `pnpm smoke:standalone` 与严格模式 `smoke:auth-window` 通过。
+- 候选分支本机与干净 worktree 的 `pnpm smoke:standalone`、严格模式 `smoke:auth-window` 通过；CI 的确定性 auth-window 门禁通过。
 - 核心流程人工验收完成并留有记录。
 - 本文“当前基线”更新为真实结果。
 

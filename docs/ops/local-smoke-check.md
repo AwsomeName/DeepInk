@@ -45,6 +45,10 @@ The clean-window live probe retries up to three times only when navigation fails
 network error. It does not retry or downgrade an unsafe-browser rejection, and reports every result
 in `attemptOutcomes`.
 
+CI runs the default mode so third-party network availability cannot randomly fail the repository
+gate. Release candidates and human acceptance run strict mode; a candidate is not considered Google
+compatible based only on CI's `inconclusive-network` result.
+
 Use this variant when you want to keep the app open after the smoke check:
 
 ```bash
