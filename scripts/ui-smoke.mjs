@@ -93,9 +93,10 @@ async function main() {
   await page.setViewportSize({ width: 1440, height: 920 })
   await page.waitForLoadState('domcontentloaded')
   await page.waitForSelector('.main-window', { timeout: 15_000 })
-  await page.waitForTimeout(500)
 
   await runCheck('first screen has no login wall', async () => {
+    await page.locator('.app-topbar').waitFor({ state: 'visible', timeout: 15_000 })
+    await page.locator('.workbench').waitFor({ state: 'visible', timeout: 15_000 })
     const text = await page.locator('body').innerText()
     assert(await page.locator('.main-window').isVisible(), 'main window is not visible')
     assert(
