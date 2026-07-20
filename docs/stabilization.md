@@ -21,10 +21,12 @@
 
 2026-07-20 检查结果：
 
-- `pnpm verify` 未通过，OSS 边界检查存在旧产品名残留。
-- 格式、lint、TypeScript 构建均存在错误。
-- 单元测试 700 项中 1 项失败。
-- 当前工作树包含大量跨浏览器、Agent、Terminal、编辑器和文件系统的并行改动，难以可靠归因。
+- 稳定化分支为 `codex/stabilization-s0`，现场基线提交为 `49da3b2`。该提交包含原始 104 个跨域文件，现场已保全，但仍需按 `docs/ops/stabilization-s0-inventory.md` 收敛可审计边界。
+- S0 收口代码已形成三个独立提交：`a4353ef` 恢复格式门禁、`45d1dcd` 隔离旧账号迁移、`16e13da` 加固 standalone/auth smoke。本文档记录提交后工作树干净，不存在未知未跟踪文件。
+- `pnpm verify` 已通过：OSS 边界、格式、lint、107 个测试文件/718 项测试、typecheck 和生产构建全部返回 0。
+- `pnpm smoke:standalone` 已通过：local 9/9、UI 5/5、workflow 5/5、restore 4/4。
+- 严格模式 `CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window` 已通过：Profile 的 local storage 与 Cookie 跨 Electron 重启保留，纯净窗口到达 Google 账号校验页。对照实验中启用 CDP 的窗口被 Google 判为不安全，认证子进程不得挂接 CDP 或 Playwright。
+- 干净 worktree、GitHub CI 和核心流程人工验收尚未完成，因此 S0 仍为进行中。
 
 每完成一个工作包都必须更新本节；不得用后续功能掩盖尚未恢复的基线。
 
@@ -32,9 +34,91 @@
 
 ### S0：恢复可信基线
 
-- 收敛当前工作树，按领域拆分并确认每批改动的责任边界。
-- 修复格式、lint、typecheck、测试和 OSS 边界检查。
-- 确保 CI 与本机 `pnpm verify` 使用相同入口并稳定通过。
+S0 的目标是得到一个干净、可归因、可以从零复现的绿色基线。S0 只恢复可信施工面，不以测试绿色代替 S1-S4 的安全和架构治理。
+
+#### S0.1：冻结与保全现场
+
+- 在不执行 `reset`、`checkout --` 或丢弃未跟踪文件的前提下，将当前现场迁移到稳定化分支。
+- 记录基线 HEAD、文件状态、差异规模、门禁结果和领域归属。
+- 暂停新增业务功能；稳定化期间只接受本文“允许进入的改动”。
+
+验收证据：
+
+- 稳定化分支存在，原始改动完整保留。
+- `docs/ops/stabilization-s0-inventory.md` 可以解释所有改动属于哪个领域，哪些文件是跨域集成点。
+- 不存在来源和目的均无法说明的未跟踪文件。
+
+#### S0.2：按领域收敛改动
+
+- 架构治理、浏览器登录、Markdown/文件、Agent 会话、UI 基础设施、开发构建分别形成可审计工作包。
+- 每个工作包说明目标、权限变化、状态所有者、生命周期、测试和回滚边界。
+- `App.tsx`、`preload/index.ts`、`main/index.ts`、全局 CSS 等跨域文件最后集成，不能被某个功能包顺手占有。
+
+验收证据：
+
+- 每个提交只承担一个明确目标并可独立回滚。
+- 提交不依赖尚未纳入同一工作包的未跟踪文件。
+- 没有通过批量格式化掩盖行为改动。
+
+#### S0.3：恢复质量门禁
+
+- 处理 5 个格式失败文件，但只在所属工作包行为稳定后局部格式化。
+- 旧账号文件兼容必须收敛到显式 migration 边界：允许列表只覆盖迁移模块和迁移测试，业务代码、普通测试和当前产品文档不得继续出现旧产品名。
+- 禁止删除有效测试、降低断言、拆分字符串绕过扫描或全局放宽边界规则。
+
+验收命令：
+
+```bash
+pnpm verify:oss-boundary
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm verify
+git diff --check
+```
+
+以上命令必须全部返回 0。
+
+#### S0.4：干净环境复现
+
+- 从候选提交创建新的干净 worktree。
+- 使用锁文件安装依赖，不读取当前工作树的未跟踪源码或构建产物。
+- 在干净 worktree 运行完整无 GUI 门禁和 Electron 冒烟。
+
+验收命令：
+
+```bash
+pnpm install --frozen-lockfile
+pnpm verify
+pnpm smoke:standalone
+CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window
+```
+
+本机、干净 worktree 和 GitHub CI 必须得到一致结果。
+
+#### S0.5：核心流程人工验收
+
+- 启动应用并打开本地项目。
+- 编辑 Markdown、保存图片并验证重启恢复。
+- 新建 Terminal，验证 PTY、cwd 和应用内网页打开。
+- 验证普通浏览器、独立登录窗口、Profile 登录状态与应用回接。
+- 切换项目，确认浏览器、会话和 Terminal 不串项目。
+- 缺少可选能力时，应用正常启动并显示明确降级状态。
+
+人工验收必须记录版本、步骤、结果和诊断日志位置；失败项必须转成可复现用例。
+
+#### S0 退出条件
+
+- 工作树干净，没有未知未跟踪文件。
+- 改动按领域形成可审计提交，跨域集成点有明确说明。
+- `pnpm verify` 在本机、干净 worktree 和 CI 全部通过。
+- `pnpm smoke:standalone` 与严格模式 `smoke:auth-window` 通过。
+- 核心流程人工验收完成并留有记录。
+- 本文“当前基线”更新为真实结果。
+
+S0 绿色只表示恢复可信基线。Markdown 注入、明文密钥、Agent 与浏览器硬依赖、IPC 生命周期和状态所有权仍分别由 S1-S4 负责。
 
 ### S1：封闭安全边界
 
