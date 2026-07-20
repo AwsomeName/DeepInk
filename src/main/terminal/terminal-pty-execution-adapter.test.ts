@@ -76,10 +76,12 @@ describe('PtyExecutionAdapter', () => {
       }),
     )
     if (process.platform !== 'win32') {
-      expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain(
-        'CCLINK_STUDIO_TERMINAL_SESSION_ID',
-      )
-      expect(spawnPty.mock.calls[0]?.[0].args?.join(' ')).toContain('terminal-1')
+      const launchCommand = spawnPty.mock.calls[0]?.[0].args?.join(' ') ?? ''
+      expect(launchCommand).toContain('CCLINK_STUDIO_TERMINAL_SESSION_ID')
+      expect(launchCommand).toContain('terminal-1')
+      expect(launchCommand).toContain("PATH='/tmp/cclink-bin:/usr/bin'")
+      expect(launchCommand).toContain("BROWSER='/tmp/cclink-browser'")
+      expect(launchCommand).toContain('npm_config_browser=')
     }
     expect(events).toContainEqual({
       kind: 'started',

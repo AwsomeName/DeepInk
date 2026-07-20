@@ -112,7 +112,11 @@ export class PtyExecutionAdapter implements TerminalExecutionAdapter {
       CCLINK_STUDIO_TERMINAL_RUNTIME: input.runtime.location,
     }
     if (cwd) env.CCLINK_STUDIO_TERMINAL_CWD = cwd
-    const launch = createPtyLaunch(input.runtime.shell || getDefaultShell(), input.sessionId)
+    const launch = createPtyLaunch(
+      input.runtime.shell || getDefaultShell(),
+      input.sessionId,
+      this.browserEnvironment,
+    )
     const child = this.spawnPty({
       shell: launch.shell,
       args: launch.args,
@@ -285,13 +289,21 @@ function defaultSpawnPty(input: PtySpawnInput): IPty {
   return pty.spawn(input.shell, input.args ?? [], options)
 }
 
-function createPtyLaunch(shell: string, sessionId: string): { shell: string; args?: string[] } {
+function createPtyLaunch(
+  shell: string,
+  sessionId: string,
+  browserEnvironment: NodeJS.ProcessEnv,
+): { shell: string; args?: string[] } {
   if (process.platform === 'win32') return { shell }
+  const browserAssignments = ['PATH', 'BROWSER', 'npm_config_browser'].flatMap((key) => {
+    const value = browserEnvironment[key]
+    return typeof value === 'string' ? [`${key}=${shellQuote(value)}`] : []
+  })
   return {
     shell: '/bin/sh',
     args: [
       '-lc',
-      `CCLINK_STUDIO_TERMINAL_SESSION_ID=${shellQuote(sessionId)} ${shellQuote(shell)} -i`,
+      `${browserAssignments.join(' ')} CCLINK_STUDIO_TERMINAL_SESSION_ID=${shellQuote(sessionId)} ${shellQuote(shell)} -i`,
     ],
   }
 }

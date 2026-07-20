@@ -1,4 +1,4 @@
-import { ipcMain, shell } from 'electron'
+import { ipcMain, shell, type WebContents } from 'electron'
 import { FileService } from './file-service'
 import { SettingsService } from '../settings/settings-service'
 import { homedir } from 'os'
@@ -8,13 +8,17 @@ import { randomUUID } from 'crypto'
  * 注册文件系统相关的 IPC 处理器
  */
 export function registerFsIpc(fs: FileService, settingsService: SettingsService): void {
-  const watchers = new Map<string, { stop: () => void }>()
+  const watchers = new Map<
+    string,
+    { stop: () => void; sender: WebContents; onSenderDestroyed: () => void }
+  >()
 
   const stopWatcher = (watchId: string): boolean => {
     const watcher = watchers.get(watchId)
     if (!watcher) return false
-    watcher.stop()
     watchers.delete(watchId)
+    watcher.sender.removeListener('destroyed', watcher.onSenderDestroyed)
+    watcher.stop()
     return true
   }
 
@@ -153,8 +157,11 @@ export function registerFsIpc(fs: FileService, settingsService: SettingsService)
       }
       sender.send('fs:watchDirChanged', { watchId, event: changeEvent, filePath })
     })
-    watchers.set(watchId, watcher)
-    sender.once('destroyed', () => stopWatcher(watchId))
+    const onSenderDestroyed = (): void => {
+      stopWatcher(watchId)
+    }
+    watchers.set(watchId, { ...watcher, sender, onSenderDestroyed })
+    sender.once('destroyed', onSenderDestroyed)
     return watchId
   })
 

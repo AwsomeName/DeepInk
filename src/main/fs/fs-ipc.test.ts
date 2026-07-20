@@ -1,0 +1,83 @@
+import { EventEmitter } from 'node:events'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { FileService } from './file-service'
+import type { SettingsService } from '../settings/settings-service'
+
+const mockIpcMain = vi.hoisted(() => ({
+  handle: vi.fn(),
+}))
+
+vi.mock('electron', () => ({
+  ipcMain: mockIpcMain,
+  shell: { openPath: vi.fn() },
+}))
+
+import { registerFsIpc } from './fs-ipc'
+
+function getHandler(channel: string): (...args: any[]) => any {
+  const registration = mockIpcMain.handle.mock.calls.find(([name]) => name === channel)
+  if (!registration) throw new Error(`Missing IPC handler: ${channel}`)
+  return registration[1]
+}
+
+function createSender(): EventEmitter & {
+  isDestroyed: ReturnType<typeof vi.fn>
+  send: ReturnType<typeof vi.fn>
+} {
+  return Object.assign(new EventEmitter(), {
+    isDestroyed: vi.fn(() => false),
+    send: vi.fn(),
+  })
+}
+
+describe('registerFsIpc directory watcher lifecycle', () => {
+  beforeEach(() => {
+    mockIpcMain.handle.mockReset()
+  })
+
+  it('removes the sender destroyed listener when a watcher stops normally', () => {
+    const stop = vi.fn()
+    const fs = {
+      watchDir: vi.fn(() => ({ stop })),
+    } as unknown as FileService
+    const settings = {
+      getAll: vi.fn(() => ({ showHiddenFiles: false })),
+    } as unknown as SettingsService
+    const sender = createSender()
+
+    registerFsIpc(fs, settings)
+    const start = getHandler('fs:watchDirStart')
+    const stopWatching = getHandler('fs:watchDirStop')
+
+    for (let index = 0; index < 12; index += 1) {
+      const watchId = start({ sender }, `/tmp/project-${index}`)
+      expect(sender.listenerCount('destroyed')).toBe(1)
+      expect(stopWatching({}, watchId)).toBe(true)
+      expect(sender.listenerCount('destroyed')).toBe(0)
+    }
+
+    expect(stop).toHaveBeenCalledTimes(12)
+  })
+
+  it('stops the watcher when its sender is destroyed', () => {
+    const stop = vi.fn()
+    const fs = {
+      watchDir: vi.fn(() => ({ stop })),
+    } as unknown as FileService
+    const settings = {
+      getAll: vi.fn(() => ({ showHiddenFiles: false })),
+    } as unknown as SettingsService
+    const sender = createSender()
+
+    registerFsIpc(fs, settings)
+    const start = getHandler('fs:watchDirStart')
+    const stopWatching = getHandler('fs:watchDirStop')
+    const watchId = start({ sender }, '/tmp/project')
+
+    sender.emit('destroyed')
+
+    expect(stop).toHaveBeenCalledOnce()
+    expect(sender.listenerCount('destroyed')).toBe(0)
+    expect(stopWatching({}, watchId)).toBe(false)
+  })
+})

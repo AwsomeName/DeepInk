@@ -31,9 +31,9 @@
 
 期望：保存、关闭和重启后内容一致；失败时记录 Markdown 文件路径和脱敏诊断日志。
 
-- 结果：待执行
-- 时间：
-- 证据：
+- 结果：通过
+- 时间：2026-07-20 19:42 CST
+- 证据：候选提交 `6588cf2`；验收项目 `cclink-s0-acceptance`。真人确认关闭并重新打开 Tab 后正常；随后完全重启 Studio，重新打开同一文件，自动检查确认正文仅有一个托管图片引用，图片完整加载为 1196×1338，托管资源和 manifest 均位于该工作区。运行日志：`/tmp/cclink-studio-dev/cclink-studio-dev.log`。
 
 ### H2：Terminal URL 留在应用内
 
@@ -44,9 +44,9 @@
 
 期望：URL 只进入 Studio 管理的纯净窗口；窗口关闭不会终止无关 Terminal。
 
-- 结果：待执行
-- 时间：
-- 证据：
+- 结果：通过
+- 时间：2026-07-20 19:55 CST
+- 证据：候选基线 `6588cf2` 加当前待提交 Terminal shim 修复；验收项目 `cclink-s0-acceptance`。自动检查确认新建 Terminal 的 cwd 为验收项目目录，`open` 解析到 Studio 管理的 `cclink-studio-terminal-browser/open`，测试 URL 启动带 `--cclink-clean-browser` 标识的独立应用内进程。真人确认出现 CCLink 管理的纯净窗口而非 Safari/Chrome，关闭后焦点返回 Studio，原 Terminal 仍存在且可继续使用。运行日志：`/tmp/cclink-studio-dev/cclink-studio-dev.log`。
 
 ### H3：真实站点登录、回接与持久化
 
@@ -58,11 +58,11 @@
 
 期望：认证状态只写回匹配的 `tabId/profileId`；不打开系统浏览器，不记录密码、验证码或完整 Cookie。
 
-- 站点：
-- Profile：仅填写非敏感显示名
-- 结果：待执行
-- 时间：
-- 证据：
+- 站点：V2EX
+- Profile：`v2ex`
+- 结果：通过
+- 时间：2026-07-20 20:03 CST
+- 证据：候选提交 `6588cf2`。此前真人在 Studio 管理的独立纯净认证窗口中完成真实站点认证，认证结果回接到 V2EX Tab；认证窗口与系统浏览器隔离，未记录密码、验证码、账号标识或 Cookie 值。随后为 H1/H2 完全退出并重启 Studio；本项验收时真人重新打开同一 `v2ex` Profile，确认页面仍为登录状态，证明登录状态已跨 Studio 进程重启持久化。
 
 ### H4：双项目切换隔离
 
@@ -74,9 +74,9 @@
 
 期望：每项状态都归属正确 workspace；后台任务可见且不被误判为停止。
 
-- 结果：待执行
-- 时间：
-- 证据：
+- 结果：通过
+- 时间：2026-07-20 21:08 CST
+- 证据：候选基线 `6588cf2` 加当前待提交修复。项目 A 使用 `woniu-forward` 的 V2EX Browser 与会话状态，项目 B 使用 `cclink-s0-acceptance` 的 Markdown 与 Terminal。真人在两个项目间来回切换，确认 Browser、会话和 Terminal 未串项目；重新打开项目 B 的 `h1-markdown-image.md` 后再次往返，Markdown Tab 仍保留。关闭项目 B 未影响项目 A 的现有页面和操作状态。
 
 ### H5：任务状态与项目切换
 
@@ -87,9 +87,9 @@
 
 期望：项目切换不隐式终止任务，UI 与诊断日志使用同一任务归属和终态。
 
-- 结果：待执行
-- 时间：
-- 证据：
+- 结果：通过
+- 时间：2026-07-20 21:31 CST
+- 证据：候选基线 `6588cf2` 加当前待提交修复。真人在 `cclink-s0-acceptance` Terminal 启动 60 秒本地倒计时，运行中切换到 `woniu-forward` 再返回，确认输出继续增长且没有被项目切换隐式终止。随后使用 `Control+C` 终止命令并执行 `exit`，Terminal 明确显示“进程已退出，退出码 130”，未停留在运行中或无状态空白；验收截图：`codex-clipboard-94cd0e86-2855-4ba2-9f67-a9d20432c9c5.png`。
 
 ## 失败记录要求
 
