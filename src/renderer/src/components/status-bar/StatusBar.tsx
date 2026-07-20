@@ -15,7 +15,7 @@ import {
   workspaceRefLabel,
   workspaceRefSourceLabel,
 } from '../../../../shared/workspace-ref'
-import { APP_VERSION } from '../../app-metadata'
+import { APP_EDITION_LABEL } from '../../app-metadata'
 
 /** Agent 状态 → 显示文本 */
 const AGENT_STATUS_MAP: Record<string, { text: string; color: string }> = {
@@ -155,7 +155,9 @@ export function StatusBar(): React.ReactElement {
         )}
 
         {/* 右侧：版本 */}
-        <span className="status-bar-item">CCLink Studio v{APP_VERSION}</span>
+        <span className="status-bar-item" title="本地开源桌面工作台">
+          {APP_EDITION_LABEL}
+        </span>
       </div>
 
       {showGitDialog && (

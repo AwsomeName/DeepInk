@@ -29,7 +29,6 @@ import { useWorkspaceBootstrap } from './bootstrap/use-workspace-bootstrap'
 import { useBrowserViewLifecycle } from './components/workbench/use-browser-view-lifecycle'
 import { useBrowserOpenRequests } from './bootstrap/use-browser-open-requests'
 import { ProjectStrip } from './components/project-strip/ProjectStrip'
-import { APP_EDITION_LABEL } from './app-metadata'
 import { useAnyFloatingSurfaceOpen } from './components/common/floating-surface-registry'
 import { clampPanelWidth, getAgentPanelWidthBounds } from './utils/panel-layout'
 
@@ -142,9 +141,6 @@ function MainLayout(): React.ReactElement {
         </div>
         <ProjectStrip />
         <div className="app-topbar-right">
-          <span className="app-edition-badge" title={`${APP_EDITION_LABEL} · 本地开源桌面工作台`}>
-            {APP_EDITION_LABEL}
-          </span>
           <button
             className={`app-topbar-icon ${agentPanelVisible ? 'active' : ''}`}
             onClick={toggleUnifiedAgentPanel}
