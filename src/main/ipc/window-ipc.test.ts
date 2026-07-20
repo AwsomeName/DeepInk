@@ -21,7 +21,7 @@ describe('registerWindowIpc', () => {
   it('moves native focus back to the trusted workbench renderer', () => {
     const webContents = { focus: vi.fn() }
     const mainWindow = createMainWindow(webContents)
-    registerWindowIpc(mainWindow as never)
+    registerWindowIpc(mainWindow as never, createGuard(webContents) as never)
 
     const handler = mockIpcMain.handlers.get('window:focusRenderer')
     expect(handler?.({ sender: webContents })).toEqual({ success: true })
@@ -31,10 +31,10 @@ describe('registerWindowIpc', () => {
   it('rejects focus requests from another webContents', () => {
     const webContents = { focus: vi.fn() }
     const mainWindow = createMainWindow(webContents)
-    registerWindowIpc(mainWindow as never)
+    registerWindowIpc(mainWindow as never, createGuard(webContents) as never)
 
     const handler = mockIpcMain.handlers.get('window:focusRenderer')
-    expect(handler?.({ sender: {} })).toEqual({ success: false })
+    expect(() => handler?.({ sender: {} })).toThrow('untrusted')
     expect(webContents.focus).not.toHaveBeenCalled()
   })
 })
@@ -46,5 +46,14 @@ function createMainWindow(webContents: { focus: () => void }) {
     isFullScreen: vi.fn(() => false),
     setFullScreen: vi.fn(),
     reload: vi.fn(),
+  }
+}
+
+function createGuard(webContents: object) {
+  return {
+    assert: (event: { sender: object }) => {
+      if (event.sender !== webContents) throw new Error('untrusted')
+    },
+    isTrusted: (event: { sender: object }) => event.sender === webContents,
   }
 }

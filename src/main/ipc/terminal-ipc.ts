@@ -1,4 +1,4 @@
-import { ipcMain, type WebContents } from 'electron'
+import type { IpcMainInvokeEvent, WebContents } from 'electron'
 import type {
   TerminalAuditListFilter,
   TerminalLifecycleAuditInput,
@@ -28,9 +28,12 @@ import type {
 } from '../terminal/terminal-session-store'
 import type { TerminalSessionState } from '../terminal/terminal-session-state'
 import { canTransitionTerminalStatus } from '../terminal/terminal-session-state'
+import type { TrustedRendererGuard } from './trusted-renderer-guard'
+import { registerTrustedIpcHandler } from './trusted-renderer-guard'
 
 export function registerTerminalIpc(
   terminalConfirmationService: TerminalConfirmationService,
+  trustedRendererGuard: TrustedRendererGuard,
   terminalAuditStore?: TerminalAuditStore,
   terminalSessionRegistry?: TerminalSessionRegistry,
   terminalCommandOrchestrator?: TerminalCommandOrchestrator,
@@ -38,6 +41,11 @@ export function registerTerminalIpc(
   webContents?: WebContents,
   terminalSessionStore?: TerminalSessionStore,
 ): void {
+  const handle = <Args extends unknown[], Result>(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
+  ): void => registerTrustedIpcHandler(channel, trustedRendererGuard, handler)
+
   if (terminalExecutionAdapter) {
     terminalExecutionAdapter.onEvent((event) => {
       webContents?.send('terminal:executionEvent', event)
@@ -50,42 +58,39 @@ export function registerTerminalIpc(
     })
   }
 
-  ipcMain.handle('terminal:resolveCommandConfirmation', (_event, id: string, approved: boolean) => {
+  handle('terminal:resolveCommandConfirmation', (_event, id: string, approved: boolean) => {
     return {
       success: terminalConfirmationService.resolveConfirmation(id, approved),
     }
   })
 
-  ipcMain.handle(
-    'terminal:recordLifecycleEvent',
-    async (_event, input?: TerminalLifecycleAuditInput) => {
-      if (!terminalAuditStore) return { success: false, error: 'Terminal 审计存储未就绪' }
-      const normalized = normalizeLifecycleAuditInput(input)
-      if (!normalized) {
-        return { success: false, error: 'Terminal 生命周期审计事件无效' }
-      }
-      const registryResult = await syncTerminalSessionRegistry(
-        input,
-        terminalSessionRegistry,
-        terminalExecutionAdapter,
-        terminalSessionStore,
-      )
-      if (!registryResult.success) return registryResult
-      await terminalAuditStore.recordEvent(normalized)
-      return { success: true }
-    },
-  )
+  handle('terminal:recordLifecycleEvent', async (_event, input?: TerminalLifecycleAuditInput) => {
+    if (!terminalAuditStore) return { success: false, error: 'Terminal 审计存储未就绪' }
+    const normalized = normalizeLifecycleAuditInput(input)
+    if (!normalized) {
+      return { success: false, error: 'Terminal 生命周期审计事件无效' }
+    }
+    const registryResult = await syncTerminalSessionRegistry(
+      input,
+      terminalSessionRegistry,
+      terminalExecutionAdapter,
+      terminalSessionStore,
+    )
+    if (!registryResult.success) return registryResult
+    await terminalAuditStore.recordEvent(normalized)
+    return { success: true }
+  })
 
-  ipcMain.handle('terminal:listAuditEvents', async (_event, filter?: TerminalAuditListFilter) => {
+  handle('terminal:listAuditEvents', async (_event, filter?: TerminalAuditListFilter) => {
     if (!terminalAuditStore) return []
     return terminalAuditStore.listEvents(normalizeAuditFilter(filter))
   })
 
-  ipcMain.handle('terminal:listSessions', async () => {
+  handle('terminal:listSessions', async () => {
     return listTerminalSessions(terminalSessionRegistry, terminalSessionStore)
   })
 
-  ipcMain.handle('terminal:submitCommand', async (_event, input?: TerminalSubmitCommandInput) => {
+  handle('terminal:submitCommand', async (_event, input?: TerminalSubmitCommandInput) => {
     if (!terminalCommandOrchestrator) {
       return {
         success: false,
@@ -104,7 +109,7 @@ export function registerTerminalIpc(
     return terminalCommandOrchestrator.submitCommand(normalized)
   })
 
-  ipcMain.handle('terminal:startPty', async (_event, input?: TerminalPtyStartInput) => {
+  handle('terminal:startPty', async (_event, input?: TerminalPtyStartInput) => {
     if (!terminalExecutionAdapter || !terminalSessionRegistry) {
       return { success: false, error: 'Terminal PTY 执行后端未就绪' }
     }
@@ -142,7 +147,7 @@ export function registerTerminalIpc(
     }
   })
 
-  ipcMain.handle('terminal:writePty', async (_event, input?: TerminalPtyWriteInput) => {
+  handle('terminal:writePty', async (_event, input?: TerminalPtyWriteInput) => {
     if (!terminalExecutionAdapter) return { success: false, error: 'Terminal PTY 执行后端未就绪' }
     const normalized = normalizePtyWriteInput(input)
     if (!normalized) return { success: false, error: 'Terminal PTY 写入参数无效' }
@@ -162,7 +167,7 @@ export function registerTerminalIpc(
     }
   })
 
-  ipcMain.handle('terminal:resizePty', async (_event, input?: TerminalPtyResizeInput) => {
+  handle('terminal:resizePty', async (_event, input?: TerminalPtyResizeInput) => {
     if (!terminalExecutionAdapter) return { success: false, error: 'Terminal PTY 执行后端未就绪' }
     const normalized = normalizePtyResizeInput(input)
     if (!normalized) return { success: false, error: 'Terminal PTY resize 参数无效' }
@@ -177,7 +182,7 @@ export function registerTerminalIpc(
     }
   })
 
-  ipcMain.handle('terminal:terminatePty', async (_event, terminalSessionId?: string) => {
+  handle('terminal:terminatePty', async (_event, terminalSessionId?: string) => {
     if (!terminalExecutionAdapter) return { success: false, error: 'Terminal PTY 执行后端未就绪' }
     if (typeof terminalSessionId !== 'string' || !terminalSessionId.trim()) {
       return { success: false, error: 'terminalSessionId 不能为空' }
@@ -207,7 +212,7 @@ export function registerTerminalIpc(
     }
   })
 
-  ipcMain.handle('terminal:clearAuditSession', async (_event, terminalSessionId: string) => {
+  handle('terminal:clearAuditSession', async (_event, terminalSessionId: string) => {
     if (!terminalAuditStore) return { success: false, error: 'Terminal 审计存储未就绪' }
     if (!terminalSessionId || typeof terminalSessionId !== 'string') {
       return { success: false, error: 'terminalSessionId 不能为空' }
@@ -217,7 +222,7 @@ export function registerTerminalIpc(
     return { success: true }
   })
 
-  ipcMain.handle('terminal:clearAuditEvents', async () => {
+  handle('terminal:clearAuditEvents', async () => {
     if (!terminalAuditStore) return { success: false, error: 'Terminal 审计存储未就绪' }
     await terminalAuditStore.clearAll()
     await terminalSessionStore?.clearAll()

@@ -6,6 +6,10 @@ import type { SettingsService } from '../settings/settings-service'
 const mockIpcMain = vi.hoisted(() => ({
   handle: vi.fn(),
 }))
+const trustedRendererGuard = {
+  assert: vi.fn(),
+  isTrusted: vi.fn(() => true),
+}
 
 vi.mock('electron', () => ({
   ipcMain: mockIpcMain,
@@ -33,6 +37,23 @@ function createSender(): EventEmitter & {
 describe('registerFsIpc directory watcher lifecycle', () => {
   beforeEach(() => {
     mockIpcMain.handle.mockReset()
+    trustedRendererGuard.assert.mockReset()
+    trustedRendererGuard.isTrusted.mockReset()
+    trustedRendererGuard.isTrusted.mockReturnValue(true)
+  })
+
+  it('rejects an untrusted sender before reading a path', () => {
+    const fs = { readFile: vi.fn() } as unknown as FileService
+    const settings = { getAll: vi.fn() } as unknown as SettingsService
+    trustedRendererGuard.assert.mockImplementationOnce(() => {
+      throw new Error('untrusted')
+    })
+    registerFsIpc(fs, settings, trustedRendererGuard as never)
+
+    expect(() => getHandler('fs:readFile')({ sender: {} }, '/tmp/project/file.md')).toThrow(
+      'untrusted',
+    )
+    expect(fs.readFile).not.toHaveBeenCalled()
   })
 
   it('removes the sender destroyed listener when a watcher stops normally', () => {
@@ -45,7 +66,7 @@ describe('registerFsIpc directory watcher lifecycle', () => {
     } as unknown as SettingsService
     const sender = createSender()
 
-    registerFsIpc(fs, settings)
+    registerFsIpc(fs, settings, trustedRendererGuard as never)
     const start = getHandler('fs:watchDirStart')
     const stopWatching = getHandler('fs:watchDirStop')
 
@@ -69,7 +90,7 @@ describe('registerFsIpc directory watcher lifecycle', () => {
     } as unknown as SettingsService
     const sender = createSender()
 
-    registerFsIpc(fs, settings)
+    registerFsIpc(fs, settings, trustedRendererGuard as never)
     const start = getHandler('fs:watchDirStart')
     const stopWatching = getHandler('fs:watchDirStop')
     const watchId = start({ sender }, '/tmp/project')

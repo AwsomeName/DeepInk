@@ -12,6 +12,8 @@ import { ActiveDeviceManager } from '../android/active-device-manager'
 import { PhysicalDeviceManager } from '../android/physical-device-manager'
 import { ScrcpyBridge } from '../android/scrcpy-bridge'
 import { createMainWindow } from './main-window'
+import { resolveMainRendererEntryUrl } from './main-window'
+import { createTrustedRendererGuard } from '../ipc/trusted-renderer-guard'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 
 interface CreateWindowRuntimeOptions {
@@ -30,9 +32,19 @@ export function createWindowRuntime(
     rendererUrl: options.rendererUrl,
     rendererHtmlPath: options.rendererHtmlPath,
   })
+  runtime.trustedRendererGuard = createTrustedRendererGuard(
+    runtime.mainWindow,
+    resolveMainRendererEntryUrl({
+      isDev: runtime.isDev,
+      preloadPath: options.preloadPath,
+      rendererUrl: options.rendererUrl,
+      rendererHtmlPath: options.rendererHtmlPath,
+    }),
+  )
 
   runtime.mainWindow.on('closed', () => {
     runtime.mainWindow = null
+    runtime.trustedRendererGuard = null
   })
 
   const settings = runtime.settingsService!.getAll()
@@ -69,7 +81,7 @@ export function createWindowRuntime(
   )
 
   registerDialogIpc(runtime.mainWindow)
-  registerWindowIpc(runtime.mainWindow)
+  registerWindowIpc(runtime.mainWindow, runtime.trustedRendererGuard)
 
   runtime.adbBridge = new AdbBridge()
   runtime.scrcpyBridge = new ScrcpyBridge(runtime.mainWindow)

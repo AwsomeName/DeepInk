@@ -7,14 +7,20 @@
  * - settings:reset   — 恢复默认设置
  */
 
-import { ipcMain } from 'electron'
 import type { SettingsService } from './settings-service'
 import type { PermissionManager } from '../mcp/permission'
 import type { AgentBridge } from '../agent/agent-bridge'
-import type { AppSettings, PermissionMode } from './types'
+import type { PermissionMode } from './types'
 import { detectClaudeCode } from '../agent/claude-code-detector'
 import type { McpToolHost } from '../mcp/tool-host'
-import type { SettingsSecretKey } from '../../shared/ipc/settings'
+import type { TrustedRendererGuard } from '../ipc/trusted-renderer-guard'
+import { registerTrustedIpcHandler } from '../ipc/trusted-renderer-guard'
+import {
+  parseSettingsKey,
+  parseSettingsSecretKey,
+  parseSettingsSecretValue,
+  parseSettingsUpdate,
+} from './settings-ipc-schema'
 
 /** 合法的 permissionMode 值 */
 const VALID_PERMISSION_MODES = new Set<string>(['auto', 'categorized', 'strict'])
@@ -29,47 +35,54 @@ const AGENT_SETTING_KEYS = new Set([
   'apiBaseUrl',
   'modelName',
 ])
-const SETTINGS_SECRET_KEYS = new Set<string>(['apiKey', 'meshyApiKey'])
-
 export function registerSettingsIpc(
   settingsService: SettingsService,
+  trustedRendererGuard: TrustedRendererGuard,
   permissionManager: PermissionManager,
   getAgentBridge: () => AgentBridge | null,
   getToolHost: () => McpToolHost | null = () => null,
 ): void {
   /** 获取所有设置 */
-  ipcMain.handle('settings:getAll', () => {
+  registerTrustedIpcHandler('settings:getAll', trustedRendererGuard, () => {
     return settingsService.getAll()
   })
 
-  ipcMain.handle('settings:getSecretStatus', () => {
+  registerTrustedIpcHandler('settings:getSecretStatus', trustedRendererGuard, () => {
     return settingsService.getSecretStatus()
   })
 
-  ipcMain.handle('settings:setSecret', async (_event, key: string, value: unknown) => {
-    try {
-      assertSecretKey(key)
-      if (typeof value !== 'string') throw new Error('设置凭证必须是字符串')
-      const status = await settingsService.setSecret(key, value)
-      reconfigureAgent(getAgentBridge(), settingsService)
-      return { success: true, status }
-    } catch (err) {
-      console.error('[SettingsIPC] 设置凭证更新失败:', err)
-      return { success: false, error: err instanceof Error ? err.message : String(err) }
-    }
-  })
+  registerTrustedIpcHandler(
+    'settings:setSecret',
+    trustedRendererGuard,
+    async (_event, key: unknown, value: unknown) => {
+      try {
+        const status = await settingsService.setSecret(
+          parseSettingsSecretKey(key),
+          parseSettingsSecretValue(value),
+        )
+        reconfigureAgent(getAgentBridge(), settingsService)
+        return { success: true, status }
+      } catch (err) {
+        console.error('[SettingsIPC] 设置凭证更新失败:', err)
+        return { success: false, error: settingsIpcError(err) }
+      }
+    },
+  )
 
-  ipcMain.handle('settings:clearSecret', async (_event, key: string) => {
-    try {
-      assertSecretKey(key)
-      const status = await settingsService.clearSecret(key)
-      reconfigureAgent(getAgentBridge(), settingsService)
-      return { success: true, status }
-    } catch (err) {
-      console.error('[SettingsIPC] 设置凭证清除失败:', err)
-      return { success: false, error: err instanceof Error ? err.message : String(err) }
-    }
-  })
+  registerTrustedIpcHandler(
+    'settings:clearSecret',
+    trustedRendererGuard,
+    async (_event, key: unknown) => {
+      try {
+        const status = await settingsService.clearSecret(parseSettingsSecretKey(key))
+        reconfigureAgent(getAgentBridge(), settingsService)
+        return { success: true, status }
+      } catch (err) {
+        console.error('[SettingsIPC] 设置凭证清除失败:', err)
+        return { success: false, error: settingsIpcError(err) }
+      }
+    },
+  )
 
   /**
    * 更新部分设置
@@ -78,39 +91,44 @@ export function registerSettingsIpc(
    * - permissionMode → PermissionManager.setMode()
    * - API 配置变更 → AgentBridge.reconfigure()
    */
-  ipcMain.handle('settings:set', async (_event, partial: Partial<AppSettings>) => {
-    try {
-      const updated = await settingsService.set(partial)
+  registerTrustedIpcHandler(
+    'settings:set',
+    trustedRendererGuard,
+    async (_event, input: unknown) => {
+      try {
+        const partial = parseSettingsUpdate(input)
+        const updated = await settingsService.set(partial)
 
-      // 权限模式：校验后立即生效
-      if (partial.permissionMode) {
-        const mode = partial.permissionMode as string
-        if (VALID_PERMISSION_MODES.has(mode)) {
-          permissionManager.setMode(mode as PermissionMode)
-        } else {
-          console.warn('[SettingsIPC] 无效的权限模式:', mode)
+        // 权限模式：校验后立即生效
+        if (partial.permissionMode) {
+          const mode = partial.permissionMode as string
+          if (VALID_PERMISSION_MODES.has(mode)) {
+            permissionManager.setMode(mode as PermissionMode)
+          } else {
+            console.warn('[SettingsIPC] 无效的权限模式:', mode)
+          }
         }
-      }
 
-      if (partial.disabledAgentToolModules) {
-        applyToolModuleSettings(getToolHost(), updated.disabledAgentToolModules)
-      }
+        if (partial.disabledAgentToolModules) {
+          applyToolModuleSettings(getToolHost(), updated.disabledAgentToolModules)
+        }
 
-      // API 配置变更：热重载后端
-      const agentBridge = getAgentBridge()
-      if (agentBridge && Object.keys(partial).some((k) => AGENT_SETTING_KEYS.has(k))) {
-        reconfigureAgent(agentBridge, settingsService)
-      }
+        // API 配置变更：热重载后端
+        const agentBridge = getAgentBridge()
+        if (agentBridge && Object.keys(partial).some((k) => AGENT_SETTING_KEYS.has(k))) {
+          reconfigureAgent(agentBridge, settingsService)
+        }
 
-      return { success: true, settings: updated }
-    } catch (err) {
-      console.error('[SettingsIPC] 设置更新失败:', err)
-      return { success: false, error: String(err) }
-    }
-  })
+        return { success: true, settings: updated }
+      } catch (err) {
+        console.error('[SettingsIPC] 设置更新失败:', err)
+        return { success: false, error: settingsIpcError(err) }
+      }
+    },
+  )
 
   /** 恢复默认设置 */
-  ipcMain.handle('settings:reset', async () => {
+  registerTrustedIpcHandler('settings:reset', trustedRendererGuard, async () => {
     try {
       const settings = await settingsService.reset()
       // 重置权限模式为默认值
@@ -126,43 +144,48 @@ export function registerSettingsIpc(
       return { success: true, settings }
     } catch (err) {
       console.error('[SettingsIPC] 设置重置失败:', err)
-      return { success: false, error: String(err) }
+      return { success: false, error: settingsIpcError(err) }
     }
   })
 
   /** 重置单个设置到默认值 */
-  ipcMain.handle('settings:resetKey', async (_event, key: string) => {
-    try {
-      const updated = await settingsService.resetKey(key as keyof AppSettings)
+  registerTrustedIpcHandler(
+    'settings:resetKey',
+    trustedRendererGuard,
+    async (_event, input: unknown) => {
+      try {
+        const key = parseSettingsKey(input)
+        const updated = await settingsService.resetKey(key)
 
-      // 权限模式重置 → 即时生效
-      if (key === 'permissionMode') {
-        permissionManager.setMode(updated.permissionMode)
-      }
-      if (key === 'disabledAgentToolModules') {
-        applyToolModuleSettings(getToolHost(), updated.disabledAgentToolModules)
-      }
+        // 权限模式重置 → 即时生效
+        if (key === 'permissionMode') {
+          permissionManager.setMode(updated.permissionMode)
+        }
+        if (key === 'disabledAgentToolModules') {
+          applyToolModuleSettings(getToolHost(), updated.disabledAgentToolModules)
+        }
 
-      // API 配置重置 → 热重载后端
-      const agentBridge = getAgentBridge()
-      if (AGENT_SETTING_KEYS.has(key) && agentBridge) {
-        reconfigureAgent(agentBridge, settingsService)
-      }
+        // API 配置重置 → 热重载后端
+        const agentBridge = getAgentBridge()
+        if (AGENT_SETTING_KEYS.has(key) && agentBridge) {
+          reconfigureAgent(agentBridge, settingsService)
+        }
 
-      return { success: true, settings: updated }
-    } catch (err) {
-      console.error('[SettingsIPC] 单项重置失败:', err)
-      return { success: false, error: String(err) }
-    }
-  })
+        return { success: true, settings: updated }
+      } catch (err) {
+        console.error('[SettingsIPC] 单项重置失败:', err)
+        return { success: false, error: settingsIpcError(err) }
+      }
+    },
+  )
 
   /** 检测本机 Claude Code CLI 路径 */
-  ipcMain.handle('settings:detectClaudeCode', async () => {
+  registerTrustedIpcHandler('settings:detectClaudeCode', trustedRendererGuard, async () => {
     try {
       const settings = settingsService.getAll()
       return { success: true, status: await detectClaudeCode(settings.claudeCodePath) }
     } catch (err) {
-      return { success: false, error: err instanceof Error ? err.message : String(err) }
+      return { success: false, error: settingsIpcError(err) }
     }
   })
 
@@ -177,10 +200,6 @@ function applyToolModuleSettings(toolHost: McpToolHost | null, disabledModules: 
   }
 }
 
-function assertSecretKey(key: string): asserts key is SettingsSecretKey {
-  if (!SETTINGS_SECRET_KEYS.has(key)) throw new Error(`Unknown settings secret key: ${key}`)
-}
-
 function reconfigureAgent(agentBridge: AgentBridge | null, settingsService: SettingsService): void {
   if (!agentBridge) return
   try {
@@ -188,4 +207,11 @@ function reconfigureAgent(agentBridge: AgentBridge | null, settingsService: Sett
   } catch (err) {
     console.warn('[SettingsIPC] 后端热重载失败（下次启动生效）:', err)
   }
+}
+
+function settingsIpcError(error: unknown): string {
+  if (error && typeof error === 'object' && 'name' in error && error.name === 'ZodError') {
+    return '设置参数无效'
+  }
+  return error instanceof Error ? error.message : String(error)
 }

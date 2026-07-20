@@ -11,7 +11,20 @@ vi.mock('electron', () => ({
   ipcMain: mockIpcMain,
 }))
 
-import { registerTerminalIpc } from './terminal-ipc'
+import { registerTerminalIpc as registerProductionTerminalIpc } from './terminal-ipc'
+
+const trustedRendererGuard = {
+  assert: vi.fn(),
+  isTrusted: vi.fn(() => true),
+}
+
+function registerTerminalIpc(...args: any[]): void {
+  ;(registerProductionTerminalIpc as (...values: any[]) => void)(
+    args[0],
+    trustedRendererGuard,
+    ...args.slice(1),
+  )
+}
 
 const terminalRuntime = {
   location: 'local',
@@ -25,6 +38,23 @@ describe('registerTerminalIpc', () => {
   beforeEach(() => {
     mockIpcMain.handlers.clear()
     mockIpcMain.handle.mockClear()
+    trustedRendererGuard.assert.mockReset()
+    trustedRendererGuard.isTrusted.mockReset()
+    trustedRendererGuard.isTrusted.mockReturnValue(true)
+  })
+
+  it('rejects an untrusted sender before resolving confirmations', () => {
+    const terminalConfirmationService = {
+      resolveConfirmation: vi.fn(() => true),
+    } as any
+    trustedRendererGuard.assert.mockImplementationOnce(() => {
+      throw new Error('untrusted')
+    })
+    registerTerminalIpc(terminalConfirmationService)
+
+    const handler = mockIpcMain.handlers.get('terminal:resolveCommandConfirmation')
+    expect(() => handler?.({ sender: {} }, 'confirmation-1', true)).toThrow('untrusted')
+    expect(terminalConfirmationService.resolveConfirmation).not.toHaveBeenCalled()
   })
 
   it('registers command confirmation resolver', () => {

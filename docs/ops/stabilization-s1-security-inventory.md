@@ -1,6 +1,6 @@
 # S1 安全边界库存
 
-> 状态：S1 进行中，S1.1 与 S1.2 已完成。分支：`codex/stabilization-s1`。起始基线：`540b93e`。日期：2026-07-20。
+> 状态：S1 进行中，S1.1-S1.3 已完成。分支：`codex/stabilization-s1`。起始基线：`540b93e`。日期：2026-07-20。
 
 ## 结论
 
@@ -18,12 +18,12 @@ S1 的首要目标是切断不可信内容、密钥和高权限 IPC 之间的直
 | 边界 | 当前事实 | 风险 | 状态 |
 | --- | --- | --- | --- |
 | 微信 HTML 预览 | 原实现允许 Markdown 原始 HTML，并通过 `dangerouslySetInnerHTML` 注入拥有 preload 的主 renderer | 恶意文档可尝试在高权限页面执行脚本 | S1.1 已修复：禁用原始 HTML，改用零权限 sandbox iframe，并增加 iframe 内 CSP |
-| 主 renderer | `contextIsolation: true`、`nodeIntegration: false`；S1.1 前 `sandbox: false` | renderer 被攻破后缺少 Chromium 进程沙箱 | S1.1 已改为 `sandbox: true`，待完整 smoke 固化 |
-| 主 renderer CSP | `src/renderer/index.html` 尚无 CSP，主窗口也未注入响应头 CSP | 内容和网络能力缺少第二层限制 | 待处理；必须兼容开发 HMR、blob worker、图片和本地预览 |
+| 主 renderer | `contextIsolation: true`、`nodeIntegration: false`；S1.1 前 `sandbox: false` | renderer 被攻破后缺少 Chromium 进程沙箱 | S1.1 已改为 `sandbox: true`，S1.1-S1.3 完整 smoke 均通过 |
+| 主 renderer CSP | 主进程按开发/生产入口为主文档注入响应头 CSP；生产脚本只允许 self，开发只额外允许 Vite inline refresh 和精确 HMR origin/WebSocket；禁止 `unsafe-eval` | 开发环境仍因 Vite refresh 保留 `unsafe-inline`，必须防止该例外进入生产策略 | S1.3 已修复；UI smoke 以被禁止的 `data:` 脚本验证策略真实生效 |
 | Browser/Auth 视图 | 普通 WebContentsView、纯净窗口和认证子进程均启用 sandbox/context isolation，认证窗口无 preload/CDP | 边界已有实现，仍需保持回归门禁 | 已有 S0 smoke 与 H3 证据 |
 | preload | `src/preload/index.ts` 约 769 行，向主 renderer 暴露浏览器、文件、Terminal、Agent、Android、数据源等多组高权限 API | 任一主 renderer 注入会获得较大攻击面 | 待按能力拆分并与 IPC contract 同源 |
-| IPC sender | 只有少数窗口控制路径显式校验 `event.sender`；多数 handler 默认信任调用方 | 非预期 WebContents 若获得通道访问可能调用高权限能力 | 待建立统一 trusted sender guard |
-| IPC schema/scope | 数据源等少数模块使用 Zod；文件、设置、Meshy 等大量 handler 仍接收普通 TS 参数 | 运行时类型、路径和工作区作用域可被绕过 | 待按风险从文件写入、设置、Terminal、设备开始补齐 |
+| IPC sender | 统一 guard 要求调用方为当前主窗口 WebContents、主 frame 且 URL 仍处于受信任 renderer 入口；窗口、设置、文件与 Terminal handler 已接入 | Browser、Android、Meshy、数据源等其余高权限 IPC 尚未统一接入 | S1.3 完成第一批高风险边界，S1.4 继续覆盖剩余模块 |
+| IPC schema/scope | 设置与文件 IPC 已使用严格 Zod schema；Terminal 保留既有运行时正规化并新增 sender guard；FileService 继续承担实际路径约束 | 尚未形成共享 IPC 单一声明源，剩余模块与资源作用域仍需盘点 | S1.3 完成第一批；契约同源和完整生命周期属于 S3 |
 | Agent API Key | 启动时迁移到独立 `safeStorage` 文件；公共设置快照固定返回空值，Agent 只从主进程运行时快照读取 | 迁移失败时旧明文仍暂时存在，但禁止覆盖且 UI 明确显示阻塞状态 | S1.2 已修复；保留迁移失败回归测试 |
 | Meshy API Key | 与 Agent Key 共用加密凭证存储，Meshy 只从主进程运行时快照读取 | Linux `basic_text` 等非安全后端不得被误判为可用加密 | S1.2 已修复；拒绝非安全后端 |
 | Git/Data source 凭证 | 已使用 Electron `safeStorage` 独立加密文件，普通配置只保留引用或是否已配置 | 已有正确模式，可复用 | 保持现有回归测试 |
@@ -67,6 +67,27 @@ S1 的首要目标是切断不可信内容、密钥和高权限 IPC 之间的直
 
 结果：通过。S1 尚未完成。
 
+## S1.3 主 renderer 与首批高权限 IPC 边界
+
+实现边界：
+
+- 主窗口只允许保持在开发 renderer 同源或生产入口 `file:` 页面；拒绝跨源顶层导航和所有 `window.open`。
+- 主文档 CSP 默认只信任自身。生产脚本禁止 inline 与 eval；开发仅为 Vite refresh 保留 inline，并把连接能力限制到当前 renderer origin 和同 host WebSocket。图片、媒体、worker、iframe 与 PDF 只开放当前功能需要的协议。
+- 统一 trusted renderer guard 同时校验当前主窗口 WebContents、主 frame 和 renderer URL。即使其他窗口获得相同 preload，或主窗口被导航到非受信任地址，也不能调用已接入 handler。
+- 设置 IPC 使用严格、有限长度和数值范围的 Zod schema；普通设置更新不能携带密钥，非法输入在持久化前拒绝。
+- 文件 IPC 对路径、哈希、文本、图片资产和文档操作增加严格 schema、长度上限及 NUL 拒绝；真实路径访问仍由 FileService 的路径规则负责。
+- Terminal IPC 复用既有命令、cwd、尺寸、sessionId 和工作区正规化，并在所有 handler 前增加同一 sender guard。窗口控制 IPC 同步接入。
+
+验收：
+
+- guard 回归覆盖错误 WebContents、子 frame、跨源页面和生产 `file:` 精确入口；handler 集成测试证明业务服务不会在拒绝前被调用。
+- CSP 单元测试固定生产/开发差异且禁止 `unsafe-eval`；UI smoke 重载真实主文档，并证明策略会阻止不在 `script-src` 中的 `data:` 脚本。
+- `pnpm verify` 完成 118 个测试文件/752 项测试、typecheck 与生产构建。
+- `pnpm smoke:standalone` 完成 local 9/9、UI 6/6、workflow 5/5、restore 4/4。
+- 严格模式 `CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window` 通过：Profile 的 Cookie/localStorage 跨进程保留，纯净窗口到达 Google 账号校验页。
+
+结果：通过。S1 尚未完成。
+
 ## 下一工作包
 
-S1.3 建立主 renderer CSP，并为高权限 IPC 引入统一 trusted sender guard 与运行时 schema。优先覆盖设置、文件写入和 Terminal 边界；必须证明开发 HMR、本地图片/worker、独立认证窗口和现有 preload 不被破坏，不得通过放宽 `unsafe-eval` 或全局信任所有 WebContents 取得表面通过。
+S1.4 继续缩小 preload 与高权限 IPC 攻击面。先为 Browser、Android、Meshy、数据源及其余写入/执行通道补 trusted sender、运行时 schema 和资源作用域，再按能力拆分 preload 暴露；不能把 renderer TypeScript 类型当作运行时校验，也不能在 S3 前顺手重写完整 IPC 生成体系。S1 只有在恶意路径/越权调用回归和剩余边界库存全部关闭后才能宣称完成。

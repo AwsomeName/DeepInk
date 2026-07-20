@@ -95,6 +95,31 @@ async function main() {
   await page.waitForLoadState('domcontentloaded')
   await page.waitForSelector('.main-window', { timeout: uiReadyTimeoutMs })
 
+  await runCheck('main renderer enforces its CSP source boundary', async () => {
+    const responsePromise = page.waitForResponse(
+      (response) =>
+        response.request().resourceType() === 'document' &&
+        response.url().startsWith('http://localhost:5173/'),
+      { timeout: uiReadyTimeoutMs },
+    )
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await responsePromise
+    await page.waitForSelector('.main-window', { timeout: uiReadyTimeoutMs })
+    const probe = await page.evaluate(
+      () =>
+        new Promise((resolve) => {
+          const script = document.createElement('script')
+          script.src = 'data:text/javascript,window.__cclinkCspProbeLoaded=true'
+          script.onload = () => resolve({ loaded: true })
+          script.onerror = () => resolve({ loaded: false })
+          document.head.append(script)
+          setTimeout(() => resolve({ loaded: Boolean(window.__cclinkCspProbeLoaded) }), 1_000)
+        }),
+    )
+    assert(!probe.loaded, 'CSP allowed a data: script outside script-src')
+    return 'blocked disallowed data script'
+  })
+
   await runCheck('first screen has no login wall', async () => {
     await page.locator('.app-topbar').waitFor({ state: 'visible', timeout: uiReadyTimeoutMs })
     const primarySurface = page.locator('.workbench, .agent-panel-center-shell')

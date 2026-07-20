@@ -32,6 +32,7 @@ import type { TerminalExecutionAdapter } from '../terminal/terminal-execution-ad
 import type { OfficialIntegration } from '../official/official-integration'
 import type { GitBackupService } from '../git-backup/git-backup-service'
 import type { FileService } from '../fs/file-service'
+import type { TrustedRendererGuard } from '../ipc/trusted-renderer-guard'
 
 export interface CclinkStudioRuntimeState {
   isDev: boolean
@@ -69,6 +70,7 @@ export interface CclinkStudioRuntimeState {
   terminalExecutionAdapter: TerminalExecutionAdapter | null
   officialIntegration: OfficialIntegration | null
   gitBackupService: GitBackupService | null
+  trustedRendererGuard: TrustedRendererGuard | null
 }
 
 export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
@@ -108,5 +110,6 @@ export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
     terminalExecutionAdapter: null,
     officialIntegration: null,
     gitBackupService: null,
+    trustedRendererGuard: null,
   }
 }

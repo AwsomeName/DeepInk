@@ -53,8 +53,8 @@ export async function bootstrapStateServices(runtime: CclinkStudioRuntimeState):
 export async function bootstrapMainProcessServices(
   runtime: CclinkStudioRuntimeState,
 ): Promise<void> {
-  if (!runtime.mainWindow || !runtime.settingsService) {
-    throw new Error('主窗口或设置系统尚未初始化')
+  if (!runtime.mainWindow || !runtime.settingsService || !runtime.trustedRendererGuard) {
+    throw new Error('主窗口、可信 renderer 或设置系统尚未初始化')
   }
 
   runtime.localIdentityService = new LocalIdentityService()
@@ -82,7 +82,7 @@ export async function bootstrapMainProcessServices(
   )
 
   runtime.fileService = new FileService()
-  registerFsIpc(runtime.fileService, runtime.settingsService)
+  registerFsIpc(runtime.fileService, runtime.settingsService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 文件系统 IPC 已注册')
 
   runtime.gitBackupService = new GitBackupService(
@@ -155,6 +155,7 @@ export async function bootstrapMainProcessServices(
   })
   registerTerminalIpc(
     runtime.terminalConfirmationService,
+    runtime.trustedRendererGuard,
     runtime.terminalAuditStore,
     runtime.terminalSessionRegistry,
     runtime.terminalCommandOrchestrator,
@@ -188,6 +189,7 @@ export async function bootstrapMainProcessServices(
 
   registerSettingsIpc(
     runtime.settingsService,
+    runtime.trustedRendererGuard,
     runtime.permissionManager,
     () => runtime.agentBridge,
     () => runtime.toolHost,
