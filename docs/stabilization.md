@@ -1,6 +1,6 @@
 # CCLink Studio 稳定化阶段
 
-> 状态：进行中。开始日期：2026-07-20。
+> 状态：S0 已完成，稳定化阶段继续。开始日期：2026-07-20。S0 完成日期：2026-07-20。
 
 ## 结论
 
@@ -19,23 +19,23 @@
 
 ## 当前基线
 
-2026-07-20 检查结果：
+2026-07-20 S0 关闭结果：
 
-- 稳定化分支为 `codex/stabilization-s0`，现场基线提交为 `49da3b2`。该提交包含原始 104 个跨域文件，现场已保全，但仍需按 `docs/ops/stabilization-s0-inventory.md` 收敛可审计边界。
-- S0 收口代码已形成独立提交：`a4353ef` 恢复格式门禁、`45d1dcd` 隔离旧账号迁移、`16e13da` 加固 standalone/auth smoke、`2316f7a` 修复 workflow smoke 清理生命周期、`0137fb5` 保证干净安装具备 Electron runtime、`94fbcf7` 稳定 UI 首屏等待。本文档记录提交后工作树干净，不存在未知未跟踪文件。
-- `pnpm verify` 已通过：OSS 边界、格式、lint、107 个测试文件/718 项测试、typecheck 和生产构建全部返回 0。
+- 稳定化分支为 `codex/stabilization-s0`，S0 功能基线为 `b0061b8`。`49da3b2` 继续按 `docs/decisions/0001-preserve-stabilization-snapshot.md` 保留为不可改写的原始现场快照。
+- S0 收口提交覆盖格式与 OSS 边界、旧账号迁移隔离、standalone/auth smoke、workflow 清理生命周期、干净安装 Electron runtime、UI 首屏等待、CI 确定性认证门禁、Terminal 应用内 URL 接管和文件树 watcher 监听器清理。
+- `pnpm verify` 已通过：OSS 边界、格式、lint、108 个测试文件/720 项测试、typecheck 和生产构建全部返回 0。
 - `pnpm smoke:standalone` 已通过：local 9/9、UI 5/5、workflow 5/5、restore 4/4。
-- 严格模式 `CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window` 已通过：Profile 的 local storage 与 Cookie 跨 Electron 重启保留，纯净窗口到达 Google 账号校验页。对照实验中启用 CDP 的窗口被 Google 判为不安全，认证子进程不得挂接 CDP 或 Playwright。
-- detached 干净 worktree 已从 `94fbcf7` 复现成功：`pnpm install --frozen-lockfile`、`pnpm verify`、`pnpm smoke:standalone` 和严格模式 `smoke:auth-window` 全部返回 0，且应用由该 worktree 独立启动并完成重启恢复。
-- CI 已固定 pnpm 11.5.0 和 frozen lockfile，并拆分 `verify` 与 macOS Electron smoke job；等待分支推送后取得远端结果。
-- `49da3b2` 按 `docs/decisions/0001-preserve-stabilization-snapshot.md` 保留为不可改写的现场快照；该例外不适用于任何后续提交。
-- GitHub CI 和核心流程人工验收尚未完成，因此 S0 仍为进行中。
+- 严格模式 `CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window` 已通过：Profile 的 local storage 与 Cookie 跨 Electron 重启保留，纯净窗口到达 Google 账号校验页；启用 CDP 的对照窗口被 Google 判为不安全。
+- 从 `b0061b8` 创建的全新 detached worktree 已依次通过 `pnpm install --frozen-lockfile`、`pnpm verify`、`pnpm smoke:standalone` 和严格模式 `smoke:auth-window`，`git status --short` 为空。
+- GitHub push CI `29747137749` 与 PR CI `29747140609` 均通过；CI 只执行确定性的 Profile/窗口认证门禁，严格 Google 联网验证保留在本地候选与真人验收。
+- H1-H5 真人验收全部通过，证据位于 `docs/ops/stabilization-s0-acceptance.md`。
+- S0 已关闭，但稳定化阶段并未结束；下一轮进入 S1 安全边界，不恢复无约束的功能扩张。
 
 每完成一个工作包都必须更新本节；不得用后续功能掩盖尚未恢复的基线。
 
 ## 工作包
 
-### S0：恢复可信基线
+### S0：恢复可信基线（已完成）
 
 S0 的目标是得到一个干净、可归因、可以从零复现的绿色基线。S0 只恢复可信施工面，不以测试绿色代替 S1-S4 的安全和架构治理。
 

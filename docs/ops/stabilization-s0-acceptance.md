@@ -1,10 +1,10 @@
 # S0 核心流程验收记录
 
-> 状态：进行中。候选分支：`codex/stabilization-s0`。日期：2026-07-20。
+> 状态：已完成。候选分支：`codex/stabilization-s0`。S0 功能基线：`b0061b8`。日期：2026-07-20。
 
 ## 结论
 
-自动化基线已经通过；下表只保留必须由可见应用和真人参与才能确认的产品行为。真实账号密码、验证码、Cookie 和 token 不得写入本文、截图文件名或诊断日志。
+自动化基线、远端 CI 和 H1-H5 真人验收已经全部通过。真实账号密码、验证码、Cookie 和 token 未写入本文、截图文件名或诊断日志。
 
 ## 自动化证据
 
@@ -16,7 +16,7 @@
 | 工作区重启恢复                         | 通过 | `smoke:restore` 4/4                                      |
 | Profile 跨 Electron 重启持久化         | 通过 | 严格 `smoke:auth-window`：local storage 与 Cookie 均保留 |
 | 纯净 Google 登录兼容性                 | 通过 | 纯净窗口到达账号校验；CDP 对照窗口被判为不安全           |
-| 完整门禁和生产构建                     | 通过 | 107 个测试文件、718 项测试、typecheck 和 build 通过      |
+| 完整门禁和生产构建                     | 通过 | 108 个测试文件、720 项测试、typecheck 和 build 通过      |
 
 ## 真人验收
 
@@ -46,7 +46,7 @@
 
 - 结果：通过
 - 时间：2026-07-20 19:55 CST
-- 证据：候选基线 `6588cf2` 加当前待提交 Terminal shim 修复；验收项目 `cclink-s0-acceptance`。自动检查确认新建 Terminal 的 cwd 为验收项目目录，`open` 解析到 Studio 管理的 `cclink-studio-terminal-browser/open`，测试 URL 启动带 `--cclink-clean-browser` 标识的独立应用内进程。真人确认出现 CCLink 管理的纯净窗口而非 Safari/Chrome，关闭后焦点返回 Studio，原 Terminal 仍存在且可继续使用。运行日志：`/tmp/cclink-studio-dev/cclink-studio-dev.log`。
+- 证据：修复提交 `b0061b8`；验收项目 `cclink-s0-acceptance`。自动检查确认新建 Terminal 的 cwd 为验收项目目录，`open` 解析到 Studio 管理的 `cclink-studio-terminal-browser/open`，测试 URL 启动带 `--cclink-clean-browser` 标识的独立应用内进程。真人确认出现 CCLink 管理的纯净窗口而非 Safari/Chrome，关闭后焦点返回 Studio，原 Terminal 仍存在且可继续使用。运行日志：`/tmp/cclink-studio-dev/cclink-studio-dev.log`。
 
 ### H3：真实站点登录、回接与持久化
 
@@ -76,7 +76,7 @@
 
 - 结果：通过
 - 时间：2026-07-20 21:08 CST
-- 证据：候选基线 `6588cf2` 加当前待提交修复。项目 A 使用 `woniu-forward` 的 V2EX Browser 与会话状态，项目 B 使用 `cclink-s0-acceptance` 的 Markdown 与 Terminal。真人在两个项目间来回切换，确认 Browser、会话和 Terminal 未串项目；重新打开项目 B 的 `h1-markdown-image.md` 后再次往返，Markdown Tab 仍保留。关闭项目 B 未影响项目 A 的现有页面和操作状态。
+- 证据：候选基线 `b0061b8`。项目 A 使用 `woniu-forward` 的 V2EX Browser 与会话状态，项目 B 使用 `cclink-s0-acceptance` 的 Markdown 与 Terminal。真人在两个项目间来回切换，确认 Browser、会话和 Terminal 未串项目；重新打开项目 B 的 `h1-markdown-image.md` 后再次往返，Markdown Tab 仍保留。关闭项目 B 未影响项目 A 的现有页面和操作状态。
 
 ### H5：任务状态与项目切换
 
@@ -89,10 +89,17 @@
 
 - 结果：通过
 - 时间：2026-07-20 21:31 CST
-- 证据：候选基线 `6588cf2` 加当前待提交修复。真人在 `cclink-s0-acceptance` Terminal 启动 60 秒本地倒计时，运行中切换到 `woniu-forward` 再返回，确认输出继续增长且没有被项目切换隐式终止。随后使用 `Control+C` 终止命令并执行 `exit`，Terminal 明确显示“进程已退出，退出码 130”，未停留在运行中或无状态空白；验收截图：`codex-clipboard-94cd0e86-2855-4ba2-9f67-a9d20432c9c5.png`。
+- 证据：候选基线 `b0061b8`。真人在 `cclink-s0-acceptance` Terminal 启动 60 秒本地倒计时，运行中切换到 `woniu-forward` 再返回，确认输出继续增长且没有被项目切换隐式终止。随后使用 `Control+C` 终止命令并执行 `exit`，Terminal 明确显示“进程已退出，退出码 130”，未停留在运行中或无状态空白；验收截图：`codex-clipboard-94cd0e86-2855-4ba2-9f67-a9d20432c9c5.png`。
+
+## 关闭证据
+
+- 干净复验：从 `b0061b8` 创建全新 detached worktree，冻结安装、`pnpm verify`、`pnpm smoke:standalone` 和严格 Google `smoke:auth-window` 全部通过，工作树为空。
+- 远端 CI：push run `29747137749` 与 pull request run `29747140609` 均为 `success`。
+- Pull request：`https://github.com/AwsomeName/cclink-studio/pull/1`。
+- 真人验收：H1-H5 均为“通过”，没有失败或阻塞项。
 
 ## 失败记录要求
 
 失败或阻塞项必须记录：候选 commit、操作步骤、预期、实际、发生时间、工作区非敏感标识、诊断日志路径和截图路径。诊断日志默认位置为 `/tmp/cclink-studio-dev/cclink-studio-dev.log`；复制 Studio 诊断报告时继续保持脱敏。
 
-全部 H1-H5 通过、CI 通过且工作树干净后，才可把 S0 标记为完成。
+H1-H5、CI 和干净 worktree 复验均已通过，S0 于 2026-07-20 完成。
