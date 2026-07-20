@@ -42,11 +42,16 @@ describe('CadToolModule', () => {
   })
 
   it('delegates supported conversion requests to the CAD service', async () => {
-    const convertModel = vi.fn().mockResolvedValue({ success: true, previewPath: '/tmp/preview.stl' })
+    const convertModel = vi
+      .fn()
+      .mockResolvedValue({ success: true, previewPath: '/tmp/preview.stl' })
     const module = new CadToolModule({ convertModel } as any)
 
     await expect(
-      module.execute('cad_convert_model', { inputPath: '/project/model.step', targetFormat: 'stl' }),
+      module.execute('cad_convert_model', {
+        inputPath: '/project/model.step',
+        targetFormat: 'stl',
+      }),
     ).resolves.toEqual({ success: true, previewPath: '/tmp/preview.stl' })
     expect(convertModel).toHaveBeenCalledWith({
       inputPath: '/project/model.step',
@@ -59,7 +64,10 @@ describe('CadToolModule', () => {
     const module = new CadToolModule({ convertModel: vi.fn() } as any)
 
     await expect(
-      module.execute('cad_convert_model', { inputPath: '/project/model.3mf', targetFormat: 'step' }),
+      module.execute('cad_convert_model', {
+        inputPath: '/project/model.3mf',
+        targetFormat: 'step',
+      }),
     ).rejects.toThrow('当前只支持 STEP/STP -> STL')
   })
 })

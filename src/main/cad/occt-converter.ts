@@ -79,12 +79,7 @@ export async function detectOpenCascade(): Promise<CadBackendStatus> {
         available: false,
         source: 'managed',
         path: packageRoot,
-        error: occtError(
-          'backend-not-found',
-          'OpenCascade wasm 文件不可读。',
-          true,
-          wasmPath,
-        ),
+        error: occtError('backend-not-found', 'OpenCascade wasm 文件不可读。', true, wasmPath),
       }
     }
     return {

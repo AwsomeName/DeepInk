@@ -344,10 +344,14 @@ export class CadConversionService {
             error: cadError('backend-not-found', 'FreeCAD 可执行文件路径不可用。', true),
           }
         }
-        await execFileAsync(backendStatus.path, [scriptPath, inputPath, previewPath, metadataPath], {
-          timeout: DEFAULT_CONVERSION_TIMEOUT_MS,
-          maxBuffer: 4 * 1024 * 1024,
-        })
+        await execFileAsync(
+          backendStatus.path,
+          [scriptPath, inputPath, previewPath, metadataPath],
+          {
+            timeout: DEFAULT_CONVERSION_TIMEOUT_MS,
+            maxBuffer: 4 * 1024 * 1024,
+          },
+        )
       }
       const outputStat = await stat(previewPath).catch(() => null)
       if (!outputStat || outputStat.size <= 0) {
@@ -372,9 +376,7 @@ export class CadConversionService {
       diagnostics.push({
         level: 'info',
         message:
-          settings.cadBackend === 'occt-experimental'
-            ? 'OpenCascade 转换完成。'
-            : 'CAD 转换完成。',
+          settings.cadBackend === 'occt-experimental' ? 'OpenCascade 转换完成。' : 'CAD 转换完成。',
         detail: previewPath,
       })
       if (settings.cadCacheEnabled) {

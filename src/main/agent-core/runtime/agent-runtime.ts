@@ -56,7 +56,8 @@ export class AgentRuntime {
     options?: AgentSendOptions,
   ): Promise<void> {
     const conversation = this.ensureConversation(conversationId)
-    conversation.activeRunId = options?.runId ?? `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+    conversation.activeRunId =
+      options?.runId ?? `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
     await conversation.backend.sendMessage(message, {
       ...options,
       conversationId,

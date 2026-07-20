@@ -152,6 +152,8 @@ export class SettingsService {
 function normalizeModuleIds(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return Array.from(
-    new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)),
+    new Set(
+      value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0),
+    ),
   )
 }
