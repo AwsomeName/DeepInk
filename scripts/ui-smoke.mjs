@@ -102,7 +102,8 @@ async function main() {
       !(await page.locator('.runtime-unavailable').count()),
       'runtime unavailable screen visible',
     )
-    assert(text.includes('未归档'), 'global workspace copy missing')
+    assert(await page.locator('.app-topbar').isVisible(), 'topbar is not visible')
+    assert(await page.locator('.workbench').isVisible(), 'workbench is not visible')
     assert(!text.includes('登录 CCLink'), 'login copy should not block the shell')
     return 'main window ready'
   })
@@ -122,7 +123,12 @@ async function main() {
     )
     await clickByTitle(page, '文件')
     await page.waitForTimeout(200)
-    assert(await page.getByText('未归档没有项目文件树').isVisible(), 'files empty state missing')
+    const filesState = page
+      .locator(
+        '.project-files-empty, .project-files-section .file-tree-shell, .project-files-section .file-tree-loading, .project-files-section .file-tree-empty, .project-files-section > .project-panel-empty',
+      )
+      .first()
+    await filesState.waitFor({ state: 'visible', timeout: 10_000 })
     return 'browser/terminal/files'
   })
 

@@ -12,11 +12,20 @@ const TEST_EMAIL = 'cclink-browser-compat-test-20260717@example.com'
 const GOOGLE_OAUTH_URL =
   'https://accounts.google.com/o/oauth2/v2/auth?client_id=910913558771-jo298qljjvd2vh4b1rmkcb8m97mdbsbk.apps.googleusercontent.com&redirect_uri=https%3A%2F%2Fwww.v2ex.com%2Fauth%2Fgoogle&response_type=code&scope=profile%20email&prompt=select_account'
 const GOOGLE_VARIANTS = ['clean', 'cdp', 'automation-controlled', 'ua-normalized', 'current']
+const REQUIRE_GOOGLE_LIVE = process.env.CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE === '1'
+const NETWORK_ERROR_CODES = new Set([-2, -7, -21, -100, -101, -102, -105, -106, -109, -118, -137])
 
 if (!process.versions.electron) {
   void runController()
 } else {
-  void runElectronPhase()
+  void runElectronPhase().catch((error) => {
+    const { app } = require('electron')
+    const result = {
+      outcome: 'phase-error',
+      error: error instanceof Error ? error.message : String(error),
+    }
+    process.stdout.write(`${RESULT_PREFIX}${JSON.stringify(result)}\n`, () => app.exit(1))
+  })
 }
 
 async function runController() {
@@ -30,6 +39,13 @@ async function runController() {
     for (const variant of GOOGLE_VARIANTS) {
       googleResults[variant] = await runChild(electronPath, 'google', userDataPath, variant)
     }
+    const cleanGoogleOutcome = googleResults.clean.outcome
+    const googleStatus =
+      cleanGoogleOutcome === 'account-validation-reached'
+        ? 'passed'
+        : cleanGoogleOutcome === 'network-unavailable'
+          ? 'inconclusive-network'
+          : 'failed'
     const result = {
       profilePersistence:
         writeResult.storageWritten === true &&
@@ -38,11 +54,15 @@ async function runController() {
         readResult.cookieValue === STORAGE_VALUE,
       writeResult,
       readResult,
-      googleCompatible: googleResults.clean.outcome === 'account-validation-reached',
+      googleCompatible: googleStatus === 'passed',
+      googleStatus,
+      googleLiveRequired: REQUIRE_GOOGLE_LIVE,
       googleResults,
     }
+    const googleGatePassed =
+      googleStatus === 'passed' || (googleStatus === 'inconclusive-network' && !REQUIRE_GOOGLE_LIVE)
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)
-    process.exitCode = result.profilePersistence && result.googleCompatible ? 0 : 1
+    process.exitCode = result.profilePersistence && googleGatePassed ? 0 : 1
   } finally {
     fs.rmSync(userDataPath, { recursive: true, force: true })
   }
@@ -79,7 +99,10 @@ function runChild(electronPath, phase, userDataPath, variant = null) {
         reject(new Error(`Electron phase ${phase} failed (code ${code}): ${stderr || stdout}`))
         return
       }
-      resolve(JSON.parse(line.slice(RESULT_PREFIX.length)))
+      resolve({
+        ...JSON.parse(line.slice(RESULT_PREFIX.length)),
+        processExitCode: code,
+      })
     })
   })
 }
@@ -170,6 +193,14 @@ async function readProfileState(BrowserWindow, profileSession) {
 
 async function testGoogleCompatibility(BrowserWindow, profileSession, variant) {
   const window = createCleanWindow(BrowserWindow, profileSession, true)
+  let navigationFailure = null
+  window.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      if (!isMainFrame) return
+      navigationFailure = { errorCode, errorDescription, validatedURL }
+    },
+  )
   const initialUserAgent = window.webContents.getUserAgent()
   if (variant === 'ua-normalized' || variant === 'current') {
     window.webContents.setUserAgent(initialUserAgent.replace(/\s+Electron\/[\d.]+/i, ''))
@@ -179,7 +210,35 @@ async function testGoogleCompatibility(BrowserWindow, profileSession, variant) {
     return { action: 'deny' }
   })
 
-  void window.loadURL(GOOGLE_OAUTH_URL).catch(() => {})
+  let loadError = null
+  try {
+    await window.loadURL(GOOGLE_OAUTH_URL)
+  } catch (error) {
+    loadError = error
+  }
+
+  if (loadError) {
+    const errorCode =
+      navigationFailure?.errorCode ??
+      (typeof loadError.errno === 'number' ? loadError.errno : undefined)
+    const errorDescription =
+      navigationFailure?.errorDescription ??
+      (loadError instanceof Error ? loadError.message : String(loadError))
+    const windowDestroyed = window.isDestroyed()
+    const failedUrl = navigationFailure?.validatedURL ?? safeWindowUrl(window)
+    const effectiveUserAgent = safeUserAgent(window, initialUserAgent)
+    destroyWindow(window)
+    return {
+      outcome: classifyNavigationFailure(errorCode, errorDescription),
+      url: summarizeUrl(failedUrl),
+      errorCode: errorCode ?? null,
+      errorDescription,
+      windowDestroyed,
+      initialUserAgent,
+      effectiveUserAgent,
+    }
+  }
+
   await waitForCondition(() => window.webContents.getURL().includes('accounts.google.com'), 15_000)
 
   const emailInputFound = await waitForCondition(async () => {
@@ -190,9 +249,9 @@ async function testGoogleCompatibility(BrowserWindow, profileSession, variant) {
   }, 15_000)
   if (!emailInputFound) {
     const pageText = await safePageText(window)
-    const url = window.webContents.getURL()
-    const effectiveUserAgent = window.webContents.getUserAgent()
-    window.destroy()
+    const url = safeWindowUrl(window)
+    const effectiveUserAgent = safeUserAgent(window, initialUserAgent)
+    destroyWindow(window)
     return {
       outcome: classifyGoogleOutcome(url, pageText),
       url: summarizeUrl(url),
@@ -220,12 +279,38 @@ async function testGoogleCompatibility(BrowserWindow, profileSession, variant) {
     return classifyGoogleOutcome(url, text) !== 'pending'
   }, 20_000)
 
-  const url = window.webContents.getURL()
+  const url = safeWindowUrl(window)
   const pageText = await safePageText(window)
   const outcome = classifyGoogleOutcome(url, pageText)
-  const effectiveUserAgent = window.webContents.getUserAgent()
-  window.destroy()
+  const effectiveUserAgent = safeUserAgent(window, initialUserAgent)
+  destroyWindow(window)
   return { outcome, url: summarizeUrl(url), initialUserAgent, effectiveUserAgent }
+}
+
+function safeWindowUrl(window) {
+  if (window.isDestroyed() || window.webContents.isDestroyed()) return ''
+  return window.webContents.getURL()
+}
+
+function safeUserAgent(window, fallback) {
+  if (window.isDestroyed() || window.webContents.isDestroyed()) return fallback
+  return window.webContents.getUserAgent()
+}
+
+function destroyWindow(window) {
+  if (!window.isDestroyed()) window.destroy()
+}
+
+function classifyNavigationFailure(errorCode, errorDescription) {
+  if (
+    NETWORK_ERROR_CODES.has(errorCode) ||
+    /ERR_(?:FAILED|TIMED_OUT|CONNECTION_|INTERNET_|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE)/i.test(
+      errorDescription,
+    )
+  ) {
+    return 'network-unavailable'
+  }
+  return 'navigation-failed'
 }
 
 function summarizeUrl(url) {

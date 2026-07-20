@@ -5,6 +5,8 @@ import { readFile } from 'node:fs/promises'
 import { chromium } from 'playwright-core'
 
 const rootDir = new URL('..', import.meta.url).pathname.replace(/\/$/, '')
+const packageMetadata = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+const expectedProductName = packageMetadata.productName
 const logFile = process.env.CCLINK_STUDIO_LOG_FILE || '/tmp/cclink-studio-dev/cclink-studio-dev.log'
 const keepRunning = process.argv.includes('--keep-running')
 const results = []
@@ -94,7 +96,7 @@ async function main() {
       bodyText: document.body.innerText,
       apiKeys: Object.keys(window.cclinkStudio || {}).sort(),
     }))
-    assert(shell.title === 'CCLink Studio', `unexpected title: ${shell.title}`)
+    assert(shell.title === expectedProductName, `unexpected title: ${shell.title}`)
     assert(!shell.hasRuntimeUnavailable, 'renderer reports runtime unavailable')
     assert(shell.hasMainWindow, 'main window is missing')
     assert(shell.hasTopbar, 'topbar is missing')

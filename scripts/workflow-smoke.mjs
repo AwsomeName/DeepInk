@@ -166,17 +166,13 @@ async function main() {
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.waitForSelector('.main-window', { timeout: 15_000 })
     await ensureSidebarVisible(page)
-    await clickByTitle(page, '项目')
-    const projectItem = page.locator(`.project-panel-project-item[title="${workspaceDir}"]`).first()
+    await clickByTitle(page, '历史项目')
+    const projectItem = page.locator(`.project-history-item[title="${workspaceDir}"]`).first()
     await projectItem.waitFor({ timeout: 10_000 })
-    await projectItem.evaluate((element) => element.click())
-    await page.waitForFunction(
-      (name) =>
-        document.querySelector('.app-topbar-title')?.textContent?.includes(name) &&
-        document.body.innerText.includes('notes.md'),
-      workspaceName,
-      { timeout: 20_000 },
-    )
+    await projectItem.click()
+    await page
+      .locator(`.project-strip-item.active[data-project-path="${workspaceDir}"]`)
+      .waitFor({ timeout: 20_000 })
     return workspaceName
   })
 

@@ -12,6 +12,7 @@ pnpm smoke:ui
 pnpm smoke:workflow
 pnpm smoke:restore
 pnpm smoke:standalone
+pnpm smoke:auth-window
 ```
 
 The scripts start CCLink Studio with `scripts/restart.sh start` when needed, connect to the Electron
@@ -21,6 +22,24 @@ renderer through CDP, run the checks below, and stop the app again unless it was
 by clicking the actual UI. `smoke:workflow` verifies a local workspace task loop. `smoke:restore`
 verifies startup restoration from `lastWorkspacePath`. `smoke:standalone` runs the full standalone
 desktop shell smoke gate.
+
+`smoke:auth-window` verifies that the isolated login window uses a sandboxed renderer and that its
+persistent partition retains local storage and cookies across Electron restarts. It also probes the
+live Google OAuth page. The probe reports one of three states:
+
+- `passed`: the clean Electron window reached Google's account-validation flow.
+- `failed`: the window, profile, navigation, or Google compatibility check failed.
+- `inconclusive-network`: the persistent profile passed, but the live Google page could not be
+  reached from the current network. This is not evidence that Google compatibility passed.
+
+Use strict mode on a network that can reach Google when live compatibility is a required gate:
+
+```bash
+CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window
+```
+
+Strict mode returns nonzero for `inconclusive-network`; Google's unsafe-browser rejection always
+returns nonzero in both modes.
 
 Use this variant when you want to keep the app open after the smoke check:
 
