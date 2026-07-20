@@ -12,6 +12,7 @@ vi.mock('electron', () => ({
 }))
 
 import { ProjectOpsService } from './project-ops-service'
+import { LEGACY_PROJECT_OPS_ACCOUNT_PATHS } from '../migrations/project-ops-legacy-account-paths'
 
 let tempDir = ''
 let workspacePath = ''
@@ -48,17 +49,18 @@ describe('ProjectOpsService', () => {
     expect(loaded.config?.platforms.map((platform) => platform.id)).toContain('v2ex')
   })
 
-  it('reads the former root-level DeepInk accounts file', async () => {
+  it('reads a supported legacy root-level accounts file', async () => {
     const service = new ProjectOpsService()
     await service.createAccountsTemplate(workspacePath)
     const current = await readFile(join(workspacePath, 'cclink-accounts.json'), 'utf-8')
     await rm(join(workspacePath, 'cclink-accounts.json'))
-    await writeFile(join(workspacePath, 'deepink-accounts.json'), current, 'utf-8')
+    const legacyPath = join(workspacePath, ...LEGACY_PROJECT_OPS_ACCOUNT_PATHS[0])
+    await writeFile(legacyPath, current, 'utf-8')
 
     const loaded = await service.getAccounts(workspacePath)
 
     expect(loaded.exists).toBe(true)
-    expect(loaded.filePath).toBe(join(workspacePath, 'deepink-accounts.json'))
+    expect(loaded.filePath).toBe(legacyPath)
     expect(loaded.config?.platforms.map((platform) => platform.id)).toContain('zhihu')
   })
 

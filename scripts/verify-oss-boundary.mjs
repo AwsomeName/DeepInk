@@ -8,6 +8,11 @@ const root = process.cwd()
 
 const ignoredFiles = new Set(['pnpm-lock.yaml', 'verify-oss-boundary.mjs'])
 
+// 旧产品名只允许存在于显式迁移模块，不能回流到业务代码、测试或产品文档。
+const scopedAllowances = new Map([
+  ['src/main/migrations/project-ops-legacy-account-paths.ts', new Set(['old product name'])],
+])
+
 const forbidden = [
   { label: 'old product name', pattern: /DeepInk|deepink|DEEPINK/ },
   { label: 'old private service naming', pattern: /private-serv|private service|private-service/ },
@@ -74,6 +79,7 @@ function scanFile(relativePath) {
     for (const rule of forbidden) {
       const match = line.match(rule.pattern)
       if (match) {
+        if (scopedAllowances.get(relativePath)?.has(rule.label)) continue
         matches.push({
           path: relativePath,
           line: lineIndex + 1,

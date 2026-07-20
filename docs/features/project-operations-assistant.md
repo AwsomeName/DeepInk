@@ -237,7 +237,7 @@ cclink-accounts.json
 - 新增 `ProjectOpsService` 和 `projectOps` preload API，负责 `cclink-accounts.json`、文案草稿和发布记录写回。
 - 工作空间侧栏新增“项目运营”区，只在本地工作空间显示。
 - 可一键创建 `cclink-accounts.json` 模板。
-- 兼容读取旧 `deepink-accounts.json`、`.cclink-studio/accounts.json` 和 `.deepink/accounts.json`，但新建和文档约定统一使用项目根目录 `cclink-accounts.json`。
+- 兼容读取受控迁移模块声明的旧账号文件路径，但新建和文档约定统一使用项目根目录 `cclink-accounts.json`。
 - 可按平台创建文案草稿和文案工作会话。
 - 可按平台打开独立浏览器 profile，并创建平台操作工作会话。
 - 可追加 `docs/发布记录.md`。

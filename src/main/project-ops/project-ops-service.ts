@@ -12,6 +12,7 @@ import type {
   ProjectOpsPublicationRecordResult,
   ProjectOpsValidationIssue,
 } from '../../shared/ipc/project-ops'
+import { LEGACY_PROJECT_OPS_ACCOUNT_PATHS } from '../migrations/project-ops-legacy-account-paths'
 
 const PLATFORM_SCHEMA = z.object({
   id: z.string().min(1),
@@ -28,11 +29,6 @@ const ACCOUNTS_SCHEMA = z.object({
 })
 
 const ACCOUNTS_FILE_NAME = 'cclink-accounts.json'
-const LEGACY_ACCOUNTS_PATHS = [
-  ['deepink-accounts.json'],
-  ['.cclink-studio', 'accounts.json'],
-  ['.deepink', 'accounts.json'],
-] as const
 
 const DEFAULT_ACCOUNTS_TEMPLATE: ProjectOpsAccountsConfig = {
   version: 1,
@@ -101,7 +97,7 @@ export class ProjectOpsService {
     const visibleResult = await this.readAccountsFile(filePath)
     if (visibleResult) return visibleResult
 
-    for (const segments of LEGACY_ACCOUNTS_PATHS) {
+    for (const segments of LEGACY_PROJECT_OPS_ACCOUNT_PATHS) {
       const legacyResult = await this.readAccountsFile(
         this.resolveWithinWorkspace(workspace, ...segments),
       )
