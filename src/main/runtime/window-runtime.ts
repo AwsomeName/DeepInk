@@ -52,6 +52,7 @@ export function createWindowRuntime(
     zoomMode: settings.defaultZoomMode,
     viewMode: settings.defaultDeviceMode,
   })
+  runtime.capabilities.unavailable('browser', '浏览器自动化尚未连接')
 
   runtime.browserInstanceStore = new BrowserInstanceStore()
   void runtime.browserInstanceStore.load().then(() => runtime.browserInstanceStore?.clear())
@@ -99,5 +100,6 @@ export function createWindowRuntime(
     runtime.physicalDeviceManager,
     runtime.trustedRendererGuard,
   )
+  runtime.capabilities.unavailable('android', '未连接用户真机')
   console.log('[CCLink Studio] Android 模块已注册（真机连接）')
 }

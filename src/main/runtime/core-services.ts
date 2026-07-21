@@ -101,18 +101,22 @@ export async function bootstrapMainProcessServices(
 
   runtime.cadConversionService = new CadConversionService(() => runtime.settingsService!.getAll())
   registerCadIpc(runtime.cadConversionService, runtime.trustedRendererGuard)
+  runtime.capabilities.ready('cad')
   console.log('[CCLink Studio] CAD 转换 IPC 已注册')
 
   runtime.hardwareService = new HardwareService(runtime.cadConversionService)
   registerHardwareIpc(runtime.hardwareService, runtime.trustedRendererGuard)
+  runtime.capabilities.ready('hardware')
   console.log('[CCLink Studio] 硬件工作区 IPC 已注册')
 
   runtime.dataSourceService = new DataSourceService()
   await runtime.dataSourceService.load()
   registerDataSourceIpc(runtime.dataSourceService, runtime.trustedRendererGuard)
+  runtime.capabilities.ready('data-source')
   console.log('[CCLink Studio] 数据源 IPC 已注册')
 
   runtime.meshyService = new MeshyService(() => runtime.settingsService!.getRuntimeSettings())
+  runtime.capabilities.ready('meshy')
   console.log('[CCLink Studio] Meshy 服务已初始化')
 
   registerWechatIPC(runtime.trustedRendererGuard)
@@ -164,6 +168,7 @@ export async function bootstrapMainProcessServices(
     runtime.mainWindow.webContents,
     runtime.terminalSessionStore,
   )
+  runtime.capabilities.ready('terminal')
   console.log('[CCLink Studio] Terminal 确认 IPC 已注册')
 
   runtime.mcpClientMgr = new McpClientManager()

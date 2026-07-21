@@ -125,6 +125,24 @@ describe('agent diagnostic report', () => {
         ready: true,
         sessionId: 'session-1',
       },
+      capabilities: [
+        {
+          name: 'browser',
+          label: 'Browser',
+          state: 'failed',
+          available: false,
+          reason: 'CDP token=abcdef',
+          updatedAt: new Date('2026-07-15T10:54:20+08:00').getTime(),
+        },
+        {
+          name: 'android',
+          label: 'Android',
+          state: 'unavailable',
+          available: false,
+          reason: '未连接用户真机',
+          updatedAt: 0,
+        },
+      ],
       messages,
       backendState: 'streaming',
       permissionMode: 'categorized',
@@ -256,6 +274,9 @@ describe('agent diagnostic report', () => {
     expect(markdown).toContain('最近 Claim：failed')
     expect(markdown).toContain('主进程 busy：true')
     expect(markdown).toContain('后端 Session：已存在')
+    expect(markdown).toContain('## 能力状态')
+    expect(markdown).toContain('Browser (browser)：failed · 原因：CDP token=[redacted:6 chars]')
+    expect(markdown).toContain('Android (android)：unavailable · 原因：未连接用户真机')
     expect(markdown).toContain('https://www.zhihu.com/signin?next=%2F')
     expect(markdown).toContain('138****5678')
     expect(markdown).toContain('ag***@example.com')

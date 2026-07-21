@@ -13,7 +13,7 @@ import type {
   ContentBlock,
   PermissionMode,
 } from '../../types'
-import type { AgentStatus } from '@shared/agent-protocol'
+import type { AgentCapabilityStatus, AgentStatus } from '@shared/agent-protocol'
 import type { AgentConversationState } from '../../stores/agent-store'
 import {
   workspaceRefKey,
@@ -48,6 +48,7 @@ export interface AgentDiagnosticReportInput {
   workspaceRef?: WorkspaceRef | null
   conversation?: AgentConversationState | null
   agentRuntime?: AgentStatus | null
+  capabilities?: AgentCapabilityStatus[]
   messages: AgentMessage[]
   backendState: AgentBackendState
   permissionMode: PermissionMode
@@ -141,6 +142,9 @@ export function buildAgentDiagnosticMarkdown(input: AgentDiagnosticReportInput):
     `- failureReason：${input.browserTask?.failureReason ?? '-'}`,
     `- errorMessage：${redactText(input.browserTask?.errorMessage ?? '-')}`,
     '',
+    '## 能力状态',
+    ...formatCapabilities(input.capabilities),
+    '',
     '## 时间线',
     ...(timeline.length > 0 ? timeline.map(formatTimelineEvent) : ['- 无事件']),
     '',
@@ -153,6 +157,15 @@ export function buildAgentDiagnosticMarkdown(input: AgentDiagnosticReportInput):
     '## 脱敏说明',
     'password/token/cookie/authorization/api key/session/验证码/手机号/邮箱等字段已脱敏或截断。',
   ].join('\n')
+}
+
+function formatCapabilities(capabilities?: AgentCapabilityStatus[]): string[] {
+  if (!capabilities?.length) return ['- 未获取能力状态']
+  return capabilities.map((capability) => {
+    const reason = capability.reason ? ` · 原因：${redactText(capability.reason)}` : ''
+    const updatedAt = capability.updatedAt > 0 ? formatDateTime(capability.updatedAt) : '未记录'
+    return `- ${redactText(capability.label)} (${capability.name})：${capability.state}${reason} · 更新时间：${updatedAt}`
+  })
 }
 
 export function redactDiagnosticValue(key: string, value: unknown): unknown {

@@ -146,17 +146,26 @@ export type AgentCapabilityName =
   | 'agent-backend'
   | 'browser'
   | 'editor'
+  | 'terminal'
   | 'android'
   | 'agent-device'
   | 'meshy'
+  | 'data-source'
+  | 'hardware'
+  | 'cad'
   | 'cclink'
   | 'mcp'
+
+export type AgentCapabilityState = 'ready' | 'degraded' | 'unavailable' | 'failed'
 
 export interface AgentCapabilityStatus {
   name: AgentCapabilityName
   label: string
+  state: AgentCapabilityState
+  /** 兼容旧 renderer；仅 ready 状态为 true。 */
   available: boolean
   reason?: string
+  updatedAt: number
 }
 
 export interface AgentCommandResult {

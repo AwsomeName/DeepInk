@@ -36,6 +36,7 @@ import {
 } from '../../features/agent-conversations/view-model'
 import type { PermissionMode } from '../../types'
 import type { BrowserActionLog, BrowserDownloadRecord, BrowserTaskRun } from '@shared/ipc/browser'
+import type { AgentCapabilityStatus } from '@shared/agent-protocol'
 import { ConversationMessageRenderer } from '../common/ConversationMessageRenderer'
 import { AgentComposerToolbar } from '../../features/agent-composer/AgentComposerToolbar'
 import { useComposerHistory } from '../../features/agent-composer/use-composer-history'
@@ -627,11 +628,18 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     let pageDiagnostics = null
     let browserRuntime = null
     let agentRuntime = null
+    let capabilities: AgentCapabilityStatus[] = []
 
     try {
       agentRuntime = await window.cclinkStudio.agent.getStatus(activeConversationId)
     } catch {
       agentRuntime = null
+    }
+
+    try {
+      capabilities = await window.cclinkStudio.agent.getCapabilities()
+    } catch {
+      capabilities = []
     }
 
     if (!browserTabId) {
@@ -681,6 +689,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
       workspaceRef: activeWorkspaceRef,
       conversation,
       agentRuntime,
+      capabilities,
       messages: currentMessages,
       backendState,
       permissionMode,

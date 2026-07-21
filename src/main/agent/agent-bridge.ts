@@ -67,10 +67,10 @@ export class AgentBridge {
   private readonly permissionManager: PermissionManager
   private readonly activeBrowserTaskIds = new Map<string, string>()
   private readonly deps: {
-    playwrightBridge: PlaywrightBridge
+    playwrightBridge: PlaywrightBridge | null
     toolHost: McpToolHost
     mcpClientMgr: McpClientManager
-    adbBridge: AdbBridge
+    adbBridge: AdbBridge | null
     agentDeviceAvailable?: () => boolean
     browserManager?: BrowserManager
     browserTaskRuntime?: BrowserTaskRuntime
@@ -79,11 +79,11 @@ export class AgentBridge {
   private readonly getWorkspacePath?: () => string
   constructor(
     mainWindow: BrowserWindow,
-    playwrightBridge: PlaywrightBridge,
+    playwrightBridge: PlaywrightBridge | null,
     toolHost: McpToolHost,
     permissionManager: PermissionManager,
     mcpClientMgr: McpClientManager,
-    adbBridge: AdbBridge,
+    adbBridge: AdbBridge | null,
     options?: AgentBridgeOptions,
   ) {
     this.mainWindow = mainWindow
@@ -102,7 +102,13 @@ export class AgentBridge {
 
     this.runtime = new AgentRuntime({
       config: this.buildBackendConfig(options),
-      deps: this.deps,
+      deps: {
+        playwrightBridge: playwrightBridge ?? { getPage: () => null },
+        toolHost,
+        mcpClientMgr,
+        adbBridge: adbBridge ?? { getDeviceId: () => null, isConnected: () => false },
+        agentDeviceAvailable: options?.agentDeviceAvailable,
+      },
       onEvent: (event) => this.handleRuntimeEvent(event),
     })
   }
@@ -272,7 +278,7 @@ export class AgentBridge {
       // 浏览器管理器未接入或视图不存在，继续尝试同步 Playwright 注册表
     }
     try {
-      await this.deps.playwrightBridge.switchToPage(visibleTabId)
+      await this.deps.playwrightBridge?.switchToPage(visibleTabId)
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       console.warn(`[AgentBridge] 同步可视浏览器页失败 tabId=${visibleTabId}:`, message)
@@ -348,6 +354,17 @@ export class AgentBridge {
     // browser scope：切 Playwright 活跃页 + 拉前台
     if (scope.kind === 'browser') {
       const bridge = this.deps.playwrightBridge
+      if (!bridge) {
+        this.forwardToRenderer(
+          'error',
+          {
+            type: 'error',
+            message: '浏览器自动化当前不可用，请切换到其他操作目标或查看能力诊断',
+          },
+          conversationId,
+        )
+        return false
+      }
       bridge.switchToPage(scope.instanceId).catch((err: Error) => {
         // Phase 1：实例尚未在 PlaywrightBridge 登记（claimPageForView 在 Phase 2 接线）
         // 不阻断收窄——工具表/allowedTools 仍按 browser 收窄，Agent 用当前活跃页

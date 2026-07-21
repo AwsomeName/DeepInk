@@ -16,52 +16,58 @@ const MODULE_CATALOG: Record<string, { label: string; description: string }> = {
   'agent-device': { label: '设备语义操作', description: '基于界面快照执行语义点击、输入和滑动。' },
 }
 
+const CAPABILITY_LABELS: Record<AgentCapabilityStatus['name'], string> = {
+  'agent-backend': 'Agent',
+  browser: 'Browser',
+  editor: 'Editor',
+  terminal: 'Terminal',
+  android: 'Android',
+  'agent-device': 'Device AI',
+  meshy: 'Meshy',
+  'data-source': 'Data Source',
+  hardware: 'Hardware',
+  cad: 'CAD',
+  cclink: 'CCLink',
+  mcp: 'MCP',
+}
+
+const CAPABILITY_ORDER: AgentCapabilityStatus['name'][] = [
+  'agent-backend',
+  'mcp',
+  'editor',
+  'terminal',
+  'browser',
+  'android',
+  'agent-device',
+  'meshy',
+  'data-source',
+  'hardware',
+  'cad',
+]
+
 export function getAgentCapabilities(runtime: CclinkStudioRuntimeState): AgentCapabilityStatus[] {
-  return [
-    {
-      name: 'agent-backend',
-      label: 'Agent',
-      available: Boolean(runtime.agentBridge),
-      reason: runtime.agentBridge ? undefined : 'Agent 后端未就绪',
-    },
-    {
-      name: 'browser',
-      label: 'Browser',
-      available: Boolean(runtime.browserManager && runtime.playwrightBridge),
-      reason: runtime.browserManager && runtime.playwrightBridge ? undefined : '浏览器自动化未就绪',
-    },
-    {
-      name: 'editor',
-      label: 'Editor',
-      available: Boolean(runtime.editorModule),
-      reason: runtime.editorModule ? undefined : '编辑器工具未注册',
-    },
-    {
-      name: 'android',
-      label: 'Android',
-      available: runtime.activeDeviceManager?.getSource() === 'physical',
-      reason:
-        runtime.activeDeviceManager?.getSource() === 'physical' ? undefined : '未连接用户真机',
-    },
-    {
-      name: 'agent-device',
-      label: 'Device AI',
-      available: runtime.agentDeviceManager?.isAvailable() ?? false,
-      reason: runtime.agentDeviceManager?.isAvailable() ? undefined : 'agent-device 语义层不可用',
-    },
-    {
-      name: 'meshy',
-      label: 'Meshy',
-      available: Boolean(runtime.meshyService),
-      reason: runtime.meshyService ? undefined : 'Meshy 服务未初始化',
-    },
-    {
-      name: 'mcp',
-      label: 'MCP',
-      available: Boolean(runtime.toolHost),
-      reason: runtime.toolHost ? undefined : 'MCP 工具主机未启动',
-    },
-  ]
+  return CAPABILITY_ORDER.map((name) => {
+    let snapshot = runtime.capabilities.get(name)
+    if (name === 'android' && snapshot.state !== 'failed') {
+      snapshot =
+        runtime.activeDeviceManager?.getSource() === 'physical'
+          ? { name, state: 'ready', updatedAt: snapshot.updatedAt }
+          : {
+              name,
+              state: 'unavailable',
+              reason: '未连接用户真机',
+              updatedAt: snapshot.updatedAt,
+            }
+    }
+    return {
+      name,
+      label: CAPABILITY_LABELS[name],
+      state: snapshot.state,
+      available: snapshot.state === 'ready',
+      ...(snapshot.reason ? { reason: snapshot.reason } : {}),
+      updatedAt: snapshot.updatedAt,
+    }
+  })
 }
 
 export function getAgentToolModules(runtime: CclinkStudioRuntimeState): AgentToolModuleStatus[] {
@@ -101,6 +107,11 @@ function getModuleAvailability(
   moduleName: string,
   runtime: CclinkStudioRuntimeState,
 ): { available: boolean; reason?: string } {
+  const capabilityName = moduleName as AgentCapabilityStatus['name']
+  if (capabilityName in CAPABILITY_LABELS) {
+    const snapshot = runtime.capabilities.get(capabilityName)
+    if (snapshot.state === 'failed') return { available: false, reason: snapshot.reason }
+  }
   switch (moduleName) {
     case 'browser':
       return runtime.browserManager && runtime.playwrightBridge

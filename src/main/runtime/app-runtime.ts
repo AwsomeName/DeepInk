@@ -33,9 +33,11 @@ import type { OfficialIntegration } from '../official/official-integration'
 import type { GitBackupService } from '../git-backup/git-backup-service'
 import type { FileService } from '../fs/file-service'
 import type { TrustedRendererGuard } from '../ipc/trusted-renderer-guard'
+import { RuntimeCapabilityRegistry } from './capability-registry'
 
 export interface CclinkStudioRuntimeState {
   isDev: boolean
+  capabilities: RuntimeCapabilityRegistry
   mainWindow: BrowserWindow | null
   browserManager: BrowserManager | null
   browserTaskRuntime: BrowserTaskRuntime | null
@@ -76,6 +78,7 @@ export interface CclinkStudioRuntimeState {
 export function createRuntimeState(isDev: boolean): CclinkStudioRuntimeState {
   return {
     isDev,
+    capabilities: new RuntimeCapabilityRegistry(),
     mainWindow: null,
     browserManager: null,
     browserTaskRuntime: null,

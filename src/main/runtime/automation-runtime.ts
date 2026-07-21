@@ -11,6 +11,8 @@ import { AndroidToolModule } from '../mcp/modules/android'
 import { AgentDeviceManager } from '../android/agent-device-manager'
 import { AgentDeviceToolModule } from '../mcp/modules/agent-device'
 import { DataSourceToolModule } from '../mcp/modules/data-source'
+import type { ToolModule } from '../mcp/types'
+import type { AgentCapabilityName } from '../../shared/agent-protocol'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 
 export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeState): Promise<void> {
@@ -21,6 +23,24 @@ export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeSta
     !runtime.trustedRendererGuard
   ) {
     throw new Error('自动化 runtime 依赖的窗口、可信 renderer 或权限系统尚未初始化')
+  }
+
+  try {
+    runtime.editorModule = new EditorToolModule(runtime.mainWindow, runtime.fileService)
+    registerEditorIpc(runtime.editorModule, runtime.trustedRendererGuard)
+    runtime.capabilities.ready('editor')
+  } catch (error) {
+    runtime.editorModule = null
+    runtime.capabilities.failed('editor', error)
+    console.error('[CCLink Studio] Editor 工具初始化失败:', error)
+  }
+
+  try {
+    runtime.toolHost = new McpToolHost(runtime.permissionManager)
+  } catch (error) {
+    runtime.toolHost = null
+    runtime.capabilities.failed('mcp', error)
+    console.error('[CCLink Studio] MCP 工具主机创建失败:', error)
   }
 
   try {
@@ -37,54 +57,124 @@ export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeSta
     if (runtime.browserManager) {
       runtime.browserManager.attachPlaywright(runtime.playwrightBridge)
     }
+    runtime.capabilities.ready('browser')
+  } catch (error) {
+    await runtime.playwrightBridge?.disconnect().catch(() => undefined)
+    runtime.playwrightBridge = null
+    runtime.capabilities.failed('browser', error)
+    console.error('[CCLink Studio] CDP/Playwright 初始化失败:', error)
+  }
 
-    runtime.toolHost = new McpToolHost(runtime.permissionManager)
-    runtime.toolHost.registerModule(
-      new BrowserToolModule(
-        runtime.playwrightBridge,
-        runtime.browserTaskRuntime,
-        runtime.browserManager,
+  if (!runtime.toolHost) return
+
+  if (runtime.playwrightBridge) {
+    registerToolModule(
+      runtime,
+      'browser',
+      () =>
+        new BrowserToolModule(
+          runtime.playwrightBridge!,
+          runtime.browserTaskRuntime,
+          runtime.browserManager,
+        ),
+    )
+  }
+
+  if (runtime.editorModule) {
+    try {
+      runtime.toolHost.registerModule(runtime.editorModule)
+    } catch (error) {
+      runtime.capabilities.degraded('editor', '编辑器可用，但 Agent 工具注册失败')
+      console.error('[CCLink Studio] editor MCP 工具模块注册失败:', error)
+    }
+  }
+
+  registerToolModule(
+    runtime,
+    'meshy',
+    () => new MeshyToolModule(requireService(runtime.meshyService)),
+  )
+  registerToolModule(
+    runtime,
+    'hardware',
+    () => new HardwareToolModule(requireService(runtime.hardwareService)),
+  )
+  registerToolModule(
+    runtime,
+    'cad',
+    () => new CadToolModule(requireService(runtime.cadConversionService)),
+  )
+  registerToolModule(
+    runtime,
+    'data-source',
+    () => new DataSourceToolModule(requireService(runtime.dataSourceService)),
+  )
+  registerToolModule(
+    runtime,
+    'android',
+    () =>
+      new AndroidToolModule(
+        requireService(runtime.adbBridge),
+        requireService(runtime.scrcpyBridge),
       ),
-    )
+  )
 
-    runtime.editorModule = new EditorToolModule(runtime.mainWindow, runtime.fileService)
-    runtime.toolHost.registerModule(runtime.editorModule)
-    registerEditorIpc(runtime.editorModule, runtime.trustedRendererGuard)
-
-    runtime.toolHost.registerModule(new MeshyToolModule(runtime.meshyService!))
-    console.log('[CCLink Studio] Meshy MCP 工具模块已注册')
-
-    runtime.toolHost.registerModule(new HardwareToolModule(runtime.hardwareService!))
-    console.log('[CCLink Studio] 硬件 MCP 工具模块已注册')
-
-    runtime.toolHost.registerModule(new CadToolModule(runtime.cadConversionService!))
-    console.log('[CCLink Studio] CAD MCP 工具模块已注册')
-
-    runtime.toolHost.registerModule(new DataSourceToolModule(runtime.dataSourceService!))
-    console.log('[CCLink Studio] 数据源 MCP 工具模块已注册')
-
-    runtime.toolHost.registerModule(
-      new AndroidToolModule(runtime.adbBridge!, runtime.scrcpyBridge!),
-    )
-    console.log('[CCLink Studio] Android MCP 工具模块已注册')
-
+  try {
     runtime.agentDeviceManager = new AgentDeviceManager(
-      runtime.activeDeviceManager!,
-      runtime.adbBridge!,
+      requireService(runtime.activeDeviceManager),
+      requireService(runtime.adbBridge),
     )
     await runtime.agentDeviceManager.init()
     runtime.toolHost.registerModule(new AgentDeviceToolModule(runtime.agentDeviceManager))
+    if (runtime.agentDeviceManager.isAvailable()) runtime.capabilities.ready('agent-device')
+    else runtime.capabilities.unavailable('agent-device', '设备语义层当前不可用')
     console.log(
       `[CCLink Studio] agent-device 工具模块已注册 (available=${runtime.agentDeviceManager.isAvailable()})`,
     )
+  } catch (error) {
+    try {
+      runtime.agentDeviceManager?.destroy()
+    } catch {
+      // 初始化失败后的释放仅做 best effort。
+    }
+    runtime.agentDeviceManager = null
+    runtime.capabilities.failed('agent-device', error)
+    console.error('[CCLink Studio] agent-device 工具模块初始化失败:', error)
+  }
 
+  try {
     for (const moduleId of runtime.settingsService?.getAll().disabledAgentToolModules ?? []) {
       runtime.toolHost.setModuleEnabled(moduleId, false)
     }
 
     const mcpPort = await runtime.toolHost.start()
+    runtime.capabilities.ready('mcp')
     console.log(`[CCLink Studio] MCP server 已启动 (端口: ${mcpPort})`)
   } catch (error) {
-    console.error('[CCLink Studio] CDP/Playwright 初始化失败:', error)
+    runtime.capabilities.failed('mcp', error)
+    console.error('[CCLink Studio] MCP server 启动失败:', error)
   }
+}
+
+function registerToolModule(
+  runtime: CclinkStudioRuntimeState,
+  capability: AgentCapabilityName,
+  createModule: () => ToolModule,
+): boolean {
+  if (!runtime.toolHost) return false
+  try {
+    runtime.toolHost.registerModule(createModule())
+    runtime.capabilities.ready(capability)
+    console.log(`[CCLink Studio] ${capability} MCP 工具模块已注册`)
+    return true
+  } catch (error) {
+    runtime.capabilities.failed(capability, error)
+    console.error(`[CCLink Studio] ${capability} MCP 工具模块注册失败:`, error)
+    return false
+  }
+}
+
+function requireService<T>(service: T | null): T {
+  if (!service) throw new Error('依赖服务未初始化')
+  return service
 }

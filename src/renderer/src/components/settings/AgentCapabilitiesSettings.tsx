@@ -46,12 +46,23 @@ const EMPTY_FORM: McpFormState = {
 const CAPABILITY_ORDER = [
   'agent-backend',
   'mcp',
-  'browser',
   'editor',
+  'terminal',
+  'browser',
   'android',
   'agent-device',
   'meshy',
+  'data-source',
+  'hardware',
+  'cad',
 ]
+
+const CAPABILITY_STATE_LABEL: Record<AgentCapabilityStatus['state'], string> = {
+  ready: '就绪',
+  degraded: '降级',
+  unavailable: '不可用',
+  failed: '失败',
+}
 
 export function AgentCapabilitiesSettings({
   settings,
@@ -221,11 +232,12 @@ export function AgentCapabilitiesSettings({
         <div className="agent-runtime-grid">
           {orderedCapabilities.map((capability) => (
             <div className="agent-runtime-item" key={capability.name}>
-              <span
-                className={`agent-capability-dot ${capability.available ? 'available' : 'unavailable'}`}
-              />
+              <span className={`agent-capability-dot ${capability.state}`} />
               <span>{capability.label}</span>
-              <small>{capability.available ? '可用' : capability.reason}</small>
+              <small>
+                {CAPABILITY_STATE_LABEL[capability.state]}
+                {capability.reason ? ` · ${capability.reason}` : ''}
+              </small>
             </div>
           ))}
           {!loading && orderedCapabilities.length === 0 && (

@@ -8152,13 +8152,27 @@ button.file-tree-item {
   background: var(--success-color, #2ea043);
 }
 
-.agent-capability-dot.unavailable {
+.agent-capability-dot.ready {
+  background: var(--success-color, #2ea043);
+}
+
+.agent-capability-dot.degraded {
   background: var(--warning-color, #cca700);
 }
 
+.agent-capability-dot.failed {
+  background: var(--error-color, #f14c4c);
+}
+
+.agent-capability-dot.unavailable,
 .agent-capability-dot.disabled {
   background: var(--text-secondary);
   opacity: 0.65;
+}
+
+.agent-module-row .agent-capability-dot.unavailable {
+  background: var(--warning-color, #cca700);
+  opacity: 1;
 }
 
 .agent-module-list,

@@ -16,7 +16,7 @@ export interface BuildAgentResourceContextOptions {
   browserTabId: string | null
   context?: AgentSendMessageContext
   browserManager?: BrowserManager
-  playwrightBridge: PlaywrightBridge
+  playwrightBridge?: PlaywrightBridge | null
   settings: AppSettings
 }
 
@@ -37,9 +37,10 @@ export async function buildAgentResourceContext(
       options.browserManager.getViewWorkspaceKey(requestedTabId) === workspaceKey)
       ? requestedTabId
       : null
-  const diagnostics = tabId
-    ? await options.playwrightBridge.getPageDiagnostics(tabId).catch(() => null)
-    : null
+  const diagnostics =
+    tabId && options.playwrightBridge
+      ? await options.playwrightBridge.getPageDiagnostics(tabId).catch(() => null)
+      : null
   const activeBrowser =
     tabId && diagnostics
       ? browserDiagnosticToResource({
