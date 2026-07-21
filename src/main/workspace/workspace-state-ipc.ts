@@ -1,20 +1,39 @@
-import { ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import type { WorkspaceStateSection } from '../../shared/ipc/workspace-state'
 import { WorkspaceStateService } from './workspace-state-service'
+import { registerTrustedIpcHandler, type TrustedRendererGuard } from '../ipc/trusted-renderer-guard'
+import {
+  workspaceStateOwnerKeySchema,
+  workspaceStateSectionSchema,
+  workspaceStateValueSchema,
+  workspaceStateWorkspaceKeySchema,
+} from '../ipc/workbench-ipc-schema'
+import { absolutePathSchema } from '../ipc/ipc-input-schema'
 
-export function registerWorkspaceStateIpc(workspaceStateService: WorkspaceStateService): void {
-  ipcMain.handle('workspaceState:resolveLocalWorkspace', (_event, workspacePath: string) => {
-    return workspaceStateService.resolveLocalWorkspace(workspacePath)
+export function registerWorkspaceStateIpc(
+  workspaceStateService: WorkspaceStateService,
+  trustedRendererGuard: TrustedRendererGuard,
+): void {
+  const handle = <Args extends unknown[], Result>(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
+  ): void => registerTrustedIpcHandler(channel, trustedRendererGuard, handler)
+
+  handle('workspaceState:resolveLocalWorkspace', (_event, workspacePath: string) => {
+    return workspaceStateService.resolveLocalWorkspace(absolutePathSchema.parse(workspacePath))
   })
 
-  ipcMain.handle(
+  handle(
     'workspaceState:get',
     async (_event, workspaceKey?: string | null, ownerKey?: string | null) => {
-      return workspaceStateService.getSnapshot(workspaceKey, ownerKey)
+      return workspaceStateService.getSnapshot(
+        workspaceStateWorkspaceKeySchema.parse(workspaceKey),
+        workspaceStateOwnerKeySchema.parse(ownerKey),
+      )
     },
   )
 
-  ipcMain.handle(
+  handle(
     'workspaceState:setSection',
     async (
       _event,
@@ -24,11 +43,15 @@ export function registerWorkspaceStateIpc(workspaceStateService: WorkspaceStateS
       ownerKey?: string | null,
     ) => {
       try {
+        const parsedWorkspaceKey = workspaceStateWorkspaceKeySchema.parse(workspaceKey)
+        const parsedSection = workspaceStateSectionSchema.parse(section)
+        const parsedValue = workspaceStateValueSchema.parse(value)
+        const parsedOwnerKey = workspaceStateOwnerKeySchema.parse(ownerKey)
         const snapshot = await workspaceStateService.setSection(
-          workspaceKey,
-          section,
-          value,
-          ownerKey,
+          parsedWorkspaceKey,
+          parsedSection,
+          parsedValue,
+          parsedOwnerKey,
         )
         return { success: true, snapshot }
       } catch (error: unknown) {
@@ -38,11 +61,14 @@ export function registerWorkspaceStateIpc(workspaceStateService: WorkspaceStateS
     },
   )
 
-  ipcMain.handle(
+  handle(
     'workspaceState:clear',
     async (_event, workspaceKey?: string | null, ownerKey?: string | null) => {
       try {
-        await workspaceStateService.clear(workspaceKey, ownerKey)
+        await workspaceStateService.clear(
+          workspaceStateWorkspaceKeySchema.parse(workspaceKey),
+          workspaceStateOwnerKeySchema.parse(ownerKey),
+        )
         return { success: true }
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error)
@@ -51,11 +77,11 @@ export function registerWorkspaceStateIpc(workspaceStateService: WorkspaceStateS
     },
   )
 
-  ipcMain.handle('workspaceState:listLocalWorkspaces', (_event, ownerKey?: string | null) => {
-    return workspaceStateService.listLocalWorkspaces(ownerKey)
+  handle('workspaceState:listLocalWorkspaces', (_event, ownerKey?: string | null) => {
+    return workspaceStateService.listLocalWorkspaces(workspaceStateOwnerKeySchema.parse(ownerKey))
   })
 
-  ipcMain.handle('workspaceState:diagnostics', () => {
+  handle('workspaceState:diagnostics', () => {
     return workspaceStateService.getDiagnostics()
   })
 }

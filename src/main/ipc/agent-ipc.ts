@@ -6,13 +6,11 @@
  * - 旧 Playwright 兼容入口（无项目归属，保留协议但禁用执行）
  */
 
-import { ipcMain } from 'electron'
-import type { PlaywrightBridge } from '../playwright/playwright-bridge'
-import type { BrowserTaskRuntime } from '../browser/browser-task-runtime'
+import type { IpcMainInvokeEvent } from 'electron'
+import { z } from 'zod'
 import type { AgentBridge } from '../agent/agent-bridge'
 import type { PermissionManager } from '../mcp/permission'
 import type { McpClientManager, ExternalMcpServer } from '../mcp/client-manager'
-import { verifyAllCapabilities } from '../playwright/verify-capabilities'
 import type { AgentScope } from '../agent/scope'
 import type {
   AgentCompactConversationPayload,
@@ -23,11 +21,25 @@ import type {
   AgentToolModuleStatus,
 } from '../../shared/ipc/agent'
 import type { WorkspaceRef } from '../../shared/workspace-ref'
+import { registerTrustedIpcHandler, type TrustedRendererGuard } from './trusted-renderer-guard'
+import {
+  agentCompactPayloadSchema,
+  agentConfirmationIdSchema,
+  agentConversationIdSchema,
+  agentPermissionModeSchema,
+  agentScopeSchema,
+  agentSendMessageInputSchema,
+  agentToolModuleIdSchema,
+  mcpServerNameSchema,
+  mcpServerSchema,
+  mcpServerUpdatesSchema,
+  nullableAgentSessionIdSchema,
+  optionalAgentConversationIdSchema,
+} from './agent-ipc-schema'
 
 interface AgentIpcDeps {
+  trustedRendererGuard: TrustedRendererGuard
   getAgentBridge: () => AgentBridge | null
-  getPlaywrightBridge: () => PlaywrightBridge | null
-  getBrowserTaskRuntime?: () => BrowserTaskRuntime | null
   permissionManager: PermissionManager
   getMcpClientMgr: () => McpClientManager | null
   getCapabilities?: () => AgentCapabilityStatus[]
@@ -117,15 +129,18 @@ function normalizeWorkspaceRef(value: unknown): WorkspaceRef | undefined {
  * 注册所有 Agent 相关 IPC 处理器
  */
 export function registerAgentIpc(deps: AgentIpcDeps): void {
+  const handle = <Args extends unknown[], Result>(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
+  ): void => registerTrustedIpcHandler(channel, deps.trustedRendererGuard, handler)
   const requireAgentBridge = (): AgentBridge | null => deps.getAgentBridge()
-  const requirePlaywrightBridge = (): PlaywrightBridge | null => deps.getPlaywrightBridge()
   const requireMcpClientMgr = (): McpClientManager | null => deps.getMcpClientMgr()
   const permissionManager = deps.permissionManager
 
   // ─── AI 后端通信 ─────────────────────────────────
 
   // 发送用户消息给 Claude Agent SDK 后端
-  ipcMain.handle(
+  handle(
     'agent:sendMessage',
     async (
       _event,
@@ -134,8 +149,11 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
     ) => {
       const agentBridge = requireAgentBridge()
       if (!agentBridge) return { success: false, error: 'Agent 后端未就绪' }
-      const conversationId = maybeMessage === undefined ? undefined : conversationIdOrMessage
-      const input = maybeMessage ?? conversationIdOrMessage
+      const conversationId =
+        maybeMessage === undefined
+          ? undefined
+          : agentConversationIdSchema.parse(conversationIdOrMessage)
+      const input = agentSendMessageInputSchema.parse(maybeMessage ?? conversationIdOrMessage)
       const payload = normalizeSendMessageInput(input)
       await agentBridge.sendMessage(
         payload.message,
@@ -154,44 +172,38 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
   )
 
   // 中止当前 AI 响应
-  ipcMain.handle('agent:abort', async (_event, conversationId?: string) => {
+  handle('agent:abort', async (_event, conversationId?: string) => {
     const agentBridge = requireAgentBridge()
     if (!agentBridge) return
-    await agentBridge.abort(conversationId)
+    await agentBridge.abort(optionalAgentConversationIdSchema.parse(conversationId))
   })
 
   // 获取 AI 后端状态
-  ipcMain.handle('agent:getStatus', (_event, conversationId?: string) => {
+  handle('agent:getStatus', (_event, conversationId?: string) => {
     const agentBridge = requireAgentBridge()
     if (!agentBridge) return { connected: false, busy: false, sessionId: null, ready: false }
-    return agentBridge.getStatus(conversationId)
+    return agentBridge.getStatus(optionalAgentConversationIdSchema.parse(conversationId))
   })
 
-  ipcMain.handle('agent:getContextUsage', async (_event, conversationId?: string) => {
+  handle('agent:getContextUsage', async (_event, conversationId?: string) => {
     const agentBridge = requireAgentBridge()
     if (!agentBridge) return null
-    return agentBridge.getContextUsage(conversationId)
+    return agentBridge.getContextUsage(optionalAgentConversationIdSchema.parse(conversationId))
   })
 
-  ipcMain.handle(
+  handle(
     'agent:compactConversation',
     async (_event, conversationId: string, input: AgentCompactConversationPayload) => {
       const agentBridge = requireAgentBridge()
       if (!agentBridge) return { success: false, error: 'Agent 后端未就绪' }
-      const sessionId = typeof input?.sessionId === 'string' ? input.sessionId.trim() : ''
-      if (!conversationId?.trim() || !sessionId) {
-        return { success: false, error: '会话或 Claude SDK session 无效' }
-      }
+      const parsedConversationId = agentConversationIdSchema.parse(conversationId)
+      const parsedInput = agentCompactPayloadSchema.parse(input)
       try {
-        await agentBridge.compactConversation(conversationId, {
-          sessionId,
-          runId:
-            typeof input.runId === 'string' && input.runId.trim() ? input.runId.trim() : undefined,
-          workspaceRef: normalizeWorkspaceRef(input.workspaceRef),
-          instructions:
-            typeof input.instructions === 'string'
-              ? input.instructions.trim().slice(0, 1000)
-              : undefined,
+        await agentBridge.compactConversation(parsedConversationId, {
+          sessionId: parsedInput.sessionId,
+          runId: parsedInput.runId,
+          workspaceRef: parsedInput.workspaceRef,
+          instructions: parsedInput.instructions,
         })
         return { success: true }
       } catch (error) {
@@ -205,93 +217,66 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
 
   // 设置操作作用域（选择 Agent 操作目标 + 工具收窄）
   // 响应进行中切换会被拒绝（agentBridge 内部回传 error 事件）
-  ipcMain.handle(
+  handle(
     'agent:setScope',
     (_event, conversationIdOrScope: string | AgentScope, maybeScope?: AgentScope) => {
       const agentBridge = requireAgentBridge()
       if (!agentBridge) return false
       const conversationId =
-        typeof conversationIdOrScope === 'string' ? conversationIdOrScope : undefined
-      const scope = maybeScope ?? (conversationIdOrScope as AgentScope)
+        maybeScope === undefined
+          ? undefined
+          : agentConversationIdSchema.parse(conversationIdOrScope)
+      const scope = agentScopeSchema.parse(maybeScope ?? conversationIdOrScope) as AgentScope
       return agentBridge.setScope(scope, conversationId)
     },
   )
 
   // 获取当前操作作用域
-  ipcMain.handle('agent:getScope', (_event, conversationId?: string) => {
+  handle('agent:getScope', (_event, conversationId?: string) => {
     const agentBridge = requireAgentBridge()
     if (!agentBridge) return { kind: 'all' }
-    return agentBridge.getScope(conversationId)
+    return agentBridge.getScope(optionalAgentConversationIdSchema.parse(conversationId))
   })
 
   // 清除会话（开始新对话）
-  ipcMain.handle('agent:resetSession', (_event, conversationId?: string) => {
+  handle('agent:resetSession', (_event, conversationId?: string) => {
     const agentBridge = requireAgentBridge()
     if (!agentBridge) return
-    agentBridge.resetSession(conversationId)
+    agentBridge.resetSession(optionalAgentConversationIdSchema.parse(conversationId))
   })
 
   // 恢复历史会话的后端 session id
-  ipcMain.handle(
+  handle(
     'agent:restoreConversation',
     (_event, conversationId: string, sessionId: string | null) => {
       const agentBridge = requireAgentBridge()
       if (!agentBridge) return
-      agentBridge.restoreConversation(conversationId, sessionId)
+      agentBridge.restoreConversation(
+        agentConversationIdSchema.parse(conversationId),
+        nullableAgentSessionIdSchema.parse(sessionId),
+      )
     },
   )
 
   // 关闭指定会话并释放后端资源
-  ipcMain.handle('agent:closeConversation', async (_event, conversationId: string) => {
+  handle('agent:closeConversation', async (_event, conversationId: string) => {
     const agentBridge = requireAgentBridge()
     if (!agentBridge) return
-    await agentBridge.closeConversation(conversationId)
-  })
-
-  // 旧入口没有 conversationId/workspaceKey，继续执行会直接造成跨项目资源串台。
-  ipcMain.handle('agent:executeAction', async () => {
-    return {
-      success: false,
-      error: '无项目归属的 Playwright 兼容入口已禁用，请通过会话浏览器工具执行',
-    }
-  })
-
-  // 运行 Playwright 20 项能力验证
-  ipcMain.handle('agent:verifyCapabilities', async () => {
-    const playwrightBridge = requirePlaywrightBridge()
-    if (!playwrightBridge) {
-      return [{ name: 'Playwright', pass: false, error: 'Playwright 未就绪' }]
-    }
-    const page = playwrightBridge.getPage()
-    if (!page) {
-      return [{ name: 'Playwright', pass: false, error: '页面未就绪' }]
-    }
-    return verifyAllCapabilities(page)
-  })
-
-  // 获取 Playwright 连接状态
-  ipcMain.handle('agent:getPlaywrightStatus', () => {
-    const playwrightBridge = requirePlaywrightBridge()
-    if (!playwrightBridge) return { connected: false, pageUrl: null }
-    return {
-      connected: true,
-      pageUrl: playwrightBridge.getPage()?.url() ?? null,
-    }
+    await agentBridge.closeConversation(agentConversationIdSchema.parse(conversationId))
   })
 
   // 获取 Agent 可用能力状态（用于 UI 展示降级原因）
-  ipcMain.handle('agent:getCapabilities', () => {
+  handle('agent:getCapabilities', () => {
     return deps.getCapabilities?.() ?? []
   })
 
-  ipcMain.handle('agent:listToolModules', () => deps.getToolModules?.() ?? [])
+  handle('agent:listToolModules', () => deps.getToolModules?.() ?? [])
 
-  ipcMain.handle('agent:setToolModuleEnabled', (_event, moduleId: string, enabled: boolean) => {
-    if (typeof moduleId !== 'string' || !moduleId.trim() || typeof enabled !== 'boolean') {
-      return { success: false, error: '无效的工具模块设置' }
-    }
+  handle('agent:setToolModuleEnabled', (_event, moduleId: string, enabled: boolean) => {
+    const parsedModuleId = agentToolModuleIdSchema.parse(moduleId)
+    const parsedEnabled = z.boolean().parse(enabled)
     return (
-      deps.setToolModuleEnabled?.(moduleId.trim(), enabled) ??
+      deps.setToolModuleEnabled?.(parsedModuleId, parsedEnabled) ??
       Promise.resolve({ success: false, error: '工具模块管理器未就绪' })
     )
   })
@@ -299,43 +284,42 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
   // ─── 权限管理 ──────────────────────────────────────
 
   // 渲染进程回传用户确认/拒绝
-  ipcMain.handle(
+  handle(
     'agent:resolveToolConfirmation',
     (_event, id: string, approved: boolean, alwaysAllow?: boolean) => {
-      permissionManager.resolveConfirmation(id, approved, alwaysAllow)
+      permissionManager.resolveConfirmation(
+        agentConfirmationIdSchema.parse(id),
+        z.boolean().parse(approved),
+        z.boolean().optional().parse(alwaysAllow),
+      )
     },
   )
 
   // 获取当前权限模式
-  ipcMain.handle('agent:getPermissionMode', () => {
+  handle('agent:getPermissionMode', () => {
     return permissionManager.getMode()
   })
 
   // 设置权限模式
-  ipcMain.handle('agent:setPermissionMode', (_event, mode: string) => {
-    const validModes = new Set(['auto', 'categorized', 'strict'])
-    if (validModes.has(mode)) {
-      permissionManager.setMode(mode as 'auto' | 'categorized' | 'strict')
-    } else {
-      console.warn(`[AgentIPC] 忽略无效的权限模式: ${mode}`)
-    }
+  handle('agent:setPermissionMode', (_event, mode: string) => {
+    permissionManager.setMode(agentPermissionModeSchema.parse(mode))
   })
 
   // ─── 外部 MCP Server 管理 ──────────────────────────
 
   // 列出所有外部 server
-  ipcMain.handle('mcp:listServers', () => {
+  handle('mcp:listServers', () => {
     const mcpClientMgr = requireMcpClientMgr()
     if (!mcpClientMgr) return []
     return mcpClientMgr.getAllServers()
   })
 
   // 添加外部 server
-  ipcMain.handle('mcp:addServer', (_event, server: ExternalMcpServer) => {
+  handle('mcp:addServer', (_event, server: ExternalMcpServer) => {
     const mcpClientMgr = requireMcpClientMgr()
     if (!mcpClientMgr) return { success: false, error: 'MCP 管理器未就绪' }
     try {
-      mcpClientMgr.addServer(server)
+      mcpClientMgr.addServer(mcpServerSchema.parse(server) as ExternalMcpServer)
       return { success: true }
     } catch (err) {
       return { success: false, error: (err as Error).message }
@@ -343,24 +327,24 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
   })
 
   // 移除外部 server
-  ipcMain.handle('mcp:removeServer', (_event, name: string) => {
+  handle('mcp:removeServer', (_event, name: string) => {
     const mcpClientMgr = requireMcpClientMgr()
     if (!mcpClientMgr) return false
-    return mcpClientMgr.removeServer(name)
+    return mcpClientMgr.removeServer(mcpServerNameSchema.parse(name))
   })
 
   // 更新外部 server
-  ipcMain.handle(
-    'mcp:updateServer',
-    (_event, name: string, updates: Partial<ExternalMcpServer>) => {
-      const mcpClientMgr = requireMcpClientMgr()
-      if (!mcpClientMgr) return false
-      return mcpClientMgr.updateServer(name, updates)
-    },
-  )
+  handle('mcp:updateServer', (_event, name: string, updates: Partial<ExternalMcpServer>) => {
+    const mcpClientMgr = requireMcpClientMgr()
+    if (!mcpClientMgr) return false
+    return mcpClientMgr.updateServer(
+      mcpServerNameSchema.parse(name),
+      mcpServerUpdatesSchema.parse(updates) as Partial<ExternalMcpServer>,
+    )
+  })
 
   // 重新加载配置文件
-  ipcMain.handle('mcp:reloadConfig', () => {
+  handle('mcp:reloadConfig', () => {
     const mcpClientMgr = requireMcpClientMgr()
     if (!mcpClientMgr) return []
     mcpClientMgr.loadFromConfig()

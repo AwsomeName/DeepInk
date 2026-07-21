@@ -11,6 +11,7 @@ import type {
   BrowserViewState,
   BrowserZoomModeType,
 } from '../../shared/ipc/browser'
+import { assertBrowserUrlAccess, isSupportedBrowserUrl } from './browser-url-access'
 import { installBrowserCompatibilityHeaders, normalizeDesktopUserAgent } from './browser-stealth'
 import {
   isAllowedBrowserAuthCookie,
@@ -196,7 +197,7 @@ export class BrowserManager {
    *
    * @param opts.restore 恢复态：从快照重建时传入，覆盖默认 viewMode/zoom（实现「不是只恢复 URL」）
    */
-  createView(
+  async createView(
     tabId: string,
     initialUrl?: string,
     opts?: {
@@ -210,13 +211,21 @@ export class BrowserManager {
       profileId?: string | null
       workspaceKey?: string | null
     },
-  ): void {
+  ): Promise<void> {
     const requestedProfileId = this.normalizeProfileId(opts?.profileId)
     const safeInitialUrl = initialUrl
       ? sanitizeBrowserAuthMainUrl(requestedProfileId, initialUrl)
       : undefined
     let existing = this.views.get(tabId)
     const workspaceKey = opts?.workspaceKey ?? null
+    if (safeInitialUrl) await assertBrowserUrlAccess(safeInitialUrl, workspaceKey)
+    if (opts?.restore?.history) {
+      await Promise.all(
+        opts.restore.history.map((url) =>
+          assertBrowserUrlAccess(sanitizeBrowserAuthMainUrl(requestedProfileId, url), workspaceKey),
+        ),
+      )
+    }
     if (existing && existing.workspaceKey !== workspaceKey) {
       this.destroyView(tabId)
       existing = undefined
@@ -304,13 +313,33 @@ export class BrowserManager {
     // 监听导航事件（闭包捕获 tabId，发出的事件携带 tabId）
     const wc = view.webContents
     wc.on('will-navigate', (event, url) => {
-      if (this.routeBrowserAuth(tabId, entry, url)) event.preventDefault()
+      if (this.routeBrowserAuth(tabId, entry, url)) {
+        event.preventDefault()
+        return
+      }
+      if (!isSupportedBrowserUrl(url)) {
+        event.preventDefault()
+        return
+      }
+      if (new URL(url).protocol === 'file:') {
+        event.preventDefault()
+        void this.navigate(tabId, url).catch((error) =>
+          console.warn(`[BrowserManager] 已拒绝本地文件导航 tabId=${tabId}:`, error),
+        )
+      }
     })
     wc.on('will-redirect', (event, url) => {
-      if (this.routeBrowserAuth(tabId, entry, url)) event.preventDefault()
+      if (this.routeBrowserAuth(tabId, entry, url) || !isSupportedBrowserUrl(url)) {
+        event.preventDefault()
+        return
+      }
+      if (new URL(url).protocol === 'file:') event.preventDefault()
     })
     wc.setWindowOpenHandler(({ url }) => {
-      return this.routeBrowserAuth(tabId, entry, url) ? { action: 'deny' } : { action: 'allow' }
+      if (this.routeBrowserAuth(tabId, entry, url) || !isSupportedBrowserUrl(url)) {
+        return { action: 'deny' }
+      }
+      return new URL(url).protocol === 'file:' ? { action: 'deny' } : { action: 'allow' }
     })
     wc.on('did-navigate', (_event, url) => this.onNavigate(tabId, url))
     wc.on('did-navigate-in-page', (_event, url) => this.onNavigate(tabId, url))
@@ -792,6 +821,7 @@ export class BrowserManager {
     const entry = this.views.get(tabId)
     if (!entry) return
     if (this.routeBrowserAuth(tabId, entry, url)) return
+    await assertBrowserUrlAccess(url, entry.workspaceKey)
     entry.pendingUrl = url
     entry.url = url
     await entry.view.webContents.loadURL(url)

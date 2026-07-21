@@ -34,7 +34,7 @@ export async function checkForUpdates(): Promise<UpdateCheckResult | null> {
 
   const current = app.getVersion()
   try {
-    const ymlText = await fetchText(`${UPDATE_BASE_URL}/latest-mac.yml`)
+    const ymlText = await fetchText(resolveUpdateUrl(UPDATE_BASE_URL, 'latest-mac.yml'))
     const info: UpdateInfo = parseLatestMacYml(ymlText)
     if (!info.version || !info.dmgPath) return null
 
@@ -43,7 +43,7 @@ export async function checkForUpdates(): Promise<UpdateCheckResult | null> {
       hasUpdate,
       current,
       latest: info.version,
-      downloadUrl: `${UPDATE_BASE_URL}/${info.dmgPath}`,
+      downloadUrl: resolveUpdateUrl(UPDATE_BASE_URL, info.dmgPath),
     }
   } catch (err) {
     console.warn('[UpdateChecker] 检查更新失败（已忽略）:', err)
@@ -82,8 +82,26 @@ function fetchText(url: string): Promise<string> {
   })
 }
 
-function normalizeUpdateBaseUrl(value: string | undefined): string | null {
+export function normalizeUpdateBaseUrl(value: string | undefined): string | null {
   const trimmed = value?.trim()
   if (!trimmed) return null
-  return trimmed.replace(/\/+$/, '')
+  try {
+    const url = new URL(trimmed)
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
+      return null
+    }
+    url.pathname = url.pathname.replace(/\/+$/, '')
+    return url.toString().replace(/\/$/, '')
+  } catch {
+    return null
+  }
+}
+
+export function resolveUpdateUrl(baseUrl: string, relativePath: string): string {
+  const base = new URL(`${baseUrl}/`)
+  const resolved = new URL(relativePath, base)
+  if (resolved.protocol !== 'https:' || resolved.origin !== base.origin) {
+    throw new Error('更新下载地址必须与更新源同源且使用 HTTPS')
+  }
+  return resolved.toString()
 }

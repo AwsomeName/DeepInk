@@ -62,8 +62,8 @@ export function registerBrowserIpc(
   // opts.restore：从快照重建时传入，恢复 viewMode/zoom
   handle(
     'browser:createView',
-    (_event, tabId: string, initialUrl?: string, opts?: BrowserCreateViewOptions) => {
-      browserManager.createView(
+    async (_event, tabId: string, initialUrl?: string, opts?: BrowserCreateViewOptions) => {
+      await browserManager.createView(
         browserIdentifierSchema.parse(tabId),
         initialUrl === undefined ? undefined : browserUrlSchema.parse(initialUrl),
         opts === undefined ? undefined : browserCreateViewOptionsSchema.parse(opts),

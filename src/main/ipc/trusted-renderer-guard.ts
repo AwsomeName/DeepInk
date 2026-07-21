@@ -16,6 +16,13 @@ export interface TrustedRendererGuard {
   isTrusted(event: TrustedRendererEvent): boolean
 }
 
+export interface TrustedIpcRegistrar {
+  handle<Args extends unknown[], Result>(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
+  ): void
+}
+
 export function createTrustedRendererGuard(
   mainWindow: BrowserWindow,
   rendererEntryUrl: string,
@@ -45,6 +52,12 @@ export function registerTrustedIpcHandler<Args extends unknown[], Result>(
     guard.assert(event)
     return handler(event, ...args)
   })
+}
+
+export function createTrustedIpcRegistrar(guard: TrustedRendererGuard): TrustedIpcRegistrar {
+  return {
+    handle: (channel, handler) => registerTrustedIpcHandler(channel, guard, handler),
+  }
 }
 
 export function registerTrustedIpcListener<Args extends unknown[]>(

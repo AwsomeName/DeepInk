@@ -81,7 +81,7 @@ export function createWindowRuntime(
     () => runtime.playwrightBridge,
   )
 
-  registerDialogIpc(runtime.mainWindow)
+  registerDialogIpc(runtime.mainWindow, runtime.trustedRendererGuard)
   registerWindowIpc(runtime.mainWindow, runtime.trustedRendererGuard)
 
   runtime.adbBridge = new AdbBridge()

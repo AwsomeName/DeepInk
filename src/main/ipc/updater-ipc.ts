@@ -9,7 +9,7 @@
  * - updater:update-available — 周期检查发现新版本时推送 { latest }
  */
 
-import { ipcMain, app, shell, net, type BrowserWindow } from 'electron'
+import { app, shell, net, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { createWriteStream } from 'fs'
 import { join } from 'path'
 import {
@@ -17,11 +17,20 @@ import {
   startPeriodicCheck,
   type UpdateCheckResult,
 } from '../updater/update-checker'
+import { registerTrustedIpcHandler, type TrustedRendererGuard } from './trusted-renderer-guard'
 
 /** 缓存最近一次发现的更新（供 download 通道使用） */
 let latestResult: UpdateCheckResult | null = null
 
-export function registerUpdaterIpc(mainWindow: BrowserWindow): void {
+export function registerUpdaterIpc(
+  mainWindow: BrowserWindow,
+  trustedRendererGuard: TrustedRendererGuard,
+): void {
+  const handle = <Args extends unknown[], Result>(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
+  ): void => registerTrustedIpcHandler(channel, trustedRendererGuard, handler)
+
   // 周期性检查：发现新版本时推送给渲染进程
   startPeriodicCheck((r) => {
     latestResult = r
@@ -31,7 +40,7 @@ export function registerUpdaterIpc(mainWindow: BrowserWindow): void {
   })
 
   /** 手动检查一次（UI 可主动调用，如「检查更新」按钮） */
-  ipcMain.handle('updater:check', async () => {
+  handle('updater:check', async () => {
     const r = await checkForUpdates()
     if (r && r.hasUpdate) {
       latestResult = r
@@ -43,7 +52,7 @@ export function registerUpdaterIpc(mainWindow: BrowserWindow): void {
   })
 
   /** 下载 dmg 并打开（macOS 自动挂载到 Finder，用户拖进 Applications 替换） */
-  ipcMain.handle('updater:download', async () => {
+  handle('updater:download', async () => {
     if (!latestResult?.downloadUrl) {
       return { success: false, error: '无可用更新' }
     }

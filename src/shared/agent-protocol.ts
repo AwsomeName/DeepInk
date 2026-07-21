@@ -1,24 +1,3 @@
-export interface PlaywrightAction {
-  type:
-    | 'navigate'
-    | 'click'
-    | 'fill'
-    | 'screenshot'
-    | 'extract'
-    | 'select'
-    | 'check'
-    | 'uncheck'
-    | 'press'
-    | 'waitForSelector'
-    | 'evaluate'
-    | 'goBack'
-    | 'goForward'
-    | 'reload'
-    | 'title'
-    | 'inputValue'
-  [key: string]: any
-}
-
 export interface ClaudeSystemInitEvent {
   type: 'system'
   subtype: 'init'
@@ -222,23 +201,6 @@ export interface AgentStatus {
   ready?: boolean
 }
 
-export interface AgentPlaywrightActionResult {
-  success: boolean
-  data?: any
-  error?: string
-}
-
-export interface AgentCapabilityCheckResult {
-  name: string
-  pass: boolean
-  error?: string
-}
-
-export interface AgentPlaywrightStatus {
-  connected: boolean
-  pageUrl: string | null
-}
-
 export interface ExternalMcpServer {
   name: string
   transport: 'stdio' | 'http' | 'sse'
@@ -308,9 +270,6 @@ export interface AgentApiContract {
     }) => void,
   ): () => void
 
-  executeAction(action: PlaywrightAction): Promise<AgentPlaywrightActionResult>
-  verifyCapabilities(): Promise<AgentCapabilityCheckResult[]>
-  getPlaywrightStatus(): Promise<AgentPlaywrightStatus>
   getCapabilities(): Promise<AgentCapabilityStatus[]>
   listToolModules(): Promise<AgentToolModuleStatus[]>
   setToolModuleEnabled(moduleId: string, enabled: boolean): Promise<AgentCommandResult>

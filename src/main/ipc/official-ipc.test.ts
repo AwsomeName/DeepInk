@@ -14,13 +14,18 @@ vi.mock('electron', () => ({
 }))
 
 describe('registerOfficialIpc', () => {
+  const trustedRendererGuard = {
+    assert: vi.fn(),
+    isTrusted: vi.fn(() => true),
+  }
+
   beforeEach(() => {
     mockIpcMain.handlers.clear()
     mockIpcMain.handle.mockClear()
   })
 
   it('registers only the read-only official status probe', () => {
-    registerOfficialIpc(createNoopOfficialIntegration())
+    registerOfficialIpc(createNoopOfficialIntegration(), trustedRendererGuard)
 
     expect(mockIpcMain.handle).toHaveBeenCalledTimes(1)
     expect(mockIpcMain.handle).toHaveBeenCalledWith('official:getStatus', expect.any(Function))
@@ -28,7 +33,7 @@ describe('registerOfficialIpc', () => {
   })
 
   it('returns a non-secret OSS status snapshot', () => {
-    registerOfficialIpc(createNoopOfficialIntegration())
+    registerOfficialIpc(createNoopOfficialIntegration(), trustedRendererGuard)
 
     const status = mockIpcMain.handlers.get('official:getStatus')?.({})
 

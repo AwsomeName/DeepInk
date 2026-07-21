@@ -58,7 +58,7 @@ export interface OfficialIntegration {
 }
 ```
 
-The open source shell owns the context interfaces and default no-op providers. The official integration layer owns the implementations.
+The open source shell owns the context interfaces and default no-op providers. The official integration layer owns the implementations. `OfficialIpcContext` exposes only `ipc.handle(...)`, which always applies Studio's trusted-main-frame guard; it never exposes Electron's raw `ipcMain`.
 
 ## Acceptance Standards
 
@@ -87,7 +87,7 @@ The open source shell now owns a minimal inert integration surface:
 - Assembly seam: `src/main/official/official-integration-loader.ts`.
 - Read-only IPC probe: `official:getStatus`.
 - Preload namespace: `window.cclinkStudio.official.getStatus()`.
-- Runtime hook points: `registerMainServices()` and `registerIpc()` are invoked with typed contexts, but the OSS implementation is a no-op.
+- Runtime hook points: `registerMainServices()` and `registerIpc()` are invoked with typed contexts, but the OSS implementation is a no-op. Official IPC must register through `context.ipc.handle(...)`; raw `ipcMain` is intentionally absent.
 
 `loadOfficialIntegration()` is the only main-process assembly point the official build should replace or alias. The default implementation always returns `createNoopOfficialIntegration()`. Core runtime startup must not import official account, message, quota, release, or runtime packages directly.
 

@@ -1,7 +1,8 @@
-import type { BrowserWindow, IpcMain } from 'electron'
+import type { BrowserWindow } from 'electron'
 import type { OfficialBuildProfile, OfficialIntegrationStatus } from '../../shared/ipc/official'
 import type { SettingsService } from '../settings/settings-service'
 import type { WorkspaceStateService } from '../workspace/workspace-state-service'
+import type { TrustedIpcRegistrar } from '../ipc/trusted-renderer-guard'
 
 export interface OfficialMainContext {
   readonly isDev: boolean
@@ -11,7 +12,8 @@ export interface OfficialMainContext {
 }
 
 export interface OfficialIpcContext extends OfficialMainContext {
-  readonly ipcMain: IpcMain
+  /** Official channels must use this trusted-main-frame registrar. */
+  readonly ipc: TrustedIpcRegistrar
 }
 
 export interface OfficialIntegration {

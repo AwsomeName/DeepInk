@@ -35,6 +35,9 @@ describe('preload API surface', () => {
       }),
     )
     expect(api).not.toHaveProperty('meshy')
+    expect(api.agent).not.toHaveProperty('executeAction')
+    expect(api.agent).not.toHaveProperty('verifyCapabilities')
+    expect(api.agent).not.toHaveProperty('getPlaywrightStatus')
 
     expect(api.window).toEqual(
       expect.objectContaining({

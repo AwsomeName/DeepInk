@@ -1,5 +1,5 @@
 import { LocalIdentityService } from '../identity/local-identity-service'
-import { app, ipcMain } from 'electron'
+import { app } from 'electron'
 import { registerIdentityIpc } from '../identity/identity-ipc'
 import { FileService } from '../fs/file-service'
 import { registerFsIpc } from '../fs/fs-ipc'
@@ -33,6 +33,7 @@ import { CompositeTerminalExecutionAdapter } from '../terminal/terminal-composit
 import { registerTerminalIpc } from '../ipc/terminal-ipc'
 import { registerOfficialIpc } from '../ipc/official-ipc'
 import { loadOfficialIntegration } from '../official/official-integration-loader'
+import { createTrustedIpcRegistrar } from '../ipc/trusted-renderer-guard'
 import { getAgentCapabilities, getAgentToolModules } from './agent-capabilities'
 import { GitBackupService } from '../git-backup/git-backup-service'
 import { registerGitBackupIpc } from '../git-backup/git-backup-ipc'
@@ -45,8 +46,7 @@ export async function bootstrapStateServices(runtime: CclinkStudioRuntimeState):
 
   runtime.workspaceStateService = new WorkspaceStateService()
   await runtime.workspaceStateService.loadState()
-  registerWorkspaceStateIpc(runtime.workspaceStateService)
-  console.log('[CCLink Studio] 工作台状态 IPC 已注册')
+  console.log('[CCLink Studio] 工作台状态服务已初始化')
 }
 
 export async function bootstrapMainProcessServices(
@@ -56,9 +56,12 @@ export async function bootstrapMainProcessServices(
     throw new Error('主窗口、可信 renderer 或设置系统尚未初始化')
   }
 
+  registerWorkspaceStateIpc(runtime.workspaceStateService!, runtime.trustedRendererGuard)
+  console.log('[CCLink Studio] 工作台状态 IPC 已注册')
+
   runtime.localIdentityService = new LocalIdentityService()
   await runtime.localIdentityService.ensureIdentity()
-  registerIdentityIpc(runtime.localIdentityService)
+  registerIdentityIpc(runtime.localIdentityService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 本地身份系统已初始化')
 
   runtime.officialIntegration = await loadOfficialIntegration()
@@ -73,9 +76,9 @@ export async function bootstrapMainProcessServices(
     mainWindow: runtime.mainWindow,
     settingsService: runtime.settingsService,
     workspaceStateService: runtime.workspaceStateService!,
-    ipcMain,
+    ipc: createTrustedIpcRegistrar(runtime.trustedRendererGuard),
   })
-  registerOfficialIpc(runtime.officialIntegration)
+  registerOfficialIpc(runtime.officialIntegration, runtime.trustedRendererGuard)
   console.log(
     `[CCLink Studio] 官方集成接口已注册 (id=${runtime.officialIntegration.id}, profile=${runtime.officialIntegration.buildProfile})`,
   )
@@ -89,19 +92,19 @@ export async function bootstrapMainProcessServices(
     runtime.workspaceStateService!,
   )
   await runtime.gitBackupService.load()
-  registerGitBackupIpc(runtime.gitBackupService)
+  registerGitBackupIpc(runtime.gitBackupService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 手动 Git 备份服务已初始化')
 
   runtime.projectOpsService = new ProjectOpsService()
-  registerProjectOpsIpc(runtime.projectOpsService)
+  registerProjectOpsIpc(runtime.projectOpsService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 项目运营 IPC 已注册')
 
   runtime.cadConversionService = new CadConversionService(() => runtime.settingsService!.getAll())
-  registerCadIpc(runtime.cadConversionService)
+  registerCadIpc(runtime.cadConversionService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] CAD 转换 IPC 已注册')
 
   runtime.hardwareService = new HardwareService(runtime.cadConversionService)
-  registerHardwareIpc(runtime.hardwareService)
+  registerHardwareIpc(runtime.hardwareService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 硬件工作区 IPC 已注册')
 
   runtime.dataSourceService = new DataSourceService()
@@ -112,7 +115,7 @@ export async function bootstrapMainProcessServices(
   runtime.meshyService = new MeshyService(() => runtime.settingsService!.getRuntimeSettings())
   console.log('[CCLink Studio] Meshy 服务已初始化')
 
-  registerWechatIPC()
+  registerWechatIPC(runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 微信格式转换 IPC 已注册')
 
   runtime.permissionManager = new PermissionManager(runtime.mainWindow)
@@ -166,9 +169,8 @@ export async function bootstrapMainProcessServices(
   runtime.mcpClientMgr = new McpClientManager()
 
   registerAgentIpc({
+    trustedRendererGuard: runtime.trustedRendererGuard,
     getAgentBridge: () => runtime.agentBridge,
-    getPlaywrightBridge: () => runtime.playwrightBridge,
-    getBrowserTaskRuntime: () => runtime.browserTaskRuntime,
     permissionManager: runtime.permissionManager,
     getMcpClientMgr: () => runtime.mcpClientMgr,
     getCapabilities: () => getAgentCapabilities(runtime),
@@ -194,6 +196,6 @@ export async function bootstrapMainProcessServices(
   )
   console.log('[CCLink Studio] 设置 IPC 已注册')
 
-  registerUpdaterIpc(runtime.mainWindow)
+  registerUpdaterIpc(runtime.mainWindow, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 更新检查 IPC 已注册')
 }

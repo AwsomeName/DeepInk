@@ -1,191 +1,38 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { AgentSendMessageInput } from '../shared/ipc/agent'
+import { agentApi } from './agent-api'
 import { androidApi } from './android-api'
 import { browserApi, reportWorkbenchBounds } from './browser-api'
 import { dataSourceApi } from './data-source-api'
+import {
+  cadApi,
+  gitBackupApi,
+  hardwareApi,
+  projectOpsApi,
+  workspaceStateApi,
+} from './local-ops-api'
+import {
+  dialogApi,
+  editorApi,
+  identityApi,
+  updateApi,
+  wechatApi,
+  windowApi,
+} from './renderer-support-api'
 
 contextBridge.exposeInMainWorld('cclinkStudio', {
   reportWorkbenchBounds,
 
-  // 窗口控制
-  window: {
-    toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
-    toggleDevtools: () => ipcRenderer.invoke('window:toggleDevtools'),
-    reload: () => ipcRenderer.invoke('window:reload'),
-    focusRenderer: () => ipcRenderer.invoke('window:focusRenderer'),
-  },
+  window: windowApi,
 
   browser: browserApi,
 
-  // 本地优先身份：不登录也应存在稳定本机身份。
-  identity: {
-    getLocalIdentity: () => ipcRenderer.invoke('identity:getLocalIdentity'),
-  },
+  identity: identityApi,
 
-  // 官方集成探针：OSS 默认返回未安装，不暴露账号/凭证/消息网络能力。
   official: {
     getStatus: () => ipcRenderer.invoke('official:getStatus'),
   },
 
-  // Agent / Playwright / AI 后端
-  agent: {
-    // ─── AI 对话 ────────────────────────────────
-    // ─── AI 对话 ────────────────────────────────
-    /** 发送用户消息给 Claude Code（非阻塞，流式结果通过 onStreamEvent 接收） */
-    sendMessage: (
-      conversationIdOrMessage: string | AgentSendMessageInput,
-      maybeMessage?: AgentSendMessageInput,
-    ) =>
-      maybeMessage === undefined
-        ? ipcRenderer.invoke('agent:sendMessage', conversationIdOrMessage)
-        : ipcRenderer.invoke('agent:sendMessage', conversationIdOrMessage, maybeMessage),
-
-    /** 中止当前 AI 响应 */
-    abort: (conversationId?: string) => ipcRenderer.invoke('agent:abort', conversationId),
-
-    /** 获取 AI 后端状态 */
-    getStatus: (conversationId?: string) => ipcRenderer.invoke('agent:getStatus', conversationId),
-
-    /** 获取 Claude SDK 当前上下文窗口真实占用；空闲时返回最后一次快照。 */
-    getContextUsage: (conversationId?: string) =>
-      ipcRenderer.invoke('agent:getContextUsage', conversationId),
-
-    /** 在指定 Claude SDK session 上手动压缩上下文。 */
-    compactConversation: (
-      conversationId: string,
-      payload: import('../shared/agent-protocol').AgentCompactConversationPayload,
-    ) => ipcRenderer.invoke('agent:compactConversation', conversationId, payload),
-
-    /** 设置操作作用域（选择 Agent 操作目标 + 收窄工具域）。响应进行中会被拒绝 */
-    setScope: (
-      conversationIdOrScope:
-        | string
-        | { kind: 'all' }
-        | { kind: 'android' }
-        | { kind: 'editor' }
-        | { kind: 'browser'; instanceId: string },
-      maybeScope?:
-        | { kind: 'all' }
-        | { kind: 'android' }
-        | { kind: 'editor' }
-        | { kind: 'browser'; instanceId: string },
-    ) =>
-      maybeScope === undefined
-        ? ipcRenderer.invoke('agent:setScope', conversationIdOrScope)
-        : ipcRenderer.invoke('agent:setScope', conversationIdOrScope, maybeScope),
-
-    /** 获取当前操作作用域 */
-    getScope: (conversationId?: string) => ipcRenderer.invoke('agent:getScope', conversationId),
-
-    /** 清除会话（开始新对话） */
-    resetSession: (conversationId?: string) =>
-      ipcRenderer.invoke('agent:resetSession', conversationId),
-
-    /** 恢复历史会话的后端 session id */
-    restoreConversation: (conversationId: string, sessionId: string | null) =>
-      ipcRenderer.invoke('agent:restoreConversation', conversationId, sessionId),
-
-    /** 关闭指定会话并释放后端资源 */
-    closeConversation: (conversationId: string) =>
-      ipcRenderer.invoke('agent:closeConversation', conversationId),
-
-    // ─── 流式事件监听 ───────────────────────────
-    /** 监听 CLI 流式事件（NDJSON 逐行转发） */
-    onStreamEvent: (callback: (event: any) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, data: any): void => callback(data)
-      ipcRenderer.on('agent:stream', listener)
-      return () => ipcRenderer.removeListener('agent:stream', listener)
-    },
-
-    /** 监听 AI 响应完成 */
-    onComplete: (callback: (result: any) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, data: any): void => callback(data)
-      ipcRenderer.on('agent:complete', listener)
-      return () => ipcRenderer.removeListener('agent:complete', listener)
-    },
-
-    /** 监听 AI 错误 */
-    onError: (
-      callback: (error: {
-        message: string
-        code?: string
-        conversationId?: string
-        runId?: string
-        operation?: 'message' | 'compact'
-      }) => void,
-    ) => {
-      const listener = (
-        _event: Electron.IpcRendererEvent,
-        data: {
-          message: string
-          code?: string
-          conversationId?: string
-          runId?: string
-          operation?: 'message' | 'compact'
-        },
-      ): void => callback(data)
-      ipcRenderer.on('agent:error', listener)
-      return () => ipcRenderer.removeListener('agent:error', listener)
-    },
-
-    // ─── 直接 Playwright 操作（保留兼容） ─────────
-    executeAction: (action: { type: string; [key: string]: any }) =>
-      ipcRenderer.invoke('agent:executeAction', action),
-
-    verifyCapabilities: () => ipcRenderer.invoke('agent:verifyCapabilities'),
-
-    getPlaywrightStatus: () => ipcRenderer.invoke('agent:getPlaywrightStatus'),
-
-    /** 获取 Agent 能力状态（browser/editor/android/mcp 等） */
-    getCapabilities: () => ipcRenderer.invoke('agent:getCapabilities'),
-
-    /** 列出内置 Agent 工具模块及其真实运行状态 */
-    listToolModules: () => ipcRenderer.invoke('agent:listToolModules'),
-
-    /** 启用或禁用内置 Agent 工具模块 */
-    setToolModuleEnabled: (moduleId: string, enabled: boolean) =>
-      ipcRenderer.invoke('agent:setToolModuleEnabled', moduleId, enabled),
-
-    // ─── 权限管理 ──────────────────────────────
-    /** 监听工具确认请求 */
-    onRequestConfirmation: (callback: (request: any) => void) => {
-      const listener = (_event: Electron.IpcRendererEvent, data: any): void => callback(data)
-      ipcRenderer.on('agent:requestConfirmation', listener)
-      return () => ipcRenderer.removeListener('agent:requestConfirmation', listener)
-    },
-
-    /** 回传用户确认/拒绝 */
-    resolveToolConfirmation: (id: string, approved: boolean, alwaysAllow?: boolean) =>
-      ipcRenderer.invoke('agent:resolveToolConfirmation', id, approved, alwaysAllow),
-
-    /** 获取当前权限模式 */
-    getPermissionMode: () => ipcRenderer.invoke('agent:getPermissionMode'),
-
-    /** 设置权限模式 */
-    setPermissionMode: (mode: string) => ipcRenderer.invoke('agent:setPermissionMode', mode),
-
-    // ─── 外部 MCP Server 管理 ────────────────────────
-    /** 列出所有外部 MCP server */
-    listMcpServers: () => ipcRenderer.invoke('mcp:listServers'),
-    /** 添加外部 MCP server */
-    addMcpServer: (server: {
-      name: string
-      transport: string
-      command?: string
-      args?: string[]
-      env?: Record<string, string>
-      url?: string
-      headers?: Record<string, string>
-      enabled: boolean
-    }) => ipcRenderer.invoke('mcp:addServer', server),
-    /** 移除外部 MCP server */
-    removeMcpServer: (name: string) => ipcRenderer.invoke('mcp:removeServer', name),
-    /** 更新外部 MCP server */
-    updateMcpServer: (name: string, updates: Record<string, unknown>) =>
-      ipcRenderer.invoke('mcp:updateServer', name, updates),
-    /** 重新加载 MCP 配置文件 */
-    reloadMcpConfig: () => ipcRenderer.invoke('mcp:reloadConfig'),
-  },
+  agent: agentApi,
 
   // 文件系统
   fs: {
@@ -260,121 +107,19 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
     },
   },
 
-  // 项目内运营助手：项目账号配置、文案草稿和发布记录。
-  projectOps: {
-    getAccounts: (workspacePath: string) =>
-      ipcRenderer.invoke('projectOps:getAccounts', workspacePath),
-    createAccountsTemplate: (workspacePath: string) =>
-      ipcRenderer.invoke('projectOps:createAccountsTemplate', workspacePath),
-    createCopyDraft: (workspacePath: string, input?: unknown) =>
-      ipcRenderer.invoke('projectOps:createCopyDraft', workspacePath, input),
-    appendPublicationRecord: (workspacePath: string, input: unknown) =>
-      ipcRenderer.invoke('projectOps:appendPublicationRecord', workspacePath, input),
-  },
+  projectOps: projectOpsApi,
 
-  // 单用户手动 Git 备份。Token 仅发送给主进程，不提供读回接口。
-  gitBackup: {
-    getAccountStatus: () => ipcRenderer.invoke('gitBackup:getAccountStatus'),
-    saveAccount: (input: unknown) => ipcRenderer.invoke('gitBackup:saveAccount', input),
-    clearAccount: () => ipcRenderer.invoke('gitBackup:clearAccount'),
-    testAccount: (input?: unknown) => ipcRenderer.invoke('gitBackup:testAccount', input),
-    getProjectStatus: (workspacePath: string) =>
-      ipcRenderer.invoke('gitBackup:getProjectStatus', workspacePath),
-    backup: (input: unknown) => ipcRenderer.invoke('gitBackup:backup', input),
-  },
+  gitBackup: gitBackupApi,
 
-  // 硬件工作区：硬件项目识别、生产包检查。
-  hardware: {
-    scanWorkspace: (workspacePath: string) =>
-      ipcRenderer.invoke('hardware:scanWorkspace', workspacePath),
-    inspectProductionPackage: (workspacePath: string) =>
-      ipcRenderer.invoke('hardware:inspectProductionPackage', workspacePath),
-    prepareFpcShapeContext: (workspacePath: string) =>
-      ipcRenderer.invoke('hardware:prepareFpcShapeContext', workspacePath),
-    readGerberLayerPreview: (workspacePath: string, packagePath: string, entry: string) =>
-      ipcRenderer.invoke('hardware:readGerberLayerPreview', workspacePath, packagePath, entry),
-    readGerberLayerGeometry: (workspacePath: string, packagePath: string, entry: string) =>
-      ipcRenderer.invoke('hardware:readGerberLayerGeometry', workspacePath, packagePath, entry),
-    writeProductionReportMarkdown: (workspacePath: string) =>
-      ipcRenderer.invoke('hardware:writeProductionReportMarkdown', workspacePath),
-  },
+  hardware: hardwareApi,
 
-  // CAD 转换：STEP/STP 可选预览后端。
-  cad: {
-    getBackendStatus: () => ipcRenderer.invoke('cad:getBackendStatus'),
-    getModelSupport: (inputPath: string) => ipcRenderer.invoke('cad:getModelSupport', inputPath),
-    inspectModel: (inputPath: string) => ipcRenderer.invoke('cad:inspectModel', inputPath),
-    getCacheStatus: () => ipcRenderer.invoke('cad:getCacheStatus'),
-    clearCache: () => ipcRenderer.invoke('cad:clearCache'),
-    convertModel: (request: unknown) => ipcRenderer.invoke('cad:convertModel', request),
-  },
+  cad: cadApi,
 
-  // 对话框（文件选择、保存）
-  dialog: {
-    /** 打开文件选择对话框（selectDirectory=true 时改为选择文件夹） */
-    showOpenDialog: (options?: {
-      title?: string
-      multiSelections?: boolean
-      selectDirectory?: boolean
-      filters?: Array<{ name: string; extensions: string[] }>
-    }) => ipcRenderer.invoke('dialog:showOpenDialog', options),
-    /** 打开保存文件对话框 */
-    showSaveDialog: (options?: {
-      title?: string
-      defaultPath?: string
-      filters?: Array<{ name: string; extensions: string[] }>
-    }) => ipcRenderer.invoke('dialog:showSaveDialog', options),
-    /** 打开普通消息对话框 */
-    showMessageBox: (options: {
-      type?: 'none' | 'info' | 'error' | 'question' | 'warning'
-      title?: string
-      message: string
-      detail?: string
-      buttons?: string[]
-      defaultId?: number
-      cancelId?: number
-    }) => ipcRenderer.invoke('dialog:showMessageBox', options),
-  },
+  dialog: dialogApi,
 
-  // 微信公众号格式转换
-  wechat: {
-    /** 将 Markdown 转换为微信公众号兼容 HTML */
-    convert: (markdown: string) => ipcRenderer.invoke('wechat:convert', { markdown }),
-  },
+  wechat: wechatApi,
 
-  // 编辑器（Agent ↔ 编辑器双向通信）
-  editor: {
-    /** 监听 Agent 推送的内容更新 */
-    onContentUpdate: (callback: (update: any) => void) => {
-      const handler = (_event: any, data: any): void => callback(data)
-      ipcRenderer.removeAllListeners('editor:contentUpdate')
-      ipcRenderer.on('editor:contentUpdate', handler)
-      return () => ipcRenderer.removeListener('editor:contentUpdate', handler)
-    },
-    /** 确认内容更新是否安全应用 */
-    contentUpdateAck: (id: string, success = true, error?: string) =>
-      ipcRenderer.invoke('editor:contentUpdateAck', id, success, error),
-    /** 监听 Agent 读取请求 */
-    onReadRequest: (callback: (request: { id: string; filePath?: string }) => void) => {
-      const handler = (_event: any, data: any): void => callback(data)
-      ipcRenderer.removeAllListeners('editor:readRequest')
-      ipcRenderer.on('editor:readRequest', handler)
-      return () => ipcRenderer.removeListener('editor:readRequest', handler)
-    },
-    /** 回传编辑器内容（响应 readRequest） */
-    readResponse: (id: string, content: string) =>
-      ipcRenderer.invoke('editor:readResponse', id, content),
-    /** 监听 Agent 保存请求 */
-    onSaveRequest: (callback: (request: { id: string; filePath?: string }) => void) => {
-      const handler = (_event: any, data: any): void => callback(data)
-      ipcRenderer.removeAllListeners('editor:saveRequest')
-      ipcRenderer.on('editor:saveRequest', handler)
-      return () => ipcRenderer.removeListener('editor:saveRequest', handler)
-    },
-    /** 回传保存结果 */
-    saveResult: (id: string, success: boolean, error?: string) =>
-      ipcRenderer.invoke('editor:saveResult', id, success, error),
-  },
+  editor: editorApi,
 
   android: androidApi,
 
@@ -429,45 +174,7 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
     detectClaudeCode: () => ipcRenderer.invoke('settings:detectClaudeCode'),
   },
 
-  // 工作台状态（逐步替代 renderer localStorage）
-  workspaceState: {
-    /** 验证并解析本地工作区真实路径；恢复任何项目现场前必须先调用。 */
-    resolveLocalWorkspace: (workspacePath: string) =>
-      ipcRenderer.invoke('workspaceState:resolveLocalWorkspace', workspacePath),
-    /** 获取指定工作区的持久化工作台状态；空路径表示全局状态 */
-    get: (workspacePath?: string | null, ownerKey?: string | null) =>
-      ipcRenderer.invoke('workspaceState:get', workspacePath, ownerKey),
-    /** 写入一个状态分区，例如 tabs/browserTabs/layout */
-    setSection: (
-      workspacePath: string | null | undefined,
-      section: string,
-      value: unknown,
-      ownerKey?: string | null,
-    ) => ipcRenderer.invoke('workspaceState:setSection', workspacePath, section, value, ownerKey),
-    /** 清空指定工作区的工作台状态；空路径表示全局状态 */
-    clear: (workspacePath?: string | null, ownerKey?: string | null) =>
-      ipcRenderer.invoke('workspaceState:clear', workspacePath, ownerKey),
-    /** 列出已有本地工作区状态，用于恢复最近项目列表 */
-    listLocalWorkspaces: (ownerKey?: string | null) =>
-      ipcRenderer.invoke('workspaceState:listLocalWorkspaces', ownerKey),
-    /** 获取工作台状态文件和 userData 迁移诊断信息 */
-    diagnostics: () => ipcRenderer.invoke('workspaceState:diagnostics'),
-  },
+  workspaceState: workspaceStateApi,
 
-  // 自动更新（检查 + 下载 dmg）
-  update: {
-    /** 手动触发一次更新检查（返回完整结果，无更新也返回） */
-    check: () => ipcRenderer.invoke('updater:check'),
-    /** 下载最新版本 dmg 到 ~/Downloads 并自动打开（挂载），返回保存路径 */
-    download: () => ipcRenderer.invoke('updater:download'),
-    /** 监听「发现新版本」推送，返回取消订阅函数 */
-    onUpdateAvailable: (callback: (info: { latest?: string }) => void) => {
-      const handler = (_event: unknown, info: { latest?: string }): void => callback(info)
-      ipcRenderer.removeAllListeners('updater:update-available')
-      ipcRenderer.on('updater:update-available', handler)
-      return () => {
-        ipcRenderer.removeListener('updater:update-available', handler)
-      }
-    },
-  },
+  update: updateApi,
 })

@@ -6,6 +6,7 @@ vi.mock('electron', () => ({ ipcMain: mockIpcMain }))
 
 import {
   createTrustedRendererGuard,
+  createTrustedIpcRegistrar,
   isAllowedMainRendererUrl,
   registerTrustedIpcHandler,
   registerTrustedIpcListener,
@@ -67,6 +68,16 @@ describe('TrustedRendererGuard', () => {
     guard.isTrusted.mockReturnValue(true)
     registered?.({ sender: {} }, 'value')
     expect(listener).toHaveBeenCalledWith({ sender: {} }, 'value')
+  })
+
+  it('provides integrations only a trusted handler registrar', () => {
+    const guard = { assert: vi.fn(() => assertNever()), isTrusted: vi.fn(() => false) }
+    const handler = vi.fn()
+    createTrustedIpcRegistrar(guard).handle('integration:secure', handler)
+    const registered = mockIpcMain.handle.mock.calls[0]?.[1]
+
+    expect(() => registered?.({ sender: {} }, 'value')).toThrow('blocked')
+    expect(handler).not.toHaveBeenCalled()
   })
 })
 

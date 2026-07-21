@@ -14,8 +14,13 @@ import { DataSourceToolModule } from '../mcp/modules/data-source'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 
 export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeState): Promise<void> {
-  if (!runtime.mainWindow || !runtime.permissionManager || !runtime.fileService) {
-    throw new Error('自动化 runtime 依赖的窗口或权限系统尚未初始化')
+  if (
+    !runtime.mainWindow ||
+    !runtime.permissionManager ||
+    !runtime.fileService ||
+    !runtime.trustedRendererGuard
+  ) {
+    throw new Error('自动化 runtime 依赖的窗口、可信 renderer 或权限系统尚未初始化')
   }
 
   try {
@@ -44,7 +49,7 @@ export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeSta
 
     runtime.editorModule = new EditorToolModule(runtime.mainWindow, runtime.fileService)
     runtime.toolHost.registerModule(runtime.editorModule)
-    registerEditorIpc(runtime.editorModule)
+    registerEditorIpc(runtime.editorModule, runtime.trustedRendererGuard)
 
     runtime.toolHost.registerModule(new MeshyToolModule(runtime.meshyService!))
     console.log('[CCLink Studio] Meshy MCP 工具模块已注册')

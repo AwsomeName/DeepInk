@@ -1,22 +1,39 @@
-import { ipcMain } from 'electron'
+import type { IpcMainInvokeEvent } from 'electron'
 import type {
   GitBackupRunInput,
   GitBackupSaveAccountInput,
   GitBackupTestAccountInput,
 } from '../../shared/ipc/git-backup'
 import type { GitBackupService } from './git-backup-service'
+import { registerTrustedIpcHandler, type TrustedRendererGuard } from '../ipc/trusted-renderer-guard'
+import {
+  gitBackupRunSchema,
+  gitBackupSaveAccountSchema,
+  gitBackupTestAccountSchema,
+  gitBackupWorkspacePathSchema,
+} from '../ipc/workbench-ipc-schema'
 
-export function registerGitBackupIpc(service: GitBackupService): void {
-  ipcMain.handle('gitBackup:getAccountStatus', () => service.getAccountStatus())
-  ipcMain.handle('gitBackup:saveAccount', (_event, input: GitBackupSaveAccountInput) =>
-    service.saveAccount(input),
+export function registerGitBackupIpc(
+  service: GitBackupService,
+  trustedRendererGuard: TrustedRendererGuard,
+): void {
+  const handle = <Args extends unknown[], Result>(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
+  ): void => registerTrustedIpcHandler(channel, trustedRendererGuard, handler)
+
+  handle('gitBackup:getAccountStatus', () => service.getAccountStatus())
+  handle('gitBackup:saveAccount', (_event, input: GitBackupSaveAccountInput) =>
+    service.saveAccount(gitBackupSaveAccountSchema.parse(input)),
   )
-  ipcMain.handle('gitBackup:clearAccount', () => service.clearAccount())
-  ipcMain.handle('gitBackup:testAccount', (_event, input?: GitBackupTestAccountInput) =>
-    service.testAccount(input),
+  handle('gitBackup:clearAccount', () => service.clearAccount())
+  handle('gitBackup:testAccount', (_event, input?: GitBackupTestAccountInput) =>
+    service.testAccount(gitBackupTestAccountSchema.parse(input)),
   )
-  ipcMain.handle('gitBackup:getProjectStatus', (_event, workspacePath: string) =>
-    service.getProjectStatus(workspacePath),
+  handle('gitBackup:getProjectStatus', (_event, workspacePath: string) =>
+    service.getProjectStatus(gitBackupWorkspacePathSchema.parse(workspacePath)),
   )
-  ipcMain.handle('gitBackup:backup', (_event, input: GitBackupRunInput) => service.backup(input))
+  handle('gitBackup:backup', (_event, input: GitBackupRunInput) =>
+    service.backup(gitBackupRunSchema.parse(input)),
+  )
 }

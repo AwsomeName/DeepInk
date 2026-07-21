@@ -37,9 +37,12 @@ Studio will call the hooks in this order during main-process startup:
 3. `registerIpc(context)`
 4. Studio-owned read-only `official:getStatus` IPC registration
 
+`OfficialIpcContext` provides `context.ipc.handle(...)`, not Electron's raw `ipcMain`. Every official handler therefore inherits the same trusted-main-frame sender check as OSS handlers.
+
 ## Hard Rules
 
 - Do not edit `src/main/runtime/core-services.ts` for official assembly.
+- Do not import or register raw Electron `ipcMain` handlers in the integration; use `context.ipc.handle(...)` and validate each payload with a bounded runtime schema.
 - Do not import official account, message, quota, release, or runtime packages from Studio default runtime files.
 - Do not expose secrets through preload, renderer stores, logs, diagnostics, screenshots, or localStorage.
 - Do not add production endpoints to OSS defaults or `.env.example`.
