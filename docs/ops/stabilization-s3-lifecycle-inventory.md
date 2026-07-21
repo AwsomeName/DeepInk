@@ -1,6 +1,6 @@
 # S3 生命周期与契约治理记录
 
-> 状态：进行中。S3.1、S3.2a、S3.2b1、S3.2b2、S3.2b3 已关闭；下一工作包为 S3.2b4。
+> 状态：进行中。S3.1、S3.2a、S3.2b1、S3.2b2、S3.2b3、S3.2b4 已关闭；下一工作包为 S3.2b5。
 
 ## 结论
 
@@ -51,7 +51,9 @@ S3.2b2 已迁移 Settings 与 Dialog。带参数 contract 分为轻量 `IpcInvok
 
 S3.2b3 已迁移 FS 的 24 个 invoke 通道和目录监听事件。参数上限、严格对象校验、非法路径拒绝和 watcher 生命周期语义保持不变；shared 轻量 definition、主进程 parser binding 与 preload client 分层，防止 Zod 进入 sandbox preload。源码边界测试禁止 FS 通道退回 main/preload 双写，并校验每个轻量 definition 都存在有界 runtime parser。
 
-下一批需迁移 Agent 与 Browser contract；完成前，其他通道字符串仍可能在调用端漂移，S3.2 和整个 S3 都不能关闭。
+S3.2b4 已迁移 Agent 的 16 个 invoke 通道、MCP 的 5 个 invoke 通道和 4 个 renderer 事件。`sendMessage` 与 `setScope` 的重载保持不变；非法消息仍以异步 Promise rejection 返回，非法 MCP 配置仍返回原有结构化失败结果。通用输入 schema 与 Agent/MCP parser 移入 shared 主进程绑定层，旧 main import 通过兼容 re-export 保留，sandbox preload 只加载轻量 definition，不加载 Zod。
+
+下一批需迁移 Browser contract；完成前，剩余通道字符串仍可能在调用端漂移，S3.2 和整个 S3 都不能关闭。
 
 S3.3 再处理项目切换时 Browser view、BrowserTask、Agent conversation 和 Terminal session 的统一解绑及集成测试。
 
@@ -108,6 +110,18 @@ S3.2b2 实现提交为 `bcaadc9`。当前工作树与全新 detached worktree `/
 
 S3.2b3 实现提交为 `34af454`。当前工作树与全新 detached worktree `/tmp/cclink-studio-s3-fs-contract-verify.XhPvTp` 均完成 `pnpm install --frozen-lockfile` 后通过 `pnpm verify`（140 个测试文件/838 项测试）、standalone 24/24 与严格认证 smoke；Profile Cookie/localStorage 跨进程保持成功，clean 与 automation-controlled 探针到达 Google account validation。detached HEAD 和工作树干净，临时 worktree 已清理。GitHub Actions run `29808826150` 的 `verify` 与 `smoke` job 均成功。S3.2b3 已关闭，下一批迁移 Agent 与 Browser contract。
 
+### S3.2b4 验收
+
+- [x] Agent 的 16 个 invoke channel、MCP 的 5 个 invoke channel 及参数和结果类型只在 shared 轻量 definition 中声明一次。
+- [x] Agent stream、complete、error 和权限确认事件的 channel 与 payload 类型由 main/renderer 共享。
+- [x] main 从同一轻量 definition 绑定有界 parser，并在 AgentBridge、PermissionManager 或 MCP registry 调用前拒绝非法参数。
+- [x] `sendMessage`、`setScope` 的重载与可选参数保持兼容，非法消息保持异步 rejection，非法 MCP 配置保持结构化失败。
+- [x] preload 不导入 Zod、Agent/MCP schema 或主进程 runtime contract，生产 preload 产物不包含 `require("zod")`。
+- [x] 测试覆盖 definition/parser 完整对应、重载参数、可选 conversation、权限结果及凭证 URL 非法配置。
+- [x] 当前工作树、全新 detached worktree 和远端 CI 门禁通过。
+
+S3.2b4 实现提交为 `8a27c90`。当前工作树与全新 detached worktree `/tmp/cclink-studio-s3-agent-contract-verify.Vzd01q` 均完成锁定安装后通过 `pnpm verify`（140 个测试文件/839 项测试）、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；Profile Cookie/localStorage 跨进程保持成功，clean 与 automation-controlled 探针到达 Google account validation。detached HEAD 和工作树干净，临时 worktree 已清理。GitHub Actions run `29810751046` 成功。S3.2b4 已关闭，下一批迁移 Browser contract。
+
 ## 当前门禁证据
 
 2026-07-21 当前工作树：
@@ -121,6 +135,8 @@ S3.2b3 实现提交为 `34af454`。当前工作树与全新 detached worktree `/
 2026-07-21 S3.2b2 最新证据：实现提交 `bcaadc9` 在当前工作树和全新 detached worktree 均通过 140 个测试文件/836 项测试、standalone 24/24 与严格认证 smoke；远端 CI run `29807348621` 成功。下一阻断项仍是 FS、Agent、Browser contract 和 S3.3 项目切换资源解绑。
 
 2026-07-21 S3.2b3 最新证据：实现提交 `34af454` 在当前工作树和全新 detached worktree 均通过 140 个测试文件/838 项测试、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；远端 CI run `29808826150` 成功。下一阻断项为 Agent、Browser contract 和 S3.3 项目切换资源解绑。
+
+2026-07-21 S3.2b4 最新证据：实现提交 `8a27c90` 在当前工作树和全新 detached worktree 均通过 140 个测试文件/839 项测试、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；远端 CI run `29810751046` 成功。下一阻断项为 Browser contract 和 S3.3 项目切换资源解绑。
 
 ## 拷问
 
