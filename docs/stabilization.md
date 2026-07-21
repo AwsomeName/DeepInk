@@ -173,6 +173,8 @@ S3.2b3 已关闭：FS 的 24 个 invoke 通道和目录监听事件已迁移到 
 
 S3.2b4 已关闭：Agent 的 16 个 invoke 通道、MCP 的 5 个 invoke 通道和 4 个 renderer 事件已迁移到 shared 轻量 definition，主进程从同一声明绑定有界 parser，preload client 不再保存重复通道字符串或加载 runtime schema。消息发送和 scope 重载、异步参数拒绝以及 MCP 结构化失败语义保持不变，源码边界与 parser 完整性测试防止回退。实现提交 `8a27c90` 在当前工作树与全新 detached worktree 均通过 140 个测试文件/839 项测试、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查，GitHub Actions run `29810751046` 成功。Browser contract 与 S3.3 项目切换资源解绑仍未完成，因此 S3 和稳定化阶段继续进行。
 
+S3.2b5 已关闭：Browser、BrowserTask 和 BrowserDownload 的 42 个 invoke 通道及 8 个 renderer 事件已迁移到 shared 轻量 definition，主进程从同一声明绑定有界 parser，preload client 与事件生产点不再保存重复通道字符串或加载 runtime schema。URL、Profile、bounds、缩放、任务和下载参数边界保持不变，解析失败继续以 Promise rejection 返回。实现提交 `dee51b6` 在当前工作树与全新 detached worktree 均通过 140 个测试文件/840 项测试、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查，GitHub Actions run `29812695777` 成功。至此 S3.2 已关闭；S3.3 项目切换资源解绑仍未完成，因此 S3 和稳定化阶段继续进行。
+
 ### S4：收敛状态和复杂度
 
 - 明确 workspace、browser profile、conversation、terminal 和 tab 的唯一状态所有者。

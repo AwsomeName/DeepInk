@@ -1,10 +1,10 @@
 # S3 生命周期与契约治理记录
 
-> 状态：进行中。S3.1、S3.2a、S3.2b1、S3.2b2、S3.2b3、S3.2b4 已关闭；下一工作包为 S3.2b5。
+> 状态：进行中。S3.1、S3.2 已关闭；下一工作包为 S3.3。
 
 ## 结论
 
-S3.1 先关闭运行时生命周期的双清单问题：同一个 `ServiceRegistry` 声明启动与停止，保存在 runtime 中，并负责启动失败回滚、窗口重建和最终退出。随后 S3.2a 已删除 IPC 人工清理总表，S3.2b 正分域把注册、preload 调用和运行时校验迁移到共享 contract；Agent、Browser 与项目切换资源解绑完成前，不得宣称 S3 完成。
+S3.1 先关闭运行时生命周期的双清单问题：同一个 `ServiceRegistry` 声明启动与停止，保存在 runtime 中，并负责启动失败回滚、窗口重建和最终退出。S3.2 已删除 IPC 人工清理总表，并分域把注册、preload 调用和运行时校验迁移到共享 contract。项目切换资源解绑完成前，不得宣称 S3 完成。
 
 ## 基线问题
 
@@ -53,7 +53,7 @@ S3.2b3 已迁移 FS 的 24 个 invoke 通道和目录监听事件。参数上限
 
 S3.2b4 已迁移 Agent 的 16 个 invoke 通道、MCP 的 5 个 invoke 通道和 4 个 renderer 事件。`sendMessage` 与 `setScope` 的重载保持不变；非法消息仍以异步 Promise rejection 返回，非法 MCP 配置仍返回原有结构化失败结果。通用输入 schema 与 Agent/MCP parser 移入 shared 主进程绑定层，旧 main import 通过兼容 re-export 保留，sandbox preload 只加载轻量 definition，不加载 Zod。
 
-下一批需迁移 Browser contract；完成前，剩余通道字符串仍可能在调用端漂移，S3.2 和整个 S3 都不能关闭。
+S3.2b5 已迁移 Browser、BrowserTask 和 BrowserDownload 的 42 个 invoke 通道及 8 个 renderer 事件。现有 URL、Profile、bounds、缩放、任务目标和 ID 边界保持不变；解析失败继续以 Promise rejection 返回。Browser schema 移入 shared 主进程绑定层，旧 main import 通过兼容 re-export 保留，sandbox preload 只加载轻量 definition，不加载 Zod。至此 S3.2 已关闭。
 
 S3.3 再处理项目切换时 Browser view、BrowserTask、Agent conversation 和 Terminal session 的统一解绑及集成测试。
 
@@ -122,6 +122,18 @@ S3.2b3 实现提交为 `34af454`。当前工作树与全新 detached worktree `/
 
 S3.2b4 实现提交为 `8a27c90`。当前工作树与全新 detached worktree `/tmp/cclink-studio-s3-agent-contract-verify.Vzd01q` 均完成锁定安装后通过 `pnpm verify`（140 个测试文件/839 项测试）、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；Profile Cookie/localStorage 跨进程保持成功，clean 与 automation-controlled 探针到达 Google account validation。detached HEAD 和工作树干净，临时 worktree 已清理。GitHub Actions run `29810751046` 成功。S3.2b4 已关闭，下一批迁移 Browser contract。
 
+### S3.2b5 验收
+
+- [x] Browser 的 26 个 invoke、BrowserTask 的 9 个 invoke、BrowserDownload 的 7 个 invoke 只在 shared 轻量 definition 中声明一次。
+- [x] workbench bounds、URL、页面元数据、开新 Tab、视图状态、任务、动作日志和下载事件名由 main/preload 共享。
+- [x] main 从同一轻量 definition 绑定有界 parser，并在 BrowserManager、BrowserTaskRuntime 或 BrowserDownloadStore 调用前拒绝非法参数。
+- [x] URL 协议、Profile、bounds、缩放、历史、任务目标和 ID 边界保持不变，解析失败保持异步 Promise rejection。
+- [x] preload 不导入 Zod、Browser schema 或主进程 runtime contract，生产 preload 产物不包含 `zod`。
+- [x] 测试覆盖 definition/parser 完整对应、可选参数、非法协议、缩放上限、空任务目标及多余参数。
+- [x] 当前工作树、全新 detached worktree 和远端 CI 门禁通过。
+
+S3.2b5 实现提交为 `dee51b6`。当前工作树与全新 detached worktree `/tmp/cclink-studio-s3-browser-contract-verify.X9hh7Z` 均完成锁定安装后通过 `pnpm verify`（140 个测试文件/840 项测试）、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；Profile Cookie/localStorage 跨进程保持成功，clean 与 automation-controlled 探针到达 Google account validation。detached HEAD 和工作树干净，临时 worktree 已清理。GitHub Actions run `29812695777` 成功。S3.2b5 与 S3.2 已关闭，下一工作包为 S3.3 项目切换资源解绑。
+
 ## 当前门禁证据
 
 2026-07-21 当前工作树：
@@ -137,6 +149,8 @@ S3.2b4 实现提交为 `8a27c90`。当前工作树与全新 detached worktree `/
 2026-07-21 S3.2b3 最新证据：实现提交 `34af454` 在当前工作树和全新 detached worktree 均通过 140 个测试文件/838 项测试、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；远端 CI run `29808826150` 成功。下一阻断项为 Agent、Browser contract 和 S3.3 项目切换资源解绑。
 
 2026-07-21 S3.2b4 最新证据：实现提交 `8a27c90` 在当前工作树和全新 detached worktree 均通过 140 个测试文件/839 项测试、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；远端 CI run `29810751046` 成功。下一阻断项为 Browser contract 和 S3.3 项目切换资源解绑。
+
+2026-07-21 S3.2b5 最新证据：实现提交 `dee51b6` 在当前工作树和全新 detached worktree 均通过 140 个测试文件/840 项测试、standalone 24/24、严格认证 smoke 和 preload 无 Zod 产物检查；远端 CI run `29812695777` 成功。S3.2 已关闭，S3 的剩余阻断项为 S3.3 项目切换资源解绑。
 
 ## 拷问
 
