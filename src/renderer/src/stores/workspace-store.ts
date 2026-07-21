@@ -53,7 +53,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
       const transition = await prepareWorkspaceRuntimeTransition(ref, { generation })
       if (
         !isWorkspaceRuntimeTransitionCurrent(generation) ||
-        !applyWorkspaceRuntimeTransition(transition)
+        !(await applyWorkspaceRuntimeTransition(transition))
       ) {
         return
       }

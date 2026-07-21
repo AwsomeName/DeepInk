@@ -41,6 +41,7 @@ import { ConversationMessageRenderer } from '../common/ConversationMessageRender
 import { AgentComposerToolbar } from '../../features/agent-composer/AgentComposerToolbar'
 import { useComposerHistory } from '../../features/agent-composer/use-composer-history'
 import { TerminalConfirmationCards } from './TerminalConfirmationCards'
+import { isAgentConfirmationVisible } from '../../utils/workspace-resource-visibility'
 import { buildAgentDiagnosticMarkdown } from '../../features/diagnostics/agent-diagnostic-report'
 import { useToastStore } from '../common/Toast'
 import {
@@ -113,7 +114,7 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const lastCost = useAgentStore((s) => s.lastCost)
   const contextUsage = useAgentStore((s) => s.contextUsage)
   const contextCompaction = useAgentStore((s) => s.contextCompaction)
-  const pendingConfirmations = useAgentStore((s) => s.pendingConfirmations)
+  const allPendingConfirmations = useAgentStore((s) => s.pendingConfirmations)
   const permissionMode = useAgentStore((s) => s.permissionMode)
   const setInput = useAgentStore((s) => s.setInput)
   const addUserMessage = useAgentStore((s) => s.addUserMessage)
@@ -175,6 +176,13 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     loadComposerHeight(variant),
   )
   const [threadListWidth, setThreadListWidth] = useState(loadThreadListWidth)
+  const pendingConfirmations = useMemo(
+    () =>
+      allPendingConfirmations.filter((confirmation) =>
+        isAgentConfirmationVisible(confirmation, activeConversationId),
+      ),
+    [activeConversationId, allPendingConfirmations],
+  )
   const scrollRevision = useMemo(
     () => ({ messages, pendingConfirmationCount: pendingConfirmations.length }),
     [messages, pendingConfirmations.length],

@@ -1,5 +1,8 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useTerminalStore } from '../../stores/terminal-store'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import { workspaceRefKey } from '@shared/workspace-ref'
+import { isTerminalConfirmationVisible } from '../../utils/workspace-resource-visibility'
 import {
   formatTerminalExpiresIn,
   formatTerminalRuntime,
@@ -10,9 +13,18 @@ import {
 import { IconCheck, IconError, IconTool } from '../common/Icons'
 
 export function TerminalConfirmationCards(): React.ReactElement | null {
-  const pendingConfirmations = useTerminalStore((state) => state.pendingConfirmations)
+  const allPendingConfirmations = useTerminalStore((state) => state.pendingConfirmations)
+  const activeWorkspaceRef = useWorkspaceStore((state) => state.activeWorkspaceRef)
   const removePendingConfirmation = useTerminalStore((state) => state.removePendingConfirmation)
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set())
+  const activeWorkspaceKey = workspaceRefKey(activeWorkspaceRef)
+  const pendingConfirmations = useMemo(
+    () =>
+      allPendingConfirmations.filter((request) =>
+        isTerminalConfirmationVisible(request, activeWorkspaceKey),
+      ),
+    [activeWorkspaceKey, allPendingConfirmations],
+  )
 
   if (pendingConfirmations.length === 0) return null
 

@@ -558,8 +558,8 @@ export const useFsStore = create<FsState>((set, get) => ({
         commitGuard: () => isWorkspaceRuntimeTransitionCurrent(generation),
       })
       if (ok) {
+        if (!(await applyWorkspaceRuntimeTransition(transition))) return
         useWorkspaceStore.getState().activateLocalWorkspace(path)
-        if (!applyWorkspaceRuntimeTransition(transition)) return
         useOpenProjectsStore.getState().addProject(path)
         const recentWorkspacePaths = get().recentWorkspacePaths
         saveRecentWorkspaceFallback(recentWorkspacePaths)
@@ -609,8 +609,8 @@ export const useFsStore = create<FsState>((set, get) => ({
       })
       if (!ok) return false
 
+      if (!(await applyWorkspaceRuntimeTransition(transition))) return false
       useWorkspaceStore.getState().activateLocalWorkspace(resolvedPath)
-      if (!applyWorkspaceRuntimeTransition(transition)) return false
       useOpenProjectsStore.getState().addProject(resolvedPath)
       const recentWorkspacePaths = get().recentWorkspacePaths
       saveRecentWorkspaceFallback(recentWorkspacePaths)
@@ -645,11 +645,11 @@ export const useFsStore = create<FsState>((set, get) => ({
         set({ loading: false })
         return
       }
-      useWorkspaceStore.getState().activateGlobalWorkspace()
       get().hydrateFromWorkspaceState(
         transition.snapshot?.sections.fileTree ?? { expandedPaths: [], selectedPath: null },
       )
-      if (!applyWorkspaceRuntimeTransition(transition)) return
+      if (!(await applyWorkspaceRuntimeTransition(transition))) return
+      useWorkspaceStore.getState().activateGlobalWorkspace()
       set({
         workspacePath: null,
         tree: [],
