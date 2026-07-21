@@ -1,6 +1,6 @@
 # S1 安全边界库存
 
-> 状态：S1 进行中，S1.1-S1.4a 已完成。分支：`codex/stabilization-s1`。起始基线：`540b93e`。日期：2026-07-20。
+> 状态：S1.1-S1.4b 实现与本地门禁已完成，等待干净 worktree 与远端 CI 后关闭 S1。分支：`codex/stabilization-s1`。起始基线：`540b93e`。S1.4b 候选：`4afa82f`。日期：2026-07-21。
 
 ## 结论
 
@@ -21,9 +21,9 @@ S1 的首要目标是切断不可信内容、密钥和高权限 IPC 之间的直
 | 主 renderer | `contextIsolation: true`、`nodeIntegration: false`；S1.1 前 `sandbox: false` | renderer 被攻破后缺少 Chromium 进程沙箱 | S1.1 已改为 `sandbox: true`，S1.1-S1.3 完整 smoke 均通过 |
 | 主 renderer CSP | 主进程按开发/生产入口为主文档注入响应头 CSP；生产脚本只允许 self，开发只额外允许 Vite inline refresh 和精确 HMR origin/WebSocket；禁止 `unsafe-eval` | 开发环境仍因 Vite refresh 保留 `unsafe-inline`，必须防止该例外进入生产策略 | S1.3 已修复；UI smoke 以被禁止的 `data:` 脚本验证策略真实生效 |
 | Browser/Auth 视图 | 普通 WebContentsView、纯净窗口和认证子进程均启用 sandbox/context isolation，认证窗口无 preload/CDP | 边界已有实现，仍需保持回归门禁 | 已有 S0 smoke 与 H3 证据 |
-| preload | 总入口从 769 行降至约 473 行；Browser、Android、数据源拆为独立 typed API，移除 renderer Meshy、Android raw shell/push/uninstall、数据源 update/delete/get-record | Agent、项目运营、Git 备份、CAD/硬件等能力仍在总入口，攻击面尚未完成最小化 | S1.4a 完成首批拆分；S1.4b 继续按能力收缩 |
-| IPC sender | 统一 guard 要求调用方为当前主窗口 WebContents、主 frame 且 URL 仍处于受信任 renderer 入口；窗口、设置、文件、Terminal、Browser、Android 与数据源已接入，单向事件也支持同一 guard | Agent、项目运营、Git 备份、CAD/硬件、WorkspaceState、Dialog/Editor/Updater/Wechat 等仍有裸注册 | S1.4a 完成第二批高风险边界；S1.4b 关闭剩余模块 |
-| IPC schema/scope | 设置、文件、Browser、Android 与数据源使用严格有界 schema；Terminal 保留既有运行时正规化；FileService 继续承担实际路径约束 | Browser `file:` 是本地 HTML 产品能力，尚未收敛为工作区资源授权；完整 IPC 单一声明源仍未形成 | S1.4a 完成协议/参数边界；资源授权与契约同源继续进入 S1.4b/S3 |
+| preload | 总入口从 769 行降至 179 行；Browser、Android、数据源、Agent、本地高权限操作和 renderer 支撑能力按所有者拆为 typed API | 通道名和运行时 schema 尚未由单一声明源生成 | S1.4b 已完成最小化；声明源统一属于 S3 |
+| IPC sender | 统一 guard 要求调用方为当前主窗口 WebContents、主 frame 且 URL 仍处于受信任 renderer 入口；所有 renderer handler/listener 已接入，官方集成只能取得同一 trusted registrar | `ipc-cleanup` 仍手工维护清理清单 | S1.4b 已关闭裸注册；生命周期与清理清单统一属于 S3 |
+| IPC schema/scope | 高权限输入均使用严格有界 schema；路径写入继续由领域服务执行真实工作区授权；Browser `file:` 只允许工作区内经 `realpath` 验证的 HTML 普通文件 | 本地 HTML 子资源继续依赖 Chromium 默认 `webSecurity`；IPC 单一声明源尚未形成 | S1.4b 已关闭已知 renderer 输入与顶层本地文件越权路径；契约生成属于 S3 |
 | Agent API Key | 启动时迁移到独立 `safeStorage` 文件；公共设置快照固定返回空值，Agent 只从主进程运行时快照读取 | 迁移失败时旧明文仍暂时存在，但禁止覆盖且 UI 明确显示阻塞状态 | S1.2 已修复；保留迁移失败回归测试 |
 | Meshy API Key | 与 Agent Key 共用加密凭证存储，Meshy 只从主进程运行时快照读取 | Linux `basic_text` 等非安全后端不得被误判为可用加密 | S1.2 已修复；拒绝非安全后端 |
 | Git/Data source 凭证 | 已使用 Electron `safeStorage` 独立加密文件，普通配置只保留引用或是否已配置 | 已有正确模式，可复用 | 保持现有回归测试 |
@@ -108,6 +108,27 @@ S1 的首要目标是切断不可信内容、密钥和高权限 IPC 之间的直
 
 结果：通过。S1 尚未完成。
 
+## S1.4b 剩余 renderer IPC 与资源授权
+
+实现边界：
+
+- Agent、项目运营、Git 备份、CAD/硬件、WorkspaceState、Dialog、Editor、Updater、Wechat、Identity 和 Official 全部接入 trusted renderer guard。WorkspaceState IPC 延后到主窗口和 guard 就绪后注册，不再在状态服务阶段裸注册。
+- Agent 消息、连续性、资源、技能、会话/运行 ID、scope、确认、权限模式和外部 MCP 配置均有严格长度、数量、JSON 和 HTTP(S) 限制。撤销无人调用且缺少项目归属的旧 Playwright 执行/诊断 preload 与 IPC。
+- 项目运营、Git、CAD/硬件和 WorkspaceState 对绝对路径、压缩包条目、凭证长度、发布记录、已知状态分区及最大 5 MiB 标准 JSON 做入口校验；领域服务继续负责允许根、工作区内路径和实际写入授权。
+- Dialog、Editor 和 Wechat 对原生对话框参数、操作 ID、错误、编辑器响应和 Markdown 体积做有界校验。更新源只接受无凭证 HTTPS，清单下载地址必须同源。
+- 官方集成不再取得 Electron 原始 `ipcMain`，只能通过 Studio 提供的 trusted registrar 注册 handler；OSS 主 preload 仍只暴露只读 `official.getStatus()`。
+- BrowserManager 成为导航授权统一入口。`file:` 顶层导航只允许绑定工作区内真实存在的 `.html/.htm` 普通文件，使用 `realpath` 拒绝目录越界和符号链接逃逸；renderer、Agent、恢复历史和页面自身顶层跳转均经过该边界。
+- preload 总入口缩减为 179 行，Agent、本地操作和 renderer 支撑能力独立成 typed 模块；结构测试固定 Meshy、Android raw 操作、数据源写入口和旧 Agent Playwright 入口不可见。
+
+验收：
+
+- 恶意回归覆盖不可信 sender、超大 Agent/Editor/WorkspaceState 输入、未知状态分区、非标准 JSON、MCP URL 明文凭证、相对路径、Gerber 路径穿越、Browser 本地文件越界与符号链接逃逸、更新源协议/同源约束和官方集成 registrar。
+- `pnpm verify` 完成 132 个测试文件/801 项测试、OSS 边界、格式、lint、typecheck 与生产构建。真实 Git 进程集成测试使用 15 秒明确超时，避免与并行 Git 测试争用时随机触发 Vitest 5 秒默认值。
+- `pnpm smoke:standalone` 完成 local 9/9、UI 6/6、workflow 5/5、restore 4/4。
+- 严格模式 `CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window` 通过：Profile Cookie/localStorage 跨进程保留，纯净窗口到达 Google 账号校验页，CDP 对照进程被判为不安全。
+
+结果：实现与当前工作树本地门禁通过。S1 仅等待最新收口提交的全新 detached worktree 复验和远端 CI，不提前宣称关闭。
+
 ## 下一工作包
 
-S1.4b 继续缩小 preload 与剩余高权限 IPC 攻击面，按风险优先处理 Agent、项目运营、Git 备份、CAD/硬件与 WorkspaceState，再覆盖 Dialog、Editor、Updater、Wechat、Identity/Official 等入口。每个模块必须明确 renderer 是否真实需要、sender/schema、工作区或资源作用域、错误模型和回归测试；不能把 renderer TypeScript 类型当作运行时校验，也不能在 S3 前顺手重写完整 IPC 生成体系。Browser `file:` 访问还需要与工作区资源授权共同收敛。S1 只有在恶意路径/越权调用回归和剩余边界库存全部关闭后才能宣称完成。
+完成干净 worktree 和远端 CI 后关闭 S1，下一轮进入 S2 能力独立降级。S2 先建立能力启动/失败矩阵，再处理 Agent 对 Browser、Android、Meshy、数据源和其他可选模块的初始化依赖；不得借机扩大功能面。IPC 声明源、清理清单和完整生命周期统一保留给 S3。

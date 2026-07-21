@@ -96,7 +96,7 @@ describe('GitBackupService', () => {
       errorCode: 'SENSITIVE_FILES',
       sensitiveFiles: ['.env'],
     })
-  })
+  }, 15_000)
 
   it('does not persist a first-time remote binding before push succeeds', async () => {
     const workspacePath = join(tempDir, 'failed-project')

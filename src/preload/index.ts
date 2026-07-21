@@ -32,6 +32,7 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
     getStatus: () => ipcRenderer.invoke('official:getStatus'),
   },
 
+  // Agent
   agent: agentApi,
 
   // 文件系统
