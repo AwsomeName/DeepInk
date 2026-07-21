@@ -76,6 +76,8 @@ S3.2a 提交为 `d81c21b`，认证门禁修复为 `bd841a8`。当前工作树和
 
 当前工作树 `pnpm verify` 通过 140 个测试文件/832 项测试，standalone 24/24 与严格认证 smoke 通过。S3.2b1 仍需在提交后完成 detached 和远端 CI 复验，且不代表其他 IPC 域已经迁移。
 
+S3.2b1 实现提交为 `1eb10c1`，认证探针稳定化提交为 `995f747`。全新 detached worktree `/tmp/cclink-studio-s3-contract-verify.3PsEAj` 从 `995f747` 完成锁定安装并通过相同门禁，HEAD 和工作树干净；GitHub Actions run `29805753076` 成功。S3.2b1 已关闭，下一批迁移带参数 contract。
+
 ## 当前门禁证据
 
 2026-07-21 当前工作树：
