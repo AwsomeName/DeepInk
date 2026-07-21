@@ -133,6 +133,21 @@ describe('bootstrapAutomationRuntime', () => {
     )
     expect(runtime.capabilities.get('mcp').state).toBe('ready')
   })
+
+  it('preserves an earlier main-service failure instead of replacing its reason', async () => {
+    const runtime = createAutomationRuntime()
+    runtime.capabilities.failed('meshy', new Error('credential store unavailable'))
+
+    await bootstrapAutomationRuntime(runtime)
+
+    expect(mocks.registered).not.toContain('meshy')
+    expect(runtime.capabilities.get('meshy')).toMatchObject({
+      state: 'failed',
+      reason: 'credential store unavailable',
+    })
+    expect(runtime.capabilities.get('hardware').state).toBe('ready')
+    expect(runtime.capabilities.get('mcp').state).toBe('ready')
+  })
 })
 
 function createAutomationRuntime() {

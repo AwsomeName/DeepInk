@@ -249,6 +249,17 @@ describe('registerTerminalIpc', () => {
     })
   })
 
+  it('rejects confirmation resolution when the confirmation service is unavailable', async () => {
+    registerTerminalIpc(null, { listEvents: vi.fn() } as any)
+
+    expect(
+      mockIpcMain.handlers.get('terminal:resolveCommandConfirmation')?.({}, 'confirm-1', true),
+    ).toEqual({
+      success: false,
+      error: 'Terminal 确认服务未就绪',
+    })
+  })
+
   it('rejects invalid terminal command submission input', async () => {
     const terminalCommandOrchestrator = {
       submitCommand: vi.fn(),

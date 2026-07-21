@@ -11,3 +11,7 @@ import { createNoopOfficialIntegration, type OfficialIntegration } from './offic
 export async function loadOfficialIntegration(): Promise<OfficialIntegration> {
   return createNoopOfficialIntegration()
 }
+
+export function createOfficialIntegrationFallback(): OfficialIntegration {
+  return createNoopOfficialIntegration()
+}

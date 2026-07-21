@@ -32,7 +32,7 @@ import type { TrustedRendererGuard } from './trusted-renderer-guard'
 import { registerTrustedIpcHandler } from './trusted-renderer-guard'
 
 export function registerTerminalIpc(
-  terminalConfirmationService: TerminalConfirmationService,
+  terminalConfirmationService: TerminalConfirmationService | null | undefined,
   trustedRendererGuard: TrustedRendererGuard,
   terminalAuditStore?: TerminalAuditStore,
   terminalSessionRegistry?: TerminalSessionRegistry,
@@ -59,6 +59,9 @@ export function registerTerminalIpc(
   }
 
   handle('terminal:resolveCommandConfirmation', (_event, id: string, approved: boolean) => {
+    if (!terminalConfirmationService) {
+      return { success: false, error: 'Terminal 确认服务未就绪' }
+    }
     return {
       success: terminalConfirmationService.resolveConfirmation(id, approved),
     }

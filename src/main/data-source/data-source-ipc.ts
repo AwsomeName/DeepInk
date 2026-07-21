@@ -50,7 +50,7 @@ async function runOperation<T>(fn: () => Promise<T>): Promise<DataSourceOperatio
 }
 
 export function registerDataSourceIpc(
-  dataSourceService: DataSourceService,
+  dataSourceService: DataSourceService | (() => DataSourceService | null),
   trustedRendererGuard: TrustedRendererGuard,
 ): void {
   const handle = <Args extends unknown[], Result>(
@@ -58,31 +58,36 @@ export function registerDataSourceIpc(
     handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
   ): void => registerTrustedIpcHandler(channel, trustedRendererGuard, handler)
 
-  handle('data-source:list', () => runOperation(() => dataSourceService.listSources()))
+  const getService = (): DataSourceService => {
+    const service =
+      typeof dataSourceService === 'function' ? dataSourceService() : dataSourceService
+    if (!service) throw new Error('数据源能力当前不可用，请查看 Agent 能力状态')
+    return service
+  }
+
+  handle('data-source:list', () => runOperation(() => getService().listSources()))
 
   handle('data-source:create', (_event, input: unknown) =>
-    runOperation(() => dataSourceService.createSource(createSourceSchema.parse(input))),
+    runOperation(() => getService().createSource(createSourceSchema.parse(input))),
   )
 
   handle('data-source:test', (_event, id: unknown) =>
-    runOperation(() => dataSourceService.testConnection(dataSourceIdSchema.parse(id))),
+    runOperation(() => getService().testConnection(dataSourceIdSchema.parse(id))),
   )
 
   handle('data-source:list-collections', (_event, id: unknown) =>
-    runOperation(() => dataSourceService.listCollections(dataSourceIdSchema.parse(id))),
+    runOperation(() => getService().listCollections(dataSourceIdSchema.parse(id))),
   )
 
   handle('data-source:query', (_event, input: unknown) =>
-    runOperation(() => dataSourceService.runQuery(runQuerySchema.parse(input))),
+    runOperation(() => getService().runQuery(runQuerySchema.parse(input))),
   )
 
   handle('data-source:list-saved-queries', (_event, sourceId: unknown) =>
-    runOperation(() =>
-      dataSourceService.listSavedQueries(optionalDataSourceIdSchema.parse(sourceId)),
-    ),
+    runOperation(() => getService().listSavedQueries(optionalDataSourceIdSchema.parse(sourceId))),
   )
 
   handle('data-source:save-query', (_event, input: unknown) =>
-    runOperation(() => dataSourceService.saveQuery(saveQuerySchema.parse(input))),
+    runOperation(() => getService().saveQuery(saveQuerySchema.parse(input))),
   )
 }

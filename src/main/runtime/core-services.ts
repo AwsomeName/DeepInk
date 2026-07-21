@@ -1,17 +1,9 @@
 import { LocalIdentityService } from '../identity/local-identity-service'
-import { app } from 'electron'
 import { registerIdentityIpc } from '../identity/identity-ipc'
 import { FileService } from '../fs/file-service'
 import { registerFsIpc } from '../fs/fs-ipc'
 import { ProjectOpsService } from '../project-ops/project-ops-service'
 import { registerProjectOpsIpc } from '../project-ops/project-ops-ipc'
-import { HardwareService } from '../hardware/hardware-service'
-import { registerHardwareIpc } from '../hardware/hardware-ipc'
-import { CadConversionService } from '../cad/cad-conversion-service'
-import { registerCadIpc } from '../cad/cad-ipc'
-import { DataSourceService } from '../data-source/data-source-service'
-import { registerDataSourceIpc } from '../data-source/data-source-ipc'
-import { MeshyService } from '../meshy/meshy-service'
 import { registerWechatIPC } from '../ipc/wechat-ipc'
 import { SettingsService } from '../settings/settings-service'
 import { registerSettingsIpc } from '../settings/settings-ipc'
@@ -21,23 +13,15 @@ import { registerAgentIpc } from '../ipc/agent-ipc'
 import { registerUpdaterIpc } from '../ipc/updater-ipc'
 import { WorkspaceStateService } from '../workspace/workspace-state-service'
 import { registerWorkspaceStateIpc } from '../workspace/workspace-state-ipc'
-import { TerminalAuditStore } from '../terminal/terminal-audit-store'
-import { TerminalConfirmationService } from '../terminal/terminal-confirmation-service'
-import { TerminalSessionRegistry } from '../terminal/terminal-session-registry'
-import { TerminalSessionStore } from '../terminal/terminal-session-store'
-import { cleanupTerminalOrphans } from '../terminal/terminal-orphan-cleaner'
-import { TerminalCommandOrchestrator } from '../terminal/terminal-command-orchestrator'
-import { PtyExecutionAdapter } from '../terminal/terminal-pty-execution-adapter'
-import { createTerminalBrowserEnvironment } from '../terminal/terminal-browser-launcher'
-import { CompositeTerminalExecutionAdapter } from '../terminal/terminal-composite-execution-adapter'
-import { registerTerminalIpc } from '../ipc/terminal-ipc'
 import { registerOfficialIpc } from '../ipc/official-ipc'
 import { loadOfficialIntegration } from '../official/official-integration-loader'
+import { createOfficialIntegrationFallback } from '../official/official-integration-loader'
 import { createTrustedIpcRegistrar } from '../ipc/trusted-renderer-guard'
 import { getAgentCapabilities, getAgentToolModules } from './agent-capabilities'
 import { GitBackupService } from '../git-backup/git-backup-service'
 import { registerGitBackupIpc } from '../git-backup/git-backup-ipc'
 import type { CclinkStudioRuntimeState } from './app-runtime'
+import { bootstrapOptionalMainServices } from './optional-main-services'
 
 export async function bootstrapStateServices(runtime: CclinkStudioRuntimeState): Promise<void> {
   runtime.settingsService = new SettingsService()
@@ -59,25 +43,35 @@ export async function bootstrapMainProcessServices(
   registerWorkspaceStateIpc(runtime.workspaceStateService!, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 工作台状态 IPC 已注册')
 
-  runtime.localIdentityService = new LocalIdentityService()
-  await runtime.localIdentityService.ensureIdentity()
-  registerIdentityIpc(runtime.localIdentityService, runtime.trustedRendererGuard)
-  console.log('[CCLink Studio] 本地身份系统已初始化')
+  try {
+    runtime.localIdentityService = new LocalIdentityService()
+    await runtime.localIdentityService.ensureIdentity()
+    registerIdentityIpc(runtime.localIdentityService, runtime.trustedRendererGuard)
+    console.log('[CCLink Studio] 本地身份系统已初始化')
+  } catch (error) {
+    runtime.localIdentityService = null
+    console.error('[CCLink Studio] 本地身份系统初始化失败，其他本地能力继续启动:', error)
+  }
 
-  runtime.officialIntegration = await loadOfficialIntegration()
-  await runtime.officialIntegration.registerMainServices?.({
-    isDev: runtime.isDev,
-    mainWindow: runtime.mainWindow,
-    settingsService: runtime.settingsService,
-    workspaceStateService: runtime.workspaceStateService!,
-  })
-  await runtime.officialIntegration.registerIpc?.({
-    isDev: runtime.isDev,
-    mainWindow: runtime.mainWindow,
-    settingsService: runtime.settingsService,
-    workspaceStateService: runtime.workspaceStateService!,
-    ipc: createTrustedIpcRegistrar(runtime.trustedRendererGuard),
-  })
+  try {
+    runtime.officialIntegration = await loadOfficialIntegration()
+    await runtime.officialIntegration.registerMainServices?.({
+      isDev: runtime.isDev,
+      mainWindow: runtime.mainWindow,
+      settingsService: runtime.settingsService,
+      workspaceStateService: runtime.workspaceStateService!,
+    })
+    await runtime.officialIntegration.registerIpc?.({
+      isDev: runtime.isDev,
+      mainWindow: runtime.mainWindow,
+      settingsService: runtime.settingsService,
+      workspaceStateService: runtime.workspaceStateService!,
+      ipc: createTrustedIpcRegistrar(runtime.trustedRendererGuard),
+    })
+  } catch (error) {
+    runtime.officialIntegration = createOfficialIntegrationFallback()
+    console.error('[CCLink Studio] 官方集成初始化失败，已回退到 OSS no-op:', error)
+  }
   registerOfficialIpc(runtime.officialIntegration, runtime.trustedRendererGuard)
   console.log(
     `[CCLink Studio] 官方集成接口已注册 (id=${runtime.officialIntegration.id}, profile=${runtime.officialIntegration.buildProfile})`,
@@ -87,89 +81,32 @@ export async function bootstrapMainProcessServices(
   registerFsIpc(runtime.fileService, runtime.settingsService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 文件系统 IPC 已注册')
 
-  runtime.gitBackupService = new GitBackupService(
-    runtime.settingsService,
-    runtime.workspaceStateService!,
-  )
-  await runtime.gitBackupService.load()
-  registerGitBackupIpc(runtime.gitBackupService, runtime.trustedRendererGuard)
-  console.log('[CCLink Studio] 手动 Git 备份服务已初始化')
+  try {
+    runtime.gitBackupService = new GitBackupService(
+      runtime.settingsService,
+      runtime.workspaceStateService!,
+    )
+    await runtime.gitBackupService.load()
+    registerGitBackupIpc(runtime.gitBackupService, runtime.trustedRendererGuard)
+    console.log('[CCLink Studio] 手动 Git 备份服务已初始化')
+  } catch (error) {
+    runtime.gitBackupService = null
+    console.error('[CCLink Studio] Git 备份服务初始化失败，其他本地能力继续启动:', error)
+  }
 
   runtime.projectOpsService = new ProjectOpsService()
   registerProjectOpsIpc(runtime.projectOpsService, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 项目运营 IPC 已注册')
 
-  runtime.cadConversionService = new CadConversionService(() => runtime.settingsService!.getAll())
-  registerCadIpc(runtime.cadConversionService, runtime.trustedRendererGuard)
-  runtime.capabilities.ready('cad')
-  console.log('[CCLink Studio] CAD 转换 IPC 已注册')
-
-  runtime.hardwareService = new HardwareService(runtime.cadConversionService)
-  registerHardwareIpc(runtime.hardwareService, runtime.trustedRendererGuard)
-  runtime.capabilities.ready('hardware')
-  console.log('[CCLink Studio] 硬件工作区 IPC 已注册')
-
-  runtime.dataSourceService = new DataSourceService()
-  await runtime.dataSourceService.load()
-  registerDataSourceIpc(runtime.dataSourceService, runtime.trustedRendererGuard)
-  runtime.capabilities.ready('data-source')
-  console.log('[CCLink Studio] 数据源 IPC 已注册')
-
-  runtime.meshyService = new MeshyService(() => runtime.settingsService!.getRuntimeSettings())
-  runtime.capabilities.ready('meshy')
-  console.log('[CCLink Studio] Meshy 服务已初始化')
-
-  registerWechatIPC(runtime.trustedRendererGuard)
-  console.log('[CCLink Studio] 微信格式转换 IPC 已注册')
+  try {
+    registerWechatIPC(runtime.trustedRendererGuard)
+    console.log('[CCLink Studio] 微信格式转换 IPC 已注册')
+  } catch (error) {
+    console.error('[CCLink Studio] 微信格式转换 IPC 注册失败，其他本地能力继续启动:', error)
+  }
 
   runtime.permissionManager = new PermissionManager(runtime.mainWindow)
   runtime.permissionManager.setMode(runtime.settingsService.getAll().permissionMode)
-
-  runtime.terminalAuditStore = new TerminalAuditStore()
-  await runtime.terminalAuditStore.load()
-  runtime.terminalSessionStore = new TerminalSessionStore()
-  await runtime.terminalSessionStore.load()
-  const terminalOrphanSummary = await cleanupTerminalOrphans(runtime.terminalSessionStore)
-  if (terminalOrphanSummary.scanned > 0) {
-    console.log(
-      `[CCLink Studio] Terminal 残留进程清理完成: scanned=${terminalOrphanSummary.scanned}, killed=${terminalOrphanSummary.killed}, missing=${terminalOrphanSummary.missing}, skipped=${terminalOrphanSummary.skipped}, failed=${terminalOrphanSummary.failed}`,
-    )
-  }
-  runtime.terminalConfirmationService = new TerminalConfirmationService(runtime.mainWindow, {
-    auditStore: runtime.terminalAuditStore,
-  })
-  runtime.terminalSessionRegistry = new TerminalSessionRegistry()
-  const terminalBrowserEnvironment = createTerminalBrowserEnvironment({
-    executablePath: process.execPath,
-    appPath: app.getAppPath(),
-    isPackaged: app.isPackaged,
-    tempPath: app.getPath('temp'),
-  })
-  const localTerminalExecutionAdapter = new PtyExecutionAdapter({
-    browserEnvironment: terminalBrowserEnvironment,
-  })
-  const terminalExecutionAdapter = new CompositeTerminalExecutionAdapter({
-    local: localTerminalExecutionAdapter,
-  })
-  runtime.terminalExecutionAdapter = terminalExecutionAdapter
-  runtime.terminalCommandOrchestrator = new TerminalCommandOrchestrator({
-    sessionRegistry: runtime.terminalSessionRegistry,
-    confirmationService: runtime.terminalConfirmationService,
-    executionAdapter: terminalExecutionAdapter,
-    auditStore: runtime.terminalAuditStore,
-  })
-  registerTerminalIpc(
-    runtime.terminalConfirmationService,
-    runtime.trustedRendererGuard,
-    runtime.terminalAuditStore,
-    runtime.terminalSessionRegistry,
-    runtime.terminalCommandOrchestrator,
-    terminalExecutionAdapter,
-    runtime.mainWindow.webContents,
-    runtime.terminalSessionStore,
-  )
-  runtime.capabilities.ready('terminal')
-  console.log('[CCLink Studio] Terminal 确认 IPC 已注册')
 
   runtime.mcpClientMgr = new McpClientManager()
 
@@ -203,4 +140,6 @@ export async function bootstrapMainProcessServices(
 
   registerUpdaterIpc(runtime.mainWindow, runtime.trustedRendererGuard)
   console.log('[CCLink Studio] 更新检查 IPC 已注册')
+
+  await bootstrapOptionalMainServices(runtime)
 }

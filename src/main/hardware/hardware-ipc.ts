@@ -8,7 +8,7 @@ import {
 } from '../ipc/workbench-ipc-schema'
 
 export function registerHardwareIpc(
-  hardwareService: HardwareService,
+  hardwareService: HardwareService | (() => HardwareService | null),
   trustedRendererGuard: TrustedRendererGuard,
 ): void {
   const handle = <Args extends unknown[], Result>(
@@ -16,22 +16,28 @@ export function registerHardwareIpc(
     handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
   ): void => registerTrustedIpcHandler(channel, trustedRendererGuard, handler)
 
+  const getService = (): HardwareService => {
+    const service = typeof hardwareService === 'function' ? hardwareService() : hardwareService
+    if (!service) throw new Error('硬件工作区能力当前不可用，请查看 Agent 能力状态')
+    return service
+  }
+
   handle('hardware:scanWorkspace', (_event, workspacePath: string) =>
-    hardwareService.scanWorkspace(hardwareWorkspacePathSchema.parse(workspacePath)),
+    getService().scanWorkspace(hardwareWorkspacePathSchema.parse(workspacePath)),
   )
 
   handle('hardware:inspectProductionPackage', (_event, workspacePath: string) =>
-    hardwareService.inspectProductionPackage(hardwareWorkspacePathSchema.parse(workspacePath)),
+    getService().inspectProductionPackage(hardwareWorkspacePathSchema.parse(workspacePath)),
   )
 
   handle('hardware:prepareFpcShapeContext', (_event, workspacePath: string) =>
-    hardwareService.prepareFpcShapeContext(hardwareWorkspacePathSchema.parse(workspacePath)),
+    getService().prepareFpcShapeContext(hardwareWorkspacePathSchema.parse(workspacePath)),
   )
 
   handle(
     'hardware:readGerberLayerPreview',
     (_event, workspacePath: string, packagePath: string, entry: string) =>
-      hardwareService.readGerberLayerPreview(
+      getService().readGerberLayerPreview(
         hardwareWorkspacePathSchema.parse(workspacePath),
         hardwarePackagePathSchema.parse(packagePath),
         hardwarePackageEntrySchema.parse(entry),
@@ -41,7 +47,7 @@ export function registerHardwareIpc(
   handle(
     'hardware:readGerberLayerGeometry',
     (_event, workspacePath: string, packagePath: string, entry: string) =>
-      hardwareService.readGerberLayerGeometry(
+      getService().readGerberLayerGeometry(
         hardwareWorkspacePathSchema.parse(workspacePath),
         hardwarePackagePathSchema.parse(packagePath),
         hardwarePackageEntrySchema.parse(entry),
@@ -49,6 +55,6 @@ export function registerHardwareIpc(
   )
 
   handle('hardware:writeProductionReportMarkdown', (_event, workspacePath: string) =>
-    hardwareService.writeProductionReportMarkdown(hardwareWorkspacePathSchema.parse(workspacePath)),
+    getService().writeProductionReportMarkdown(hardwareWorkspacePathSchema.parse(workspacePath)),
   )
 }

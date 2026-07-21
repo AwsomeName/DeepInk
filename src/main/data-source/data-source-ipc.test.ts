@@ -55,6 +55,20 @@ describe('registerDataSourceIpc', () => {
     ).resolves.toMatchObject({ success: true })
     expect(service.createSource).toHaveBeenCalledWith(input)
   })
+
+  it('returns a structured failure when the service is unavailable', async () => {
+    registerDataSourceIpc(() => null, createGuard('trusted') as never)
+
+    await expect(
+      mockIpcMain.handlers.get('data-source:list')?.({ sender: 'trusted' }),
+    ).resolves.toEqual({
+      success: false,
+      error: {
+        code: 'DATA_SOURCE_INTERNAL_ERROR',
+        message: '数据源能力当前不可用，请查看 Agent 能力状态',
+      },
+    })
+  })
 })
 
 function createService() {

@@ -162,6 +162,10 @@ function registerToolModule(
   createModule: () => ToolModule,
 ): boolean {
   if (!runtime.toolHost) return false
+  if (runtime.capabilities.get(capability).state === 'failed') {
+    console.warn(`[CCLink Studio] ${capability} 主服务已失败，跳过 MCP 工具模块注册`)
+    return false
+  }
   try {
     runtime.toolHost.registerModule(createModule())
     runtime.capabilities.ready(capability)

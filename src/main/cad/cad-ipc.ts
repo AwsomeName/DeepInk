@@ -5,7 +5,7 @@ import { registerTrustedIpcHandler, type TrustedRendererGuard } from '../ipc/tru
 import { cadConvertRequestSchema, cadPathSchema } from '../ipc/workbench-ipc-schema'
 
 export function registerCadIpc(
-  cadConversionService: CadConversionService,
+  cadConversionService: CadConversionService | (() => CadConversionService | null),
   trustedRendererGuard: TrustedRendererGuard,
 ): void {
   const handle = <Args extends unknown[], Result>(
@@ -13,16 +13,23 @@ export function registerCadIpc(
     handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
   ): void => registerTrustedIpcHandler(channel, trustedRendererGuard, handler)
 
-  handle('cad:getBackendStatus', () => cadConversionService.getBackendStatus())
+  const getService = (): CadConversionService => {
+    const service =
+      typeof cadConversionService === 'function' ? cadConversionService() : cadConversionService
+    if (!service) throw new Error('CAD 转换能力当前不可用，请查看 Agent 能力状态')
+    return service
+  }
+
+  handle('cad:getBackendStatus', () => getService().getBackendStatus())
   handle('cad:getModelSupport', (_event, inputPath: string) =>
-    cadConversionService.getModelSupport(cadPathSchema.parse(inputPath)),
+    getService().getModelSupport(cadPathSchema.parse(inputPath)),
   )
   handle('cad:inspectModel', (_event, inputPath: string) =>
-    cadConversionService.inspectModel(cadPathSchema.parse(inputPath)),
+    getService().inspectModel(cadPathSchema.parse(inputPath)),
   )
-  handle('cad:getCacheStatus', () => cadConversionService.getCacheStatus())
-  handle('cad:clearCache', () => cadConversionService.clearCache())
+  handle('cad:getCacheStatus', () => getService().getCacheStatus())
+  handle('cad:clearCache', () => getService().clearCache())
   handle('cad:convertModel', (_event, request: CadConvertRequest) =>
-    cadConversionService.convertModel(cadConvertRequestSchema.parse(request)),
+    getService().convertModel(cadConvertRequestSchema.parse(request)),
   )
 }
