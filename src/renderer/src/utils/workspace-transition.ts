@@ -34,6 +34,32 @@ export interface WorkspaceRuntimeResourceOwnership {
 }
 
 let workspaceTransitionGeneration = 0
+const OPTIONAL_RUNTIME_RECONCILIATION_TIMEOUT_MS = 1_500
+
+async function waitForOptionalRuntime<T>(
+  label: 'Browser' | 'Terminal',
+  operation: Promise<T>,
+): Promise<T | null> {
+  let timeout: ReturnType<typeof setTimeout> | null = null
+  let timedOut = false
+  try {
+    const result = await Promise.race([
+      operation,
+      new Promise<null>((resolve) => {
+        timeout = setTimeout(() => {
+          timedOut = true
+          resolve(null)
+        }, OPTIONAL_RUNTIME_RECONCILIATION_TIMEOUT_MS)
+      }),
+    ])
+    if (timedOut) {
+      console.warn(`[WorkspaceTransition] ${label} runtime reconciliation timed out`)
+    }
+    return result
+  } finally {
+    if (timeout) clearTimeout(timeout)
+  }
+}
 
 export function beginWorkspaceRuntimeTransition(): number {
   workspaceTransitionGeneration += 1
@@ -148,8 +174,11 @@ export async function applyWorkspaceRuntimeTransition(
 ): Promise<boolean> {
   if (!isWorkspaceRuntimeTransitionCurrent(transition.generation)) return false
   const [, terminalSessions] = await Promise.all([
-    bindBrowserRuntimeToWorkspace(transition.key, transition.snapshot),
-    readTerminalRuntimeStatuses(),
+    waitForOptionalRuntime(
+      'Browser',
+      bindBrowserRuntimeToWorkspace(transition.key, transition.snapshot),
+    ),
+    waitForOptionalRuntime('Terminal', readTerminalRuntimeStatuses()),
   ])
   if (!isWorkspaceRuntimeTransitionCurrent(transition.generation)) return false
   options.commitProjection?.()

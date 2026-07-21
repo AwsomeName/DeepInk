@@ -70,6 +70,8 @@ S4.1 实现提交为 `7b9f81e`。全新 detached worktree `/tmp/cclink-studio-s4
 - 所有异步准备完成并再次校验 generation 后，才在同一同步提交段写入文件树投影、workspace identity、Tab、Browser、Editor 和 Agent 投影。
 - `workspace-store` 删除独立全局切换及 local/global 别名，只保留 `commitActiveWorkspace(ref)` 一个身份写入口；启动恢复是唯一允许直接提交的初始化路径。
 - `fs-store` 用 `picking/loading/switchingPath` 互斥选择器、最近项目和关闭项目动作；切换失败或过期时保留旧 workspace、文件树和 Tab。
+- WorkspaceState 的同 workspace/section 写入采用单飞和最新快照合并；Agent 流式输出期间最多保留一个在途写入和一个最新待写值，项目切换不再等待全部中间态逐条落盘。
+- Browser/Terminal 是可选运行时，对账最多等待 1.5 秒；超时记录明确警告并继续提交目标投影，不能无限阻塞项目身份切换。
 - 新项目没有文件树快照时使用空展开和空选择，不再继承上一项目路径。
 - 最近项目规范化/校验移到 `workspace-paths.ts`，文件树快照解析/准备移到 `workspace-tree.ts`；`fs-store` 从 1058 行降到 970 行。
 - 启动恢复补做 Terminal 运行事实对账，避免只在人工切换后修正陈旧 Terminal Tab。
@@ -174,13 +176,17 @@ S4.3b 已关闭。真实长任务发送、人工取消和压缩交互仍需在 S
 - [x] 报告覆盖完整匹配、六类错配、Session 原值不泄露与 action `taskRunId`。
 - [x] 同 Tab 多会话任务选择优先当前 workspace/conversation，历史任务仅作 incomplete 回退。
 - [x] 当前工作树完整 `pnpm verify`、standalone 与严格认证 smoke 通过。
-- [ ] 实现提交后的全新 detached worktree 完成锁定安装和相同门禁，工作树干净。
-- [ ] GitHub Actions `verify` 与确定性 `smoke` job 通过。
+- [x] 实现提交后的全新 detached worktree 完成锁定安装和相同门禁，工作树干净。
+- [x] GitHub Actions `verify` 与确定性 `smoke` job 通过。
 - [ ] `docs/ops/stabilization-s4-acceptance.md` 的最终真人验收通过。
 
 架构复审已写入 `docs/architecture.md`：当前没有需要 ADR 的例外，也没有已知 P0/P1 阻断项。超过约一千行的高变模块仍是维护债务，但已有状态 owner 和行为测试保护；稳定化退出后按“先测试、后按 owner 拆分”治理，不在 S4.4 扩大改动面。
 
 当前工作树通过 `pnpm verify`：145 个测试文件/874 项测试、typecheck 和生产构建全部成功；standalone 通过 local 9/9、UI 6/6、workflow 5/5、restore 4/4。严格认证 smoke 确认 Profile 的 Cookie/localStorage 跨 Electron 进程重启保留，干净认证进程与 automation-controlled 对照到达 Google account validation，CDP 与当前调试控制路径被判为不安全浏览器。
+
+实现提交为 `5b94ca0`。全新 detached worktree `/tmp/cclink-studio-s4-diagnostics-verify.SzMwvQ` 从该提交执行 `pnpm install --frozen-lockfile`，并通过相同的 145 个测试文件/874 项测试、standalone 24/24 与严格认证 smoke；detached HEAD 与工作树均干净。GitHub Actions run `29829964023` 绑定同一提交，`verify` 和确定性 `smoke` job 全部成功。S4.4 只剩真人验收与最终关闭提交。
+
+H4 首次真人验收捕获两个阻断：Agent 流式快照形成磁盘写队列，项目切换超过 10 秒；切换期间 Browser MCP 同步目标 Tab 后又读取全局活跃 Page，导致原项目会话第二次读取到新项目 V2EX 页面。当前修复候选把快照写入收敛为最新值合并，以 conversation 关联的 BrowserTask 精确选择 Page，并为 Browser/Terminal 对账设置 1.5 秒上限。定向 45 项测试与当前工作树 `pnpm verify` 145 个测试文件/878 项测试已通过；H4 必须在该候选上重新真人验收，旧的 `5b94ca0` detached/CI 证据不能替代修复后的最新 HEAD 复验。
 
 ## 后续阻断项
 

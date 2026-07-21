@@ -94,6 +94,38 @@ describe('BrowserTaskRuntime', () => {
     expect(send).toHaveBeenCalledTimes(sendsBeforeNoop + 1)
   })
 
+  it('resolves the active browser task by conversation without following another tab', () => {
+    const { runtime } = createRuntime()
+    const taskA = runtime.startTask({
+      tabId: 'browser-a',
+      goal: 'inspect A',
+      correlation: {
+        workspaceKey: '/workspace-a',
+        conversationId: 'conversation-a',
+        agentRunId: 'run-a',
+        agentSessionRef: null,
+        profileId: null,
+      },
+    })
+    runtime.startTask({
+      tabId: 'browser-b',
+      goal: 'inspect B',
+      correlation: {
+        workspaceKey: '/workspace-b',
+        conversationId: 'conversation-b',
+        agentRunId: 'run-b',
+        agentSessionRef: null,
+        profileId: null,
+      },
+    })
+
+    expect(runtime.getActiveTaskForConversation('conversation-a')).toMatchObject({
+      id: taskA.id,
+      tabId: 'browser-a',
+    })
+    expect(runtime.getActiveTaskForConversation('conversation-a', '/workspace-b')).toBeNull()
+  })
+
   it('redacts sensitive browser action params', () => {
     expect(
       summarizeBrowserActionParams('fill', {

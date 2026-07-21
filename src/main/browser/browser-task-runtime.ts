@@ -62,6 +62,20 @@ export class BrowserTaskRuntime {
     return cloneTask(task)
   }
 
+  getActiveTaskForConversation(
+    conversationId: string,
+    workspaceKey?: string | null,
+  ): BrowserTaskRun | null {
+    const candidates = Array.from(this.tasks.values()).reverse()
+    const task = candidates.find(
+      (candidate) =>
+        !FINAL_STATUSES.has(candidate.status) &&
+        candidate.correlation?.conversationId === conversationId &&
+        (workspaceKey === undefined || candidate.correlation.workspaceKey === workspaceKey),
+    )
+    return task ? cloneTask(task) : null
+  }
+
   assertCanRunAction(tabId: string): BrowserTaskRun | null {
     const taskId = this.activeTaskByTab.get(tabId)
     if (!taskId) return null

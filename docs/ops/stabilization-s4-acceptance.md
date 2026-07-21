@@ -10,12 +10,12 @@
 
 ## 自动化证据
 
-- 候选提交：待填写。
-- 当前工作树 `pnpm verify`：通过，145 个测试文件/874 项测试，typecheck 与生产构建成功。
+- 候选提交：`5b94ca0`（H4 首测候选，已失败）；H4 修复候选待提交。
+- 当前工作树 `pnpm verify`：通过，145 个测试文件/878 项测试，typecheck 与生产构建成功。
 - 当前工作树 `pnpm smoke:standalone`：通过，local 9/9、UI 6/6、workflow 5/5、restore 4/4。
 - 当前工作树严格 `smoke:auth-window`：通过；Profile Cookie/localStorage 跨进程重启保留，干净认证进程到达 Google account validation，CDP 对照被拒绝。
-- detached worktree 路径与结果：待填写。
-- GitHub Actions run：待填写。
+- detached worktree 路径与结果：`/tmp/cclink-studio-s4-diagnostics-verify.SzMwvQ`，锁定安装、145/874、standalone 24/24、严格认证 smoke 全部通过，HEAD 与工作树干净。
+- GitHub Actions run：`29829964023`，`verify` 与确定性 `smoke` job 成功。
 - 安全检查：复制报告不得包含真实 Session ID、Cookie 值、密码、验证码、token 或完整手机号/邮箱。
 
 ## 真人验收
@@ -29,9 +29,9 @@
 3. 等待任务完成，确认会话不再显示运行中，BrowserTask 有明确终态。
 4. 点击复制诊断，确认 `关联链` 为 `matched`，workspace、conversation、taskRunId、run、session 引用、tab 和 profile 均可判断，时间线中的浏览器动作带同一 `taskRunId`。
 
-- 结果：待验收
-- 时间：待填写
-- 证据：待填写脱敏摘要；不粘贴真实 Session ID 或 Cookie 值。
+- 结果：通过
+- 时间：2026-07-21 22:35 CST
+- 证据：真人在 `woniu-forward` 的 `V2EX操作会话` 完成只读页面标题与首屏概括。复制诊断显示关联状态 `matched`，workspace/conversation/tab/default profile 均一致，BrowserTask 终态为 `completed`；title、extract、screenshot、evaluate 的 action 起止事件携带同一 `taskRunId`。UI/Main Session 一致且只输出进程内随机引用，未输出 Session ID、Cookie 值或其他登录凭证。同会话此前一次 429 作为旧时间线保留，但未污染本次任务归因。
 
 ### H2：人工取消收敛
 
@@ -40,9 +40,9 @@
 3. 确认只有一次取消生效，会话退出运行态，不出现重复错误或空白状态。
 4. 复制诊断，确认 BrowserTask 为 `cancelled`、`failureReason=user_interrupted`，关联链没有串到其他会话。
 
-- 结果：待验收
-- 时间：待填写
-- 证据：待填写。
+- 结果：通过
+- 时间：2026-07-21 22:37 CST
+- 证据：真人在 H1 同一会话启动 60 秒只读等待任务，并在 Agent 进入运行态后手动停止。复制诊断显示关联状态 `matched`，workspace/conversation/session-ref/tab/default profile 全部保持一致；会话运行标记和最近终止原因均为 `cancelled`，BrowserTask 终态为 `cancelled`、`failureReason=user_interrupted`，UI loading、main busy 与流式消息均已清空，未出现重复错误或串到 H1 的 taskRunId。
 
 ### H3：手动上下文压缩
 
@@ -50,9 +50,9 @@
 2. 等待压缩完成，确认会话消息不重复、不丢失，压缩状态回到 idle/完成态。
 3. 再发送一条短消息，确认沿用同一会话继续运行；失败时必须显示明确错误而不是一直 loading。
 
-- 结果：待验收
-- 时间：待填写
-- 证据：待填写。
+- 结果：通过
+- 时间：2026-07-21 22:39 CST
+- 证据：真人在已有 backend Session 且 Agent 空闲的 H1/H2 会话打开上下文窗口，手动触发压缩并确认完成；压缩后会话可继续发送和接收短消息，未出现持续 loading、消息重复或消息丢失。
 
 ### H4：运行中项目切换与回切
 
@@ -61,9 +61,9 @@
 3. 切回 A，确认任务仍明确显示 running/completed/cancelled/failed 之一，不出现“看不出是否停止”的状态。
 4. 完成或取消任务后复制诊断，确认 workspace/conversation/task/run/session/profile 仍属于 A。
 
-- 结果：待验收
-- 时间：待填写
-- 证据：待填写。
+- 结果：失败，修复候选待复验
+- 时间：2026-07-21 22:42 CST
+- 证据：真人在项目 A 的 `V2EX操作会话` 启动 30 秒只读任务，切到项目 B 后项目条至少 10 秒停留在“正在切换”，未在可接受时间内完成。诊断显示第一次标题为 `仪表盘 - Brioi`，等待期间切换项目后第二次标题错误变为项目 B 的 `V2EX › 使用邀请码激活账号`。根因拆为两条：Agent 流式会话快照逐次排队落盘，切换等待旧项目写队列；Browser MCP 按 workspace 同步 Tab 后仍从全局活跃 Page 执行动作，和 UI 切换发生竞态。已补最新快照合并、1.5 秒可选对账上限、conversation/BrowserTask 精确 Page 寻址及回归测试；本条只能在修复提交和新应用进程上重新真人验收后改为通过。
 
 ## 退出结论
 

@@ -290,6 +290,68 @@ describe('BrowserToolModule 可视浏览器同步', () => {
     expect(browserManager.navigate).toHaveBeenCalledWith('project-a-tab', 'https://a.example/next')
   })
 
+  it('keeps a running conversation on its task page while the UI activates another project', async () => {
+    const projectAPage = {
+      url: () => 'https://a.example/dashboard',
+      title: vi.fn().mockResolvedValue('Project A'),
+    }
+    const projectBPage = {
+      url: () => 'https://www.v2ex.com/invite/activate',
+      title: vi.fn().mockResolvedValue('V2EX'),
+    }
+    const bridge = {
+      getPage: () => projectBPage,
+      getPageById: vi.fn((tabId: string) =>
+        tabId === 'project-a-tab' ? projectAPage : projectBPage,
+      ),
+      getActiveTabId: () => 'project-b-tab',
+      switchToPage: vi.fn().mockResolvedValue(undefined),
+    }
+    const browserTaskRuntime = {
+      getActiveTaskForConversation: vi.fn().mockReturnValue({
+        id: 'task-a',
+        tabId: 'project-a-tab',
+        goal: 'read A',
+        status: 'running',
+        startedAt: 1,
+        downloadIds: [],
+        correlation: {
+          workspaceKey: '/workspace/a',
+          conversationId: 'conversation-a',
+        },
+      }),
+      assertCanRunAction: vi.fn().mockReturnValue(null),
+    }
+    const browserManager = {
+      getViewWorkspaceKey: vi.fn((tabId: string) =>
+        tabId === 'project-a-tab' ? '/workspace/a' : '/workspace/b',
+      ),
+      isWorkspaceActive: vi.fn().mockReturnValue(false),
+      setActive: vi.fn(),
+      getCurrentURL: vi.fn((tabId: string) =>
+        tabId === 'project-a-tab'
+          ? 'https://a.example/dashboard'
+          : 'https://www.v2ex.com/invite/activate',
+      ),
+    }
+    const module = new BrowserToolModule(
+      bridge as any,
+      browserTaskRuntime as any,
+      browserManager as any,
+    )
+
+    await expect(
+      module.execute(
+        'browser_title',
+        {},
+        { conversationId: 'conversation-a', workspaceKey: '/workspace/a' },
+      ),
+    ).resolves.toEqual({ title: 'Project A' })
+    expect(bridge.getPageById).toHaveBeenCalledWith('project-a-tab')
+    expect(projectBPage.title).not.toHaveBeenCalled()
+    expect(browserManager.setActive).not.toHaveBeenCalled()
+  })
+
   it('rejects switching to a tab owned by another project', async () => {
     const bridge = {
       getPage: () => ({ url: () => 'https://a.example' }),

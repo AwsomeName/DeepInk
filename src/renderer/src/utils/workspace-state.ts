@@ -5,7 +5,24 @@ import { workspaceRefKey } from '../../../shared/workspace-ref'
 let activeWorkspaceKey: string | null = null
 let activeOwnerKey: string | null = null
 let restoreDepth = 0
-const sectionWriteQueues = new Map<string, Promise<void>>()
+
+interface SectionWriteRequest {
+  workspaceKey: string | null
+  ownerKey: string | null
+  section: WorkspaceStateSection
+  value: unknown
+  waiters: Array<{
+    resolve: () => void
+    reject: (error: Error) => void
+  }>
+}
+
+interface SectionWriteQueue {
+  running: boolean
+  pending: SectionWriteRequest | null
+}
+
+const sectionWriteQueues = new Map<string, SectionWriteQueue>()
 
 function normalizeWorkspaceStateValue(value: unknown): unknown {
   const serialized = JSON.stringify(value)
@@ -85,27 +102,63 @@ export function persistWorkspaceSectionNow(
     const targetWorkspaceKey = workspaceKey === undefined ? activeWorkspaceKey : workspaceKey
     const targetOwnerKey = ownerKey === undefined ? activeOwnerKey : ownerKey
     const queueKey = JSON.stringify([targetOwnerKey, targetWorkspaceKey, section])
-    const previous = sectionWriteQueues.get(queueKey)
-    const run = async (): Promise<void> => {
-      const normalizedValue = normalizeWorkspaceStateValue(value)
-      const result = await window.cclinkStudio.workspaceState.setSection(
-        targetWorkspaceKey,
-        section,
-        normalizedValue,
-        targetOwnerKey,
-      )
-      if (!result.success) {
-        throw new Error(result.error || `保存 ${section} 失败`)
+    const queue = sectionWriteQueues.get(queueKey) ?? { running: false, pending: null }
+    sectionWriteQueues.set(queueKey, queue)
+
+    const completion = new Promise<void>((resolve, reject) => {
+      if (queue.pending) {
+        // WorkspaceState 是快照而非事件流。正在写盘时只需保留最新快照，所有等待者
+        // 在该最新值落盘后一起完成，避免 Agent 流式增量制造无界磁盘写队列。
+        queue.pending.value = value
+        queue.pending.waiters.push({ resolve, reject })
+        return
       }
-    }
-    const next = previous ? previous.catch(() => {}).then(run) : run()
-    sectionWriteQueues.set(queueKey, next)
-    const clearQueue = (): void => {
-      if (sectionWriteQueues.get(queueKey) === next) sectionWriteQueues.delete(queueKey)
-    }
-    void next.then(clearQueue, clearQueue)
-    return next
+      queue.pending = {
+        workspaceKey: targetWorkspaceKey,
+        ownerKey: targetOwnerKey,
+        section,
+        value,
+        waiters: [{ resolve, reject }],
+      }
+    })
+
+    if (!queue.running) void drainSectionWriteQueue(queueKey, queue)
+    return completion
   } catch {
     return Promise.reject(new Error(`保存 ${section} 失败`))
+  }
+}
+
+async function drainSectionWriteQueue(queueKey: string, queue: SectionWriteQueue): Promise<void> {
+  queue.running = true
+  try {
+    while (queue.pending) {
+      const request = queue.pending
+      queue.pending = null
+      try {
+        const normalizedValue = normalizeWorkspaceStateValue(request.value)
+        const result = await window.cclinkStudio.workspaceState.setSection(
+          request.workspaceKey,
+          request.section,
+          normalizedValue,
+          request.ownerKey,
+        )
+        if (!result.success) {
+          throw new Error(result.error || `保存 ${request.section} 失败`)
+        }
+        for (const waiter of request.waiters) waiter.resolve()
+      } catch (error) {
+        const normalizedError =
+          error instanceof Error ? error : new Error(`保存 ${request.section} 失败`)
+        for (const waiter of request.waiters) waiter.reject(normalizedError)
+      }
+    }
+  } finally {
+    queue.running = false
+    if (queue.pending) {
+      void drainSectionWriteQueue(queueKey, queue)
+    } else if (sectionWriteQueues.get(queueKey) === queue) {
+      sectionWriteQueues.delete(queueKey)
+    }
   }
 }

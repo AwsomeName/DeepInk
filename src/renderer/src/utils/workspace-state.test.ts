@@ -129,6 +129,39 @@ describe('workspace-state utils', () => {
     await second
   })
 
+  it('高频快照写入只保留一个最新待写值，避免流式消息形成无界队列', async () => {
+    const completions: Array<(value: { success: boolean }) => void> = []
+    const setSection = vi.fn(
+      (
+        _workspaceKey: string | null | undefined,
+        _section: string,
+        _value: unknown,
+        _ownerKey?: string | null,
+      ) =>
+        new Promise<{ success: boolean }>((resolve) => {
+          completions.push(resolve)
+        }),
+    )
+    vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })
+
+    const first = persistWorkspaceSectionNow('agentConversations', { revision: 1 }, '/workspace/a')
+    const superseded = persistWorkspaceSectionNow(
+      'agentConversations',
+      { revision: 2 },
+      '/workspace/a',
+    )
+    const latest = persistWorkspaceSectionNow('agentConversations', { revision: 3 }, '/workspace/a')
+
+    await vi.waitFor(() => expect(setSection).toHaveBeenCalledTimes(1))
+    completions[0]({ success: true })
+    await first
+    await vi.waitFor(() => expect(setSection).toHaveBeenCalledTimes(2))
+
+    expect(setSection.mock.calls.map((call) => call[2])).toEqual([{ revision: 1 }, { revision: 3 }])
+    completions[1]({ success: true })
+    await expect(Promise.all([superseded, latest])).resolves.toEqual([undefined, undefined])
+  })
+
   it('写入前按 JSON 语义移除运行态对象里的 undefined 可选字段', async () => {
     const setSection = vi.fn().mockResolvedValue({ success: true })
     vi.stubGlobal('window', { cclinkStudio: { workspaceState: { setSection } } })

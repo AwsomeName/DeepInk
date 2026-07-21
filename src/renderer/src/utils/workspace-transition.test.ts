@@ -97,6 +97,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   setWorkspaceStatePath(null)
   setWorkspaceStateOwnerKey(null)
@@ -383,6 +384,28 @@ describe('workspace-transition', () => {
     expect(warn).toHaveBeenCalledWith(
       '[WorkspaceRuntime] Terminal session reconciliation failed:',
       expect.any(Error),
+    )
+  })
+
+  it('bounds optional runtime reconciliation so a hung adapter cannot block project switching', async () => {
+    vi.useFakeTimers()
+    const reconcileViews = window.cclinkStudio.browser.reconcileViews as ReturnType<typeof vi.fn>
+    const listSessions = window.cclinkStudio.terminal.listSessions as ReturnType<typeof vi.fn>
+    reconcileViews.mockReturnValueOnce(new Promise(() => {}))
+    listSessions.mockReturnValueOnce(new Promise(() => {}))
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+    const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef('/workspace/b'))
+
+    const applying = applyWorkspaceRuntimeTransition(transition)
+    await vi.advanceTimersByTimeAsync(1_500)
+
+    await expect(applying).resolves.toBe(true)
+    expect(getWorkspaceStateKey()).toBe('/workspace/b')
+    expect(warn).toHaveBeenCalledWith(
+      '[WorkspaceTransition] Browser runtime reconciliation timed out',
+    )
+    expect(warn).toHaveBeenCalledWith(
+      '[WorkspaceTransition] Terminal runtime reconciliation timed out',
     )
   })
 })

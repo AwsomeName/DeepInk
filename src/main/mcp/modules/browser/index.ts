@@ -652,15 +652,7 @@ export class BrowserToolModule implements ToolModule {
     if (!['click', 'press', 'pressKey', 'mouseClick', 'evaluate'].includes(actionType)) {
       return null
     }
-    const hasWorkspaceContext = context?.workspaceKey !== undefined
-    const workspaceKey = context?.workspaceKey ?? null
-    const tabId = hasWorkspaceContext
-      ? ((await this.browserManager?.waitForActiveViewForWorkspace?.(workspaceKey)) ??
-        this.browserManager?.getViewIdForWorkspace?.(workspaceKey) ??
-        null)
-      : ((await this.browserManager?.waitForActiveView?.()) ??
-        this.browserManager?.getActiveViewId() ??
-        this.playwrightBridge.getActiveTabId())
+    const { tabId, workspaceKey, hasWorkspaceContext } = await this.resolveTargetTab(context)
     if (!tabId) return null
 
     await this.syncVisibleTab(tabId, true, hasWorkspaceContext ? workspaceKey : undefined).catch(
@@ -669,7 +661,7 @@ export class BrowserToolModule implements ToolModule {
     const reason = await this.getV2exSubmissionConfirmationReason(
       actionType,
       params,
-      this.playwrightBridge.getPage(),
+      this.getPageForTab(tabId),
       tabId,
     )
     if (!reason) return null
@@ -687,15 +679,11 @@ export class BrowserToolModule implements ToolModule {
     context?: ToolExecutionContext,
   ): Promise<unknown> {
     const actionType = toolNameToActionType(toolName)
-    const hasWorkspaceContext = context?.workspaceKey !== undefined
-    const workspaceKey = context?.workspaceKey ?? null
-    const visibleTabId = hasWorkspaceContext
-      ? ((await this.browserManager?.waitForActiveViewForWorkspace?.(workspaceKey)) ??
-        this.browserManager?.getViewIdForWorkspace?.(workspaceKey) ??
-        null)
-      : ((await this.browserManager?.waitForActiveView?.()) ??
-        this.browserManager?.getActiveViewId() ??
-        this.playwrightBridge.getActiveTabId())
+    const {
+      tabId: visibleTabId,
+      workspaceKey,
+      hasWorkspaceContext,
+    } = await this.resolveTargetTab(context)
 
     if (hasWorkspaceContext && !visibleTabId) {
       if (actionType === 'listTabs') {
@@ -716,7 +704,7 @@ export class BrowserToolModule implements ToolModule {
       )
     }
 
-    const page = this.playwrightBridge.getPage()
+    const page = visibleTabId ? this.getPageForTab(visibleTabId) : this.playwrightBridge.getPage()
     const tabId =
       visibleTabId ?? (hasWorkspaceContext ? null : this.playwrightBridge.getActiveTabId())
     const mandatoryConfirmationReason = await this.getV2exSubmissionConfirmationReason(
@@ -763,6 +751,45 @@ export class BrowserToolModule implements ToolModule {
       }
       throw error
     }
+  }
+
+  private async resolveTargetTab(context?: ToolExecutionContext): Promise<{
+    tabId: string | null
+    workspaceKey: string | null
+    hasWorkspaceContext: boolean
+  }> {
+    const hasWorkspaceContext = context?.workspaceKey !== undefined
+    const workspaceKey = context?.workspaceKey ?? null
+    const task = context?.conversationId
+      ? this.browserTaskRuntime?.getActiveTaskForConversation(context.conversationId)
+      : null
+
+    if (task) {
+      if (hasWorkspaceContext && task.correlation?.workspaceKey !== workspaceKey) {
+        throw new Error('浏览器任务与会话项目不一致，已拒绝跨项目操作')
+      }
+      const actualWorkspaceKey = this.browserManager?.getViewWorkspaceKey?.(task.tabId)
+      if (hasWorkspaceContext && actualWorkspaceKey !== workspaceKey) {
+        throw new Error('浏览器任务绑定已失效，已拒绝切换到其他项目页面')
+      }
+      return { tabId: task.tabId, workspaceKey, hasWorkspaceContext }
+    }
+
+    const tabId = hasWorkspaceContext
+      ? ((await this.browserManager?.waitForActiveViewForWorkspace?.(workspaceKey)) ??
+        this.browserManager?.getViewIdForWorkspace?.(workspaceKey) ??
+        null)
+      : ((await this.browserManager?.waitForActiveView?.()) ??
+        this.browserManager?.getActiveViewId() ??
+        this.playwrightBridge.getActiveTabId())
+    return { tabId, workspaceKey, hasWorkspaceContext }
+  }
+
+  private getPageForTab(tabId: string): ReturnType<PlaywrightBridge['getPage']> {
+    const getPageById = this.playwrightBridge.getPageById
+    return typeof getPageById === 'function'
+      ? getPageById.call(this.playwrightBridge, tabId)
+      : this.playwrightBridge.getPage()
   }
 
   private async syncVisibleTab(
