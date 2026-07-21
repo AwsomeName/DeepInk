@@ -56,6 +56,15 @@ describe('registerFsIpc directory watcher lifecycle', () => {
     expect(fs.readFile).not.toHaveBeenCalled()
   })
 
+  it('rejects malformed paths before invoking the file service', () => {
+    const fs = { readFile: vi.fn() } as unknown as FileService
+    const settings = { getAll: vi.fn() } as unknown as SettingsService
+    registerFsIpc(fs, settings, trustedRendererGuard as never)
+
+    expect(() => getHandler('fs:readFile')({ sender: {} }, '/tmp/bad\0path')).toThrow()
+    expect(fs.readFile).not.toHaveBeenCalled()
+  })
+
   it('removes the sender destroyed listener when a watcher stops normally', () => {
     const stop = vi.fn()
     const fs = {

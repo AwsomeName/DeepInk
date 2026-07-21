@@ -3,6 +3,8 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { defineIpcInvoke, defineNoArgsIpc } from '../../shared/ipc/contract'
 import { dialogIpcContracts as dialogIpc } from '../../shared/ipc/dialog-contract'
+import { fsIpcContracts } from '../../shared/ipc/fs-contract'
+import { fsIpc } from '../../shared/ipc/fs'
 import { settingsIpcContracts as settingsIpc } from '../../shared/ipc/settings-contract'
 
 describe('IPC invoke contracts', () => {
@@ -55,6 +57,21 @@ describe('IPC invoke contracts', () => {
     expect(() => dialogIpc.showMessageBox.parseArgs([{ message: '' }, 'extra'])).toThrow()
   })
 
+  it('binds every Filesystem definition to a bounded runtime parser', () => {
+    expect(Object.keys(fsIpcContracts)).toEqual(Object.keys(fsIpc))
+    expect(fsIpcContracts.readFile.parseArgs(['/workspace/note.md'])).toEqual([
+      '/workspace/note.md',
+    ])
+    expect(
+      fsIpcContracts.saveTextDocument.parseArgs([
+        { filePath: '/workspace/note.md', content: '# Note', force: true },
+      ]),
+    ).toEqual([{ filePath: '/workspace/note.md', content: '# Note', force: true }])
+    expect(() => fsIpcContracts.readFile.parseArgs(['/workspace/bad\0path'])).toThrow()
+    expect(() => fsIpcContracts.rename.parseArgs(['/workspace/old.md'])).toThrow()
+    expect(() => fsIpcContracts.watchDirStop.parseArgs(['not-a-uuid'])).toThrow()
+  })
+
   it('keeps migrated channel literals in shared declarations only', () => {
     const productionFiles = [
       'src/main/ipc/window-ipc.ts',
@@ -62,28 +79,32 @@ describe('IPC invoke contracts', () => {
       'src/main/ipc/official-ipc.ts',
       'src/main/ipc/dialog-ipc.ts',
       'src/main/settings/settings-ipc.ts',
+      'src/main/fs/fs-ipc.ts',
       'src/preload/renderer-support-api.ts',
+      'src/preload/fs-api.ts',
       'src/preload/index.ts',
     ]
     const source = productionFiles
       .map((file) => readFileSync(resolve(process.cwd(), file), 'utf8'))
       .join('\n')
 
-    expect(source).not.toMatch(/['"](?:window|identity|official|dialog|settings):[A-Za-z]/)
+    expect(source).not.toMatch(/['"](?:window|identity|official|dialog|settings|fs):[A-Za-z]/)
   })
 
   it('keeps preload-facing contract definitions free of runtime schema dependencies', () => {
     const preloadFacingFiles = [
       'src/shared/ipc/settings.ts',
       'src/shared/ipc/dialog.ts',
+      'src/shared/ipc/fs.ts',
       'src/preload/index.ts',
       'src/preload/renderer-support-api.ts',
+      'src/preload/fs-api.ts',
     ]
     const source = preloadFacingFiles
       .map((file) => readFileSync(resolve(process.cwd(), file), 'utf8'))
       .join('\n')
 
-    expect(source).not.toMatch(/(?:settings|dialog)-(?:schema|contract)/)
+    expect(source).not.toMatch(/(?:settings|dialog|fs)-(?:schema|contract)/)
     expect(source).not.toMatch(/from ['"]zod['"]/)
   })
 })

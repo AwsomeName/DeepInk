@@ -1,3 +1,5 @@
+import { defineIpcCall } from './contract'
+
 export interface FsDirEntry {
   name: string
   path: string
@@ -166,6 +168,42 @@ export interface FsExtractZipResult {
   extracted: number
 }
 
+export interface FsSaveTextDocumentInput {
+  filePath: string
+  content: string
+  expectedHash?: string
+  force?: boolean
+}
+
+export interface FsSaveDocumentAssetInput {
+  documentPath: string
+  fileName: string
+  mimeType: string
+  content: string
+  encoding: 'base64'
+}
+
+export interface FsMarkdownSaveAsInput {
+  sourcePath?: string
+  targetPath: string
+  content: string
+}
+
+export interface FsPathPairInput {
+  sourcePath: string
+  targetPath: string
+}
+
+export interface FsDocumentTargetPathInput {
+  documentPath: string
+  targetPath: string
+}
+
+export interface FsMarkdownTrashInput {
+  documentPath: string
+  includeAssets: boolean
+}
+
 export interface FsApiContract {
   getHomePath: () => Promise<string>
   readDir: (dirPath: string) => Promise<FsDirEntry[]>
@@ -173,38 +211,14 @@ export interface FsApiContract {
   readTextDocument: (filePath: string) => Promise<FsTextDocumentSnapshot>
   renderFile: (filePath: string) => Promise<FsRenderResult>
   writeFile: (filePath: string, content: string) => Promise<void>
-  saveTextDocument: (input: {
-    filePath: string
-    content: string
-    expectedHash?: string
-    force?: boolean
-  }) => Promise<FsSaveTextDocumentResult>
+  saveTextDocument: (input: FsSaveTextDocumentInput) => Promise<FsSaveTextDocumentResult>
   importDocumentAsset: (documentPath: string, sourcePath: string) => Promise<FsDocumentAssetResult>
-  saveDocumentAsset: (input: {
-    documentPath: string
-    fileName: string
-    mimeType: string
-    content: string
-    encoding: 'base64'
-  }) => Promise<FsDocumentAssetResult>
+  saveDocumentAsset: (input: FsSaveDocumentAssetInput) => Promise<FsDocumentAssetResult>
   inspectMarkdownDocument: (documentPath: string) => Promise<FsMarkdownDocumentInspection>
-  saveMarkdownDocumentAs: (input: {
-    sourcePath?: string
-    targetPath: string
-    content: string
-  }) => Promise<FsMarkdownSaveAsResult>
-  relocateMarkdownDocument: (input: {
-    sourcePath: string
-    targetPath: string
-  }) => Promise<FsMarkdownRelocateResult>
-  exportMarkdownDocumentZip: (input: {
-    documentPath: string
-    targetPath: string
-  }) => Promise<FsMarkdownExportResult>
-  trashMarkdownDocument: (input: {
-    documentPath: string
-    includeAssets: boolean
-  }) => Promise<FsTrashMarkdownDocumentResult>
+  saveMarkdownDocumentAs: (input: FsMarkdownSaveAsInput) => Promise<FsMarkdownSaveAsResult>
+  relocateMarkdownDocument: (input: FsPathPairInput) => Promise<FsMarkdownRelocateResult>
+  exportMarkdownDocumentZip: (input: FsDocumentTargetPathInput) => Promise<FsMarkdownExportResult>
+  trashMarkdownDocument: (input: FsMarkdownTrashInput) => Promise<FsTrashMarkdownDocumentResult>
   stat: (filePath: string) => Promise<FsFileStat>
   isDirectory: (filePath: string) => Promise<boolean>
   mkdir: (dirPath: string) => Promise<void>
@@ -215,3 +229,50 @@ export interface FsApiContract {
   openPath: (path: string) => Promise<void>
   watchDir: (dirPath: string, onChange: (event: FsWatchDirEvent) => void) => Promise<() => void>
 }
+
+export const fsIpc = {
+  getHomePath: defineIpcCall<[], string>('fs:getHomePath'),
+  readDir: defineIpcCall<[string], FsDirEntry[]>('fs:readDir'),
+  readFile: defineIpcCall<[string], FsReadResult>('fs:readFile'),
+  readTextDocument: defineIpcCall<[string], FsTextDocumentSnapshot>('fs:readTextDocument'),
+  renderFile: defineIpcCall<[string], FsRenderResult>('fs:renderFile'),
+  writeFile: defineIpcCall<[string, string], void>('fs:writeFile'),
+  saveTextDocument: defineIpcCall<[FsSaveTextDocumentInput], FsSaveTextDocumentResult>(
+    'fs:saveTextDocument',
+  ),
+  importDocumentAsset: defineIpcCall<[string, string], FsDocumentAssetResult>(
+    'fs:importDocumentAsset',
+  ),
+  saveDocumentAsset: defineIpcCall<[FsSaveDocumentAssetInput], FsDocumentAssetResult>(
+    'fs:saveDocumentAsset',
+  ),
+  inspectMarkdownDocument: defineIpcCall<[string], FsMarkdownDocumentInspection>(
+    'fs:inspectMarkdownDocument',
+  ),
+  saveMarkdownDocumentAs: defineIpcCall<[FsMarkdownSaveAsInput], FsMarkdownSaveAsResult>(
+    'fs:saveMarkdownDocumentAs',
+  ),
+  relocateMarkdownDocument: defineIpcCall<[FsPathPairInput], FsMarkdownRelocateResult>(
+    'fs:relocateMarkdownDocument',
+  ),
+  exportMarkdownDocumentZip: defineIpcCall<[FsDocumentTargetPathInput], FsMarkdownExportResult>(
+    'fs:exportMarkdownDocumentZip',
+  ),
+  trashMarkdownDocument: defineIpcCall<[FsMarkdownTrashInput], FsTrashMarkdownDocumentResult>(
+    'fs:trashMarkdownDocument',
+  ),
+  stat: defineIpcCall<[string], FsFileStat>('fs:stat'),
+  isDirectory: defineIpcCall<[string], boolean>('fs:isDirectory'),
+  mkdir: defineIpcCall<[string], void>('fs:mkdir'),
+  rename: defineIpcCall<[string, string], void>('fs:rename'),
+  move: defineIpcCall<[string, string], void>('fs:move'),
+  delete: defineIpcCall<[string], void>('fs:delete'),
+  extractZip: defineIpcCall<[string], FsExtractZipResult>('fs:extractZip'),
+  openPath: defineIpcCall<[string], void>('fs:openPath'),
+  watchDirStart: defineIpcCall<[string], string>('fs:watchDirStart'),
+  watchDirStop: defineIpcCall<[string], boolean>('fs:watchDirStop'),
+} as const
+
+export const fsIpcEvents = {
+  watchDirChanged: 'fs:watchDirChanged',
+} as const
