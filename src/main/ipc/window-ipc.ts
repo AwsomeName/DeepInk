@@ -9,35 +9,36 @@
  */
 
 import type { BrowserWindow } from 'electron'
+import { windowIpc } from '../../shared/ipc/window'
 import type { TrustedRendererGuard } from './trusted-renderer-guard'
-import { registerTrustedIpcHandler } from './trusted-renderer-guard'
+import { registerTrustedIpcContract } from './trusted-renderer-guard'
 
 export function registerWindowIpc(
   mainWindow: BrowserWindow,
   trustedRendererGuard: TrustedRendererGuard,
 ): void {
   /** 切换全屏 */
-  registerTrustedIpcHandler('window:toggleFullscreen', trustedRendererGuard, () => {
+  registerTrustedIpcContract(windowIpc.toggleFullscreen, trustedRendererGuard, () => {
     if (mainWindow.isDestroyed()) return { success: false }
     mainWindow.setFullScreen(!mainWindow.isFullScreen())
     return { success: true, fullscreen: mainWindow.isFullScreen() }
   })
 
   /** 切换开发者工具 */
-  registerTrustedIpcHandler('window:toggleDevtools', trustedRendererGuard, () => {
+  registerTrustedIpcContract(windowIpc.toggleDevtools, trustedRendererGuard, () => {
     if (mainWindow.isDestroyed()) return { success: false }
     mainWindow.webContents.toggleDevTools()
     return { success: true }
   })
 
   /** 重新加载窗口 */
-  registerTrustedIpcHandler('window:reload', trustedRendererGuard, () => {
+  registerTrustedIpcContract(windowIpc.reload, trustedRendererGuard, () => {
     if (mainWindow.isDestroyed()) return { success: false }
     mainWindow.reload()
     return { success: true }
   })
 
-  registerTrustedIpcHandler('window:focusRenderer', trustedRendererGuard, () => {
+  registerTrustedIpcContract(windowIpc.focusRenderer, trustedRendererGuard, () => {
     if (mainWindow.isDestroyed()) return { success: false }
     mainWindow.webContents.focus()
     return { success: true }

@@ -10,3 +10,8 @@ export interface LocalIdentity {
 export interface IdentityApiContract {
   getLocalIdentity: () => Promise<LocalIdentity>
 }
+
+export const identityIpc = {
+  getLocalIdentity: defineNoArgsIpc<LocalIdentity>('identity:getLocalIdentity'),
+} as const
+import { defineNoArgsIpc } from './contract'

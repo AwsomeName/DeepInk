@@ -15,8 +15,10 @@ import {
   disposeTrustedIpcRegistrations,
   isAllowedMainRendererUrl,
   registerTrustedIpcHandler,
+  registerTrustedIpcContract,
   registerTrustedIpcListener,
 } from './trusted-renderer-guard'
+import { defineNoArgsIpc } from '../../shared/ipc/contract'
 
 beforeEach(() => {
   mockIpcMain.handle.mockReset()
@@ -124,6 +126,17 @@ describe('TrustedRendererGuard', () => {
     expect(() => registerTrustedIpcHandler('test:duplicate', guard, vi.fn())).toThrow(
       'IPC handler 重复注册',
     )
+  })
+
+  it('parses shared contract arguments before invoking a handler', () => {
+    const guard = { assert: vi.fn(), isTrusted: vi.fn(() => true) }
+    const handler = vi.fn(() => ({ success: true }))
+    registerTrustedIpcContract(defineNoArgsIpc('test:contract'), guard, handler)
+    const registered = mockIpcMain.handle.mock.calls[0]?.[1]
+
+    expect(() => registered?.({ sender: {} }, 'unexpected')).toThrow('不接受参数')
+    expect(handler).not.toHaveBeenCalled()
+    expect(registered?.({ sender: {} })).toEqual({ success: true })
   })
 })
 

@@ -1,11 +1,12 @@
 import type { OfficialIntegration } from '../official/official-integration'
-import { registerTrustedIpcHandler, type TrustedRendererGuard } from './trusted-renderer-guard'
+import { officialIpc } from '../../shared/ipc/official'
+import { registerTrustedIpcContract, type TrustedRendererGuard } from './trusted-renderer-guard'
 
 export function registerOfficialIpc(
   officialIntegration: OfficialIntegration,
   trustedRendererGuard: TrustedRendererGuard,
 ): void {
-  registerTrustedIpcHandler('official:getStatus', trustedRendererGuard, () =>
+  registerTrustedIpcContract(officialIpc.getStatus, trustedRendererGuard, () =>
     officialIntegration.getStatus(),
   )
 }

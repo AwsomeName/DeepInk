@@ -1,4 +1,5 @@
 import { ipcMain, type BrowserWindow, type IpcMainEvent, type IpcMainInvokeEvent } from 'electron'
+import type { IpcInvokeContract } from '../../shared/ipc/contract'
 
 type TrustedRendererEvent = IpcMainInvokeEvent | IpcMainEvent
 
@@ -106,6 +107,18 @@ export function registerTrustedIpcHandler<Args extends unknown[], Result>(
   }
   if (guard.ipcRegistrations) guard.ipcRegistrations.handle(channel, guardedHandler)
   else ipcMain.handle(channel, guardedHandler)
+}
+
+export function registerTrustedIpcContract<Args extends unknown[], Result>(
+  contract: IpcInvokeContract<Args, Result>,
+  guard: TrustedRendererGuard,
+  handler: (event: IpcMainInvokeEvent, ...args: Args) => Result | Promise<Result>,
+): void {
+  registerTrustedIpcHandler<unknown[], Result | Promise<Result>>(
+    contract.channel,
+    guard,
+    (event, ...args) => handler(event, ...contract.parseArgs(args)),
+  )
 }
 
 export function createTrustedIpcRegistrar(guard: TrustedRendererGuard): TrustedIpcRegistrar {

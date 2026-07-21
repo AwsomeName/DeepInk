@@ -21,3 +21,8 @@ export interface OfficialIntegrationStatus {
 export interface OfficialApiContract {
   getStatus: () => Promise<OfficialIntegrationStatus>
 }
+
+export const officialIpc = {
+  getStatus: defineNoArgsIpc<OfficialIntegrationStatus>('official:getStatus'),
+} as const
+import { defineNoArgsIpc } from './contract'

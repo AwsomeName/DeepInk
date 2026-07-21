@@ -1,20 +1,21 @@
 import { ipcRenderer } from 'electron'
 import type { DialogApiContract } from '../shared/ipc/dialog'
 import type { EditorApiContract } from '../shared/ipc/editor'
-import type { IdentityApiContract } from '../shared/ipc/identity'
+import { identityIpc, type IdentityApiContract } from '../shared/ipc/identity'
 import type { UpdateApiContract } from '../shared/ipc/update'
 import type { WechatApiContract } from '../shared/ipc/wechat'
-import type { WindowApiContract } from '../shared/ipc/window'
+import { windowIpc, type WindowApiContract } from '../shared/ipc/window'
+import { invokeIpcContract } from './ipc-contract-client'
 
 export const windowApi: WindowApiContract = {
-  toggleFullscreen: () => ipcRenderer.invoke('window:toggleFullscreen'),
-  toggleDevtools: () => ipcRenderer.invoke('window:toggleDevtools'),
-  reload: () => ipcRenderer.invoke('window:reload'),
-  focusRenderer: () => ipcRenderer.invoke('window:focusRenderer'),
+  toggleFullscreen: () => invokeIpcContract(windowIpc.toggleFullscreen),
+  toggleDevtools: () => invokeIpcContract(windowIpc.toggleDevtools),
+  reload: () => invokeIpcContract(windowIpc.reload),
+  focusRenderer: () => invokeIpcContract(windowIpc.focusRenderer),
 }
 
 export const identityApi: IdentityApiContract = {
-  getLocalIdentity: () => ipcRenderer.invoke('identity:getLocalIdentity'),
+  getLocalIdentity: () => invokeIpcContract(identityIpc.getLocalIdentity),
 }
 
 export const dialogApi: DialogApiContract = {

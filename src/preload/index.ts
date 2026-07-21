@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
+import { officialIpc } from '../shared/ipc/official'
 import { agentApi } from './agent-api'
 import { androidApi } from './android-api'
 import { browserApi, reportWorkbenchBounds } from './browser-api'
@@ -18,6 +19,7 @@ import {
   wechatApi,
   windowApi,
 } from './renderer-support-api'
+import { invokeIpcContract } from './ipc-contract-client'
 
 contextBridge.exposeInMainWorld('cclinkStudio', {
   reportWorkbenchBounds,
@@ -29,7 +31,7 @@ contextBridge.exposeInMainWorld('cclinkStudio', {
   identity: identityApi,
 
   official: {
-    getStatus: () => ipcRenderer.invoke('official:getStatus'),
+    getStatus: () => invokeIpcContract(officialIpc.getStatus),
   },
 
   // Agent
