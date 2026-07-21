@@ -1,6 +1,6 @@
 # S2 能力独立降级矩阵
 
-> 状态：S2 已关闭。分支：`codex/stabilization-s2`。起始基线：`9fed92c`。S2.1 基线：`56afb38`。S2.2 基线：`fd267a2`。S2.3 实现基线：`b7c1854`。日期：2026-07-21。
+> 状态：S2 已关闭。分支：`codex/stabilization-s2`。起始基线：`9fed92c`。S2.1 基线：`56afb38`。S2.2 基线：`fd267a2`。S2.3 实现基线：`b7c1854`。关闭门禁基线：`1d80425`。日期：2026-07-21。
 
 ## 结论
 
@@ -62,12 +62,19 @@ GitHub Actions run `29799199378` 绑定 `fd267a2`，`verify` 和独立 `smoke` j
 - [x] Android 构造失败时只清理 Android 半初始化资源，Browser 仍继续启动并等待后续 CDP 连接。
 - [x] Browser 窗口构造已标记 `failed` 时，自动化阶段跳过 CDP/Playwright，保留第一现场，不把空的 `BrowserManager` 误报为 `ready`。
 - [x] Browser Profile 与下载状态的异步加载失败已被捕获，不再形成未处理 Promise rejection。
-- [x] `pnpm verify` 通过：138 个测试文件、820 项测试、typecheck 与生产构建全部返回 0。
+- [x] `pnpm verify` 通过：138 个测试文件、821 项测试、typecheck 与生产构建全部返回 0。
 - [x] `pnpm smoke:standalone` 通过：local 9/9、UI 6/6、workflow 5/5、restore 4/4。
 - [x] 严格 `CCLINK_AUTH_SMOKE_REQUIRE_GOOGLE=1 pnpm smoke:auth-window` 通过，Profile 持久化与 Google 安全边界保持不变。
 
 - [x] GitHub Actions run `29799664398` 绑定 `b7c1854` 并成功。
-- [x] 从 `b7c1854` 创建全新 detached worktree，执行 `pnpm install --frozen-lockfile` 后，`pnpm verify`、`pnpm smoke:standalone` 和严格认证 smoke 全部通过；复验后工作树干净。
+- [x] 从 `1d80425` 创建全新 detached worktree，执行 `pnpm install --frozen-lockfile` 后，`pnpm verify`、`pnpm smoke:standalone` 和严格认证 smoke 全部通过；复验后工作树干净且没有残留 smoke 进程。
+
+## 关闭门禁复盘
+
+- 最终 HEAD 首次复验暴露了旧 detached worktree 的 Electron 残留：四组 standalone smoke 共用全局 run 目录、screen、端口和用户 Profile，旧 worktree 删除后 Vite renderer 失效，新 smoke 却仍从旧 PID/日志连接，导致 preload API 缺失。
+- `45076a1` 将 smoke runtime 按 worktree 隔离到专属 run 目录、screen、固定端口和临时测试 Profile；每组测试强制重启自己拥有的实例。正式打包应用忽略测试 Profile 环境变量，用户 Profile 规则不变。
+- `45076a1` 的首次 CI 进一步暴露 helper 未尊重工作流已注入的标准 run/log 路径，导致脚本与进程读取不同日志目录。`1d80425` 修复该契约，并用 CI 等价环境在本地复现 standalone 24/24。
+- GitHub Actions run `29800851580` 绑定 `1d80425`，`verify` 与独立 `smoke` job 均成功；此前失败的 run `29800532351` 保留为门禁缺陷证据，不计为产品能力回归。
 
 ## 恢复与诊断边界
 
@@ -79,4 +86,4 @@ S2.1 已拆自动化 runtime 内部硬依赖，S2.2 已拆 `bootstrapMainProcess
 
 ## 关闭结论
 
-S2 在实现基线 `b7c1854` 上满足关闭条件：可选能力拥有独立状态和失败边界，核心工作台与无关能力在注入失败后继续启动，失败原因进入 UI 和脱敏诊断，当前工作树、全新 detached worktree 与远端 CI 均通过。后续不得以 S2 已关闭为由扩大功能面；下一轮进入 S3，优先统一启动、回滚、窗口重建和停止生命周期。
+S2 在能力实现基线 `b7c1854`、关闭门禁基线 `1d80425` 上满足关闭条件：可选能力拥有独立状态和失败边界，核心工作台与无关能力在注入失败后继续启动，失败原因进入 UI 和脱敏诊断，当前工作树、全新 detached worktree 与远端 CI 均通过。后续不得以 S2 已关闭为由扩大功能面；下一轮进入 S3，优先统一启动、回滚、窗口重建和停止生命周期。
