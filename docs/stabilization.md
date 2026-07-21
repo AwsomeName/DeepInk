@@ -1,6 +1,6 @@
 # CCLink Studio 稳定化阶段
 
-> 状态：S0、S1、S2、S3 已完成，S4 进行中，稳定化阶段继续。开始日期：2026-07-20。S0 完成日期：2026-07-20。S1、S2、S3 完成日期：2026-07-21。
+> 状态：S0-S4 已完成，稳定化阶段关闭。开始日期：2026-07-20。S0 完成日期：2026-07-20。S1-S4 完成日期：2026-07-21。
 
 ## 结论
 
@@ -192,7 +192,7 @@ S4.3a 已关闭：Browser Profile ID、Electron partition、运营配置、works
 
 S4.3b 已关闭：main Agent runtime 继续拥有执行、run 与 session 事实，renderer `agent-store` 只保存消息和可见运行投影；`AgentPanel`、工作台会话和硬件生产入口的发送、取消、压缩事务已统一进入 conversation 级 run controller，生产 renderer 不再直接拼装第二套 run 流程。取消绑定发起时的 `runId` 并按 conversation 去重，命令拒绝和异常具有一致失败投影。会话类型、默认构造、工作区快照归一化与恢复合并从 1444 行 `agent-store` 拆出，store 降至 1059 行且持久化 schema 不变。实现提交 `4cdd1d5` 在当前工作树与全新 detached worktree 均通过 144 个测试文件/869 项测试、standalone 24/24 和严格认证 smoke，GitHub Actions run `29827593012` 成功。S4 下一工作包只剩 S4.4 诊断关联、架构复审和稳定化退出验收；在其完成前仍不得恢复功能扩张。
 
-S4.4 实现与真人验收已完成：Agent 发起的 BrowserTask 在主进程内固定 workspace/conversation/run/session-ref/tab/profile 关联，复制诊断可报告匹配、缺失和错配，同 Tab 的其他会话任务不再被误选；Session 只使用进程内随机诊断引用，原始值不进入日志。H4 首次真人验收发现运行中项目切换被流式 WorkspaceState 写队列拖慢超过 10 秒，且 Browser MCP 在同步后读取全局 Page 导致跨项目串页；修复提交 `f07dbea` 改为单飞和最新快照合并、可选运行时 1.5 秒有界对账以及 conversation/BrowserTask 精确 Page 寻址。当前工作树 145 个测试文件/878 项测试、standalone 24/24、严格认证 smoke、全新 detached worktree `/tmp/cclink-studio-s4-h4-verify.t0YF07` 和 GitHub Actions run `29841461326` 均通过，真人复测确认切换不卡顿、项目投影不串且浏览器动作不漂移。下一步只形成独立关闭提交并复验该最新 HEAD；在其门禁完成前 S4 与稳定化阶段仍保持进行中。
+S4.4 与稳定化阶段已关闭：Agent 发起的 BrowserTask 在主进程内固定 workspace/conversation/run/session-ref/tab/profile 关联，复制诊断可报告匹配、缺失和错配，同 Tab 的其他会话任务不再被误选；Session 只使用进程内随机诊断引用，原始值不进入日志。H4 首次真人验收发现运行中项目切换被流式 WorkspaceState 写队列拖慢超过 10 秒，且 Browser MCP 在同步后读取全局 Page 导致跨项目串页；修复提交 `f07dbea` 改为单飞和最新快照合并、可选运行时 1.5 秒有界对账以及 conversation/BrowserTask 精确 Page 寻址。当前工作树 145 个测试文件/878 项测试、standalone 24/24、严格认证 smoke、全新 detached worktree `/tmp/cclink-studio-s4-h4-verify.t0YF07` 和 GitHub Actions run `29841461326` 均通过，真人 H1-H4 复测确认运行、取消、压缩、项目切换、项目投影和浏览器页面归属均符合预期。关闭提交自身仍必须通过同样门禁，失败即重新打开稳定化阶段，不以文档状态覆盖失败事实。
 
 ## 退出标准
 
