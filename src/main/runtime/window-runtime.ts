@@ -15,6 +15,7 @@ import { createMainWindow } from './main-window'
 import { resolveMainRendererEntryUrl } from './main-window'
 import { createTrustedRendererGuard } from '../ipc/trusted-renderer-guard'
 import type { CclinkStudioRuntimeState } from './app-runtime'
+import { runShutdownStep } from './shutdown'
 
 interface CreateWindowRuntimeOptions {
   preloadPath: string
@@ -55,6 +56,31 @@ export function createWindowRuntime(
   registerDialogIpc(runtime.mainWindow, runtime.trustedRendererGuard)
   registerWindowIpc(runtime.mainWindow, runtime.trustedRendererGuard)
   bootstrapWindowCapabilities(runtime)
+}
+
+export async function destroyWindowRuntime(runtime: CclinkStudioRuntimeState): Promise<void> {
+  await runShutdownStep('BrowserAuthProcessService', () =>
+    runtime.browserAuthProcessService?.destroy(),
+  )
+  await runShutdownStep('BrowserManager', () => runtime.browserManager?.destroy())
+  await runShutdownStep('ScrcpyBridge', () => runtime.scrcpyBridge?.disconnect())
+  await runShutdownStep('ActiveDeviceManager', () => runtime.activeDeviceManager?.destroy())
+  await runShutdownStep('PhysicalDeviceManager', () => runtime.physicalDeviceManager?.disconnect())
+  await runShutdownStep('MainWindow', () => {
+    if (runtime.mainWindow && !runtime.mainWindow.isDestroyed()) runtime.mainWindow.destroy()
+  })
+
+  runtime.mainWindow = null
+  runtime.trustedRendererGuard = null
+  runtime.browserManager = null
+  runtime.browserTaskRuntime = null
+  runtime.browserDownloadStore = null
+  runtime.browserAuthProcessService = null
+  runtime.browserInstanceStore = null
+  runtime.adbBridge = null
+  runtime.scrcpyBridge = null
+  runtime.activeDeviceManager = null
+  runtime.physicalDeviceManager = null
 }
 
 export function bootstrapWindowCapabilities(

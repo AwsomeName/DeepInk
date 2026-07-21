@@ -14,6 +14,7 @@ import { DataSourceToolModule } from '../mcp/modules/data-source'
 import type { ToolModule } from '../mcp/types'
 import type { AgentCapabilityName } from '../../shared/agent-protocol'
 import type { CclinkStudioRuntimeState } from './app-runtime'
+import { runShutdownStep } from './shutdown'
 
 export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeState): Promise<void> {
   if (
@@ -160,6 +161,18 @@ export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeSta
     runtime.capabilities.failed('mcp', error)
     console.error('[CCLink Studio] MCP server 启动失败:', error)
   }
+}
+
+export async function shutdownAutomationRuntime(runtime: CclinkStudioRuntimeState): Promise<void> {
+  await runShutdownStep('EditorModule', () => runtime.editorModule?.destroy())
+  await runShutdownStep('AgentDeviceManager', () => runtime.agentDeviceManager?.destroy())
+  await runShutdownStep('McpToolHost', () => runtime.toolHost?.stop())
+  await runShutdownStep('PlaywrightBridge', () => runtime.playwrightBridge?.disconnect())
+
+  runtime.editorModule = null
+  runtime.agentDeviceManager = null
+  runtime.toolHost = null
+  runtime.playwrightBridge = null
 }
 
 function registerToolModule(

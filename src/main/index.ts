@@ -1,14 +1,12 @@
 import { app, BrowserWindow } from 'electron'
 import { join } from 'path'
-import { cleanupIpcHandlers } from './ipc/ipc-cleanup'
 import {
   configureAppCommandLine,
   ensureSingleInstance,
   registerProcessErrorHandlers,
 } from './runtime/app-lifecycle'
 import { createRuntimeState } from './runtime/app-runtime'
-import { createWindowRuntime } from './runtime/window-runtime'
-import { bootstrapRuntime } from './runtime/bootstrap-runtime'
+import { bootstrapRuntime, rebuildRuntime } from './runtime/bootstrap-runtime'
 import { shutdownRuntime } from './runtime/shutdown-runtime'
 import { configureFixedUserDataPath } from './runtime/user-data-path'
 import { parseBrowserAuthChildOptions } from './browser/browser-auth-contract'
@@ -67,10 +65,13 @@ function startMainApplication(): void {
   void app.whenReady().then(async () => {
     await bootstrapRuntime(runtime, windowOptions)
 
-    app.on('activate', () => {
+    app.on('activate', async () => {
       if (BrowserWindow.getAllWindows().length === 0) {
-        cleanupIpcHandlers()
-        createWindowRuntime(runtime, windowOptions)
+        try {
+          await rebuildRuntime(runtime)
+        } catch (error) {
+          console.error('[CCLink Studio] 窗口重建失败:', error)
+        }
       }
     })
 

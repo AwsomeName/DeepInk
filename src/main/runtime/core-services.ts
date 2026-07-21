@@ -22,6 +22,7 @@ import { GitBackupService } from '../git-backup/git-backup-service'
 import { registerGitBackupIpc } from '../git-backup/git-backup-ipc'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 import { bootstrapOptionalMainServices } from './optional-main-services'
+import { runShutdownStep } from './shutdown'
 
 export async function bootstrapStateServices(runtime: CclinkStudioRuntimeState): Promise<void> {
   runtime.settingsService = new SettingsService()
@@ -31,6 +32,12 @@ export async function bootstrapStateServices(runtime: CclinkStudioRuntimeState):
   runtime.workspaceStateService = new WorkspaceStateService()
   await runtime.workspaceStateService.loadState()
   console.log('[CCLink Studio] 工作台状态服务已初始化')
+}
+
+export async function shutdownStateServices(runtime: CclinkStudioRuntimeState): Promise<void> {
+  await runShutdownStep('WorkspaceStateService', () => runtime.workspaceStateService?.flush())
+  runtime.workspaceStateService = null
+  runtime.settingsService = null
 }
 
 export async function bootstrapMainProcessServices(
@@ -142,4 +149,38 @@ export async function bootstrapMainProcessServices(
   console.log('[CCLink Studio] 更新检查 IPC 已注册')
 
   await bootstrapOptionalMainServices(runtime)
+}
+
+export async function shutdownMainProcessServices(
+  runtime: CclinkStudioRuntimeState,
+): Promise<void> {
+  await runShutdownStep('PermissionManager', () => runtime.permissionManager?.destroy())
+  await runShutdownStep('TerminalConfirmationService', () =>
+    runtime.terminalConfirmationService?.destroy(),
+  )
+  await runShutdownStep('TerminalExecutionAdapter', async () => {
+    const sessions = runtime.terminalSessionRegistry?.list() ?? []
+    await Promise.all(
+      sessions.map((session) => runtime.terminalExecutionAdapter?.terminate(session.sessionId)),
+    )
+  })
+  await runShutdownStep('TerminalSessionRegistry', () => runtime.terminalSessionRegistry?.clear())
+
+  runtime.localIdentityService = null
+  runtime.officialIntegration = null
+  runtime.fileService = null
+  runtime.gitBackupService = null
+  runtime.projectOpsService = null
+  runtime.permissionManager = null
+  runtime.mcpClientMgr = null
+  runtime.cadConversionService = null
+  runtime.hardwareService = null
+  runtime.dataSourceService = null
+  runtime.meshyService = null
+  runtime.terminalAuditStore = null
+  runtime.terminalSessionStore = null
+  runtime.terminalConfirmationService = null
+  runtime.terminalSessionRegistry = null
+  runtime.terminalExecutionAdapter = null
+  runtime.terminalCommandOrchestrator = null
 }

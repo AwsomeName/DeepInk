@@ -56,3 +56,11 @@ export function bootstrapAgentRuntime(runtime: CclinkStudioRuntimeState): void {
     '[CCLink Studio] Agent 后端未就绪：MCP、权限或设置 runtime 初始化失败，Agent IPC 将保持降级状态',
   )
 }
+
+export async function shutdownAgentRuntime(runtime: CclinkStudioRuntimeState): Promise<void> {
+  try {
+    await runtime.agentBridge?.destroy()
+  } finally {
+    runtime.agentBridge = null
+  }
+}
