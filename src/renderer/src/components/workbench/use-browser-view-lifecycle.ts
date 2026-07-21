@@ -4,6 +4,7 @@ import { useTabStore } from '../../stores/tab-store'
 import type { Tab } from '../../types'
 import type { WorkspaceRef } from '@shared/workspace-ref'
 import { workspaceRefKey } from '@shared/workspace-ref'
+import type { BrowserViewBinding } from '@shared/ipc/browser'
 
 /** 管理内嵌浏览器 WebContentsView 的创建、激活、隐藏和销毁。 */
 export function useBrowserViewLifecycle(
@@ -20,24 +21,26 @@ export function useBrowserViewLifecycle(
     activeTab?.type === 'browser' &&
     Boolean(activeTab.workspaceRef) &&
     workspaceRefKey(activeTab.workspaceRef!) === activeWorkspaceKey
-  const browserTabKey = useMemo(
+  const browserViewBindingKey = useMemo(
     () =>
-      tabs
-        .filter(
-          (tab) =>
-            tab.type === 'browser' &&
-            Boolean(tab.workspaceRef) &&
-            workspaceRefKey(tab.workspaceRef!) === activeWorkspaceKey,
-        )
-        .map((tab) => tab.id)
-        .join('\u0000'),
+      JSON.stringify(
+        tabs
+          .filter(
+            (tab) =>
+              tab.type === 'browser' &&
+              Boolean(tab.workspaceRef) &&
+              workspaceRefKey(tab.workspaceRef!) === activeWorkspaceKey,
+          )
+          .map((tab) => ({ tabId: tab.id, profileId: tab.browserProfile ?? null })),
+      ),
     [activeWorkspaceKey, tabs],
   )
-  const browserTabIds = useMemo(
-    () => (browserTabKey ? browserTabKey.split('\u0000') : []),
-    [browserTabKey],
+  const browserViews = useMemo(
+    () => JSON.parse(browserViewBindingKey) as BrowserViewBinding[],
+    [browserViewBindingKey],
   )
-  const prevBrowserIdsRef = useRef<string[]>(browserTabKey ? browserTabKey.split('\u0000') : [])
+  const browserTabIds = useMemo(() => browserViews.map(({ tabId }) => tabId), [browserViews])
+  const prevBrowserIdsRef = useRef<string[]>(browserTabIds)
 
   useEffect(() => {
     let cancelled = false
@@ -46,7 +49,7 @@ export function useBrowserViewLifecycle(
       if (!enabled) return
       await window.cclinkStudio.browser.reconcileViews({
         workspaceKey: activeWorkspaceKey,
-        validTabIds: browserTabIds,
+        views: browserViews,
         activeTabId: null,
       })
       if (cancelled) return
@@ -63,18 +66,16 @@ export function useBrowserViewLifecycle(
           historyIndex: state.historyIndex,
         }
 
-        if (!state.ready) {
-          await window.cclinkStudio.browser.createView(activeTabId, state.url, {
-            ...(restore ? { restore } : {}),
-            profileId: currentTab?.browserProfile ?? null,
-            workspaceKey: activeWorkspaceKey,
-          })
-          if (cancelled) return
-          setBrowserTabReady(activeTabId)
-        }
+        await window.cclinkStudio.browser.createView(activeTabId, state.url, {
+          ...(restore ? { restore } : {}),
+          profileId: currentTab?.browserProfile ?? null,
+          workspaceKey: activeWorkspaceKey,
+        })
+        if (cancelled) return
+        setBrowserTabReady(activeTabId)
         await window.cclinkStudio.browser.reconcileViews({
           workspaceKey: activeWorkspaceKey,
-          validTabIds: browserTabIds,
+          views: browserViews,
           activeTabId,
         })
         return
@@ -82,7 +83,7 @@ export function useBrowserViewLifecycle(
 
       await window.cclinkStudio.browser.reconcileViews({
         workspaceKey: activeWorkspaceKey,
-        validTabIds: browserTabIds,
+        views: browserViews,
         activeTabId: null,
       })
     }
@@ -94,7 +95,7 @@ export function useBrowserViewLifecycle(
   }, [
     activeTabId,
     activeWorkspaceKey,
-    browserTabIds,
+    browserViews,
     enabled,
     ensureBrowserTab,
     isBrowserTab,
@@ -102,12 +103,12 @@ export function useBrowserViewLifecycle(
   ])
 
   useEffect(() => {
-    const next = browserTabKey ? browserTabKey.split('\u0000') : []
+    const next = browserTabIds
     const prev = prevBrowserIdsRef.current
     const removed = prev.filter((id) => !next.includes(id))
     for (const id of removed) {
       useBrowserStore.getState().removeTab(id)
     }
     prevBrowserIdsRef.current = next
-  }, [browserTabKey])
+  }, [browserTabIds])
 }

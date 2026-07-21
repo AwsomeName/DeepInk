@@ -1,4 +1,5 @@
 import type { WorkspaceStateSnapshot } from '@shared/ipc/workspace-state'
+import type { BrowserViewBinding } from '@shared/ipc/browser'
 import type { WorkspaceRef } from '../../../shared/workspace-ref'
 import { workspaceRefKey } from '../../../shared/workspace-ref'
 import { useAgentStore } from '../stores/agent-store'
@@ -79,7 +80,7 @@ export function collectWorkspaceRuntimeResourceOwnership(
   }
 }
 
-function getIncomingBrowserTabIds(snapshot: WorkspaceStateSnapshot | null): string[] {
+function getIncomingBrowserViews(snapshot: WorkspaceStateSnapshot | null): BrowserViewBinding[] {
   const tabsSection = snapshot?.sections.tabs
   if (!tabsSection || typeof tabsSection !== 'object') return []
   const tabs = (tabsSection as { tabs?: unknown }).tabs
@@ -87,8 +88,21 @@ function getIncomingBrowserTabIds(snapshot: WorkspaceStateSnapshot | null): stri
 
   return tabs.flatMap((tab) => {
     if (!tab || typeof tab !== 'object') return []
-    const candidate = tab as { id?: unknown; type?: unknown }
-    return candidate.type === 'browser' && typeof candidate.id === 'string' ? [candidate.id] : []
+    const candidate = tab as { id?: unknown; type?: unknown; browserProfile?: unknown }
+    if (candidate.type !== 'browser' || typeof candidate.id !== 'string') return []
+    if (
+      candidate.browserProfile !== undefined &&
+      candidate.browserProfile !== null &&
+      typeof candidate.browserProfile !== 'string'
+    ) {
+      throw new Error(`浏览器 Tab ${candidate.id} 的 Profile 绑定无效`)
+    }
+    return [
+      {
+        tabId: candidate.id,
+        profileId: candidate.browserProfile ?? null,
+      },
+    ]
   })
 }
 
@@ -102,7 +116,7 @@ async function bindBrowserRuntimeToWorkspace(
   try {
     await reconcileViews({
       workspaceKey,
-      validTabIds: getIncomingBrowserTabIds(snapshot),
+      views: getIncomingBrowserViews(snapshot),
       activeTabId: null,
     })
   } catch (error) {

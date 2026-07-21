@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   browserBoundsSchema,
   browserCreateViewOptionsSchema,
+  browserReconcileViewsSchema,
   browserUrlSchema,
 } from './browser-ipc-schema'
 
@@ -31,6 +32,34 @@ describe('browser IPC schemas', () => {
           manualZoom: 1,
           history: Array.from({ length: 501 }, () => 'https://example.com'),
         },
+      }),
+    ).toThrow()
+  })
+
+  it('uses one bounded profile rule for view creation and reconciliation', () => {
+    expect(browserCreateViewOptionsSchema.parse({ profileId: 'operations.eu-west' })).toEqual({
+      profileId: 'operations.eu-west',
+    })
+    expect(() => browserCreateViewOptionsSchema.parse({ profileId: 'x'.repeat(65) })).toThrow()
+    expect(
+      browserReconcileViewsSchema.parse({
+        workspaceKey: '/workspace/a',
+        views: [{ tabId: 'browser-a', profileId: 'v2ex' }],
+        activeTabId: 'browser-a',
+      }),
+    ).toEqual({
+      workspaceKey: '/workspace/a',
+      views: [{ tabId: 'browser-a', profileId: 'v2ex' }],
+      activeTabId: 'browser-a',
+    })
+    expect(() =>
+      browserReconcileViewsSchema.parse({
+        workspaceKey: '/workspace/a',
+        views: [
+          { tabId: 'browser-a', profileId: 'v2ex' },
+          { tabId: 'browser-a', profileId: 'zhihu' },
+        ],
+        activeTabId: null,
       }),
     ).toThrow()
   })

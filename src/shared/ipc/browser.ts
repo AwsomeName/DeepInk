@@ -23,9 +23,14 @@ export interface BrowserCreateViewOptions {
   workspaceKey?: string | null
 }
 
+export interface BrowserViewBinding {
+  tabId: string
+  profileId: string | null
+}
+
 export interface BrowserReconcileViewsOptions {
   workspaceKey: string | null
-  validTabIds: string[]
+  views: BrowserViewBinding[]
   activeTabId: string | null
 }
 

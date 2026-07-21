@@ -48,6 +48,7 @@ beforeEach(() => {
                   type: 'browser',
                   title: 'B',
                   icon: '🌐',
+                  browserProfile: 'v2ex',
                   workspaceRef: localWorkspaceRef('/workspace/b'),
                 },
               ],
@@ -120,7 +121,7 @@ describe('workspace-transition', () => {
     expect(useTabStore.getState().activeTabId).toBe('browser-b')
     expect(window.cclinkStudio.browser.reconcileViews).toHaveBeenCalledWith({
       workspaceKey: '/workspace/b',
-      validTabIds: ['browser-b'],
+      views: [{ tabId: 'browser-b', profileId: 'v2ex' }],
       activeTabId: null,
     })
     expect(setSection.mock.calls.every((call) => call[0] === '/workspace/b')).toBe(true)
@@ -328,7 +329,7 @@ describe('workspace-transition', () => {
 
     expect(window.cclinkStudio.browser.reconcileViews).toHaveBeenLastCalledWith({
       workspaceKey: '/workspace/b',
-      validTabIds: ['browser-b'],
+      views: [{ tabId: 'browser-b', profileId: null }],
       activeTabId: null,
     })
     expect(useTabStore.getState().tabs.map((tab) => tab.id)).toEqual(['browser-b', 'terminal-b'])

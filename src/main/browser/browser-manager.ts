@@ -1,17 +1,16 @@
-import { BrowserWindow, WebContentsView, session, type Cookie, type Session } from 'electron'
+import { BrowserWindow, WebContentsView, session } from 'electron'
 import { randomUUID } from 'node:crypto'
 import type { PlaywrightBridge } from '../playwright/playwright-bridge'
 import type { BrowserInstanceStore } from '../persistence/browser-instance-store'
 import {
   browserIpcEvents,
-  type BrowserCookieChangeDiagnosticEntry,
-  type BrowserCookieDiagnosticEntry,
   type BrowserSessionDiagnosticSummary,
   type BrowserReconcileViewsOptions,
   type BrowserViewModeType,
   type BrowserViewState,
   type BrowserZoomModeType,
 } from '../../shared/ipc/browser'
+import { browserProfilePartition, normalizeBrowserProfileId } from '../../shared/browser-profile'
 import { assertBrowserUrlAccess, isSupportedBrowserUrl } from './browser-url-access'
 import { installBrowserCompatibilityHeaders, normalizeDesktopUserAgent } from './browser-stealth'
 import {
@@ -22,7 +21,11 @@ import {
   type BrowserAuthCompleteMessage,
   type BrowserAuthRequest,
 } from './browser-auth-contract'
-import { shouldDestroyBrowserViewDuringReconcile } from './browser-view-reconciliation'
+import { BrowserSessionDiagnostics } from './browser-session-diagnostics'
+import {
+  shouldDestroyBrowserViewDuringReconcile,
+  shouldRecreateBrowserViewForBinding,
+} from './browser-view-reconciliation'
 
 /** 移动版模拟时的目标视口宽度（CSS px，约等于 iPhone Pro 逻辑宽度） */
 const MOBILE_WIDTH = 414
@@ -35,10 +38,6 @@ const MAX_ZOOM = 3
 const ZOOM_STEP = 0.1
 /** 默认首页 */
 const DEFAULT_URL = 'https://www.baidu.com'
-const PROFILE_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/
-const LIKELY_AUTH_COOKIE_RE =
-  /(?:^|[_-])(auth|account|login|session(?:id)?|sid|sso|token|user|uid)(?:$|[_-])|^(?:a2|sessionid|z_c0|q_c1)$/i
-const NON_AUTH_COOKIE_RE = /(captcha|challenge|csrf|xsrf|analytics|tracking|experiment)/i
 
 /** 设备模式：桌面 / 移动 */
 export type ViewMode = BrowserViewModeType
@@ -116,10 +115,7 @@ export class BrowserManager {
       errorMessage?: string
     }
   >()
-  private readonly observedCookieSessions = new WeakSet<Session>()
-  private readonly cookieChanges: Array<
-    BrowserCookieChangeDiagnosticEntry & { partition: string }
-  > = []
+  private readonly sessionDiagnostics = new BrowserSessionDiagnostics()
   private browserAuthRequestHandler: ((request: BrowserAuthRequest) => void) | null = null
 
   constructor(mainWindow: BrowserWindow, defaults?: { zoomMode?: ZoomMode; viewMode?: ViewMode }) {
@@ -213,7 +209,7 @@ export class BrowserManager {
       workspaceKey?: string | null
     },
   ): Promise<void> {
-    const requestedProfileId = this.normalizeProfileId(opts?.profileId)
+    const requestedProfileId = normalizeBrowserProfileId(opts?.profileId)
     const safeInitialUrl = initialUrl
       ? sanitizeBrowserAuthMainUrl(requestedProfileId, initialUrl)
       : undefined
@@ -227,7 +223,15 @@ export class BrowserManager {
         ),
       )
     }
-    if (existing && existing.workspaceKey !== workspaceKey) {
+    if (
+      existing &&
+      shouldRecreateBrowserViewForBinding({
+        currentWorkspaceKey: existing.workspaceKey,
+        currentProfileId: existing.profileId,
+        requestedWorkspaceKey: workspaceKey,
+        requestedProfileId,
+      })
+    ) {
       this.destroyView(tabId)
       existing = undefined
     }
@@ -262,7 +266,7 @@ export class BrowserManager {
 
     const profileId = requestedProfileId
     const viewSession = profileId
-      ? session.fromPartition(`persist:cclink-studio-profile-${profileId}`)
+      ? session.fromPartition(browserProfilePartition(profileId))
       : undefined
     const view = new WebContentsView({
       webPreferences: {
@@ -273,7 +277,7 @@ export class BrowserManager {
     })
 
     installBrowserCompatibilityHeaders(view.webContents.session)
-    this.observeCookieChanges(view.webContents.session, profileId)
+    this.sessionDiagnostics.observe(view.webContents.session, profileId)
 
     // 去掉 Electron/CCLink Studio 标识，让 UA 看起来像真实 Chrome
     const desktopUA = normalizeDesktopUserAgent(view.webContents.getUserAgent())
@@ -370,12 +374,6 @@ export class BrowserManager {
     if (this.activeViewId === tabId) {
       this.ensureLoaded(tabId)
     }
-  }
-
-  private normalizeProfileId(profileId?: string | null): string | null {
-    if (!profileId) return null
-    const normalized = profileId.trim()
-    return PROFILE_ID_PATTERN.test(normalized) ? normalized : null
   }
 
   private routeBrowserAuth(tabId: string, entry: ViewEntry, url: string): boolean {
@@ -523,14 +521,17 @@ export class BrowserManager {
   /** 让 renderer 声明当前工作区允许存在和显示的浏览器视图。 */
   reconcileViews(options: BrowserReconcileViewsOptions): void {
     this.currentWorkspaceKey = options.workspaceKey
-    const validTabIds = new Set(options.validTabIds)
+    const expectedProfileByTabId = new Map(
+      options.views.map(({ tabId, profileId }) => [tabId, normalizeBrowserProfileId(profileId)]),
+    )
     for (const [tabId, entry] of [...this.views]) {
       if (
         shouldDestroyBrowserViewDuringReconcile({
           tabId,
           viewWorkspaceKey: entry.workspaceKey,
+          viewProfileId: entry.profileId,
           activeWorkspaceKey: options.workspaceKey,
-          validTabIds,
+          expectedProfileByTabId,
         })
       ) {
         this.destroyView(tabId)
@@ -928,12 +929,12 @@ export class BrowserManager {
     url: string,
     profileId?: string | null,
   ): Promise<BrowserSessionDiagnosticSummary> {
-    const normalizedProfileId = this.normalizeProfileId(profileId)
+    const normalizedProfileId = normalizeBrowserProfileId(profileId)
     const browserSession = normalizedProfileId
-      ? session.fromPartition(`persist:cclink-studio-profile-${normalizedProfileId}`)
+      ? session.fromPartition(browserProfilePartition(normalizedProfileId))
       : session.defaultSession
-    this.observeCookieChanges(browserSession, normalizedProfileId)
-    return this.describeSession(browserSession, normalizedProfileId, url)
+    this.sessionDiagnostics.observe(browserSession, normalizedProfileId)
+    return this.sessionDiagnostics.describe(browserSession, normalizedProfileId, url)
   }
 
   /** 返回诊断所需的真实视图、Profile 和 Cookie 元数据，不暴露 Cookie 值。 */
@@ -974,7 +975,7 @@ export class BrowserManager {
 
     const visibleUrl = entry.view.webContents.getURL() || entry.url || null
     const browserSession = entry.view.webContents.session
-    const sessionDiagnostics = await this.describeSession(
+    const sessionDiagnostics = await this.sessionDiagnostics.describe(
       browserSession,
       entry.profileId,
       visibleUrl,
@@ -1001,99 +1002,6 @@ export class BrowserManager {
     }
   }
 
-  private async describeSession(
-    browserSession: Session,
-    profileId: string | null,
-    url: string | null,
-  ): Promise<BrowserSessionDiagnosticSummary> {
-    const partition = profileId ? `persist:cclink-studio-profile-${profileId}` : 'default'
-    let cookieStoreFlushed = false
-
-    try {
-      await browserSession.cookies.flushStore()
-      cookieStoreFlushed = true
-    } catch {
-      // 诊断继续返回内存中的 Cookie 元数据。
-    }
-
-    try {
-      const cookies = url ? await browserSession.cookies.get({ url }) : []
-      const nowSeconds = Date.now() / 1000
-      const metadata = cookies.map((cookie) => this.cookieMetadata(cookie))
-      return {
-        partition,
-        persistent: true,
-        cookieStoreFlushed,
-        cookieCount: metadata.length,
-        persistentCookieCount: metadata.filter((cookie) => !cookie.session).length,
-        expiredCookieCount: metadata.filter(
-          (cookie) => typeof cookie.expiresAt === 'number' && cookie.expiresAt / 1000 <= nowSeconds,
-        ).length,
-        likelyAuthCookies: metadata.filter((cookie) => cookie.likelyAuth),
-        cookieNames: metadata.map((cookie) => cookie.name).sort(),
-        recentCookieChanges: this.getRecentCookieChanges(partition, url),
-      }
-    } catch (error) {
-      return {
-        partition,
-        persistent: true,
-        cookieStoreFlushed,
-        cookieCount: 0,
-        persistentCookieCount: 0,
-        expiredCookieCount: 0,
-        likelyAuthCookies: [],
-        cookieNames: [],
-        recentCookieChanges: this.getRecentCookieChanges(partition, url),
-        errorMessage: error instanceof Error ? error.message : String(error),
-      }
-    }
-  }
-
-  private observeCookieChanges(browserSession: Session, profileId: string | null): void {
-    if (this.observedCookieSessions.has(browserSession)) return
-    this.observedCookieSessions.add(browserSession)
-    const partition = profileId ? `persist:cclink-studio-profile-${profileId}` : 'default'
-    browserSession.cookies.on('changed', (_event, cookie, cause, removed) => {
-      this.cookieChanges.push({
-        ...this.cookieMetadata(cookie),
-        partition,
-        timestamp: Date.now(),
-        cause,
-        removed,
-      })
-      if (this.cookieChanges.length > 500) {
-        this.cookieChanges.splice(0, this.cookieChanges.length - 300)
-      }
-    })
-  }
-
-  private cookieMetadata(cookie: Cookie): BrowserCookieDiagnosticEntry {
-    return {
-      name: cookie.name,
-      domain: cookie.domain ?? '',
-      path: cookie.path ?? '/',
-      secure: Boolean(cookie.secure),
-      httpOnly: Boolean(cookie.httpOnly),
-      session: Boolean(cookie.session),
-      ...(typeof cookie.expirationDate === 'number'
-        ? { expiresAt: Math.round(cookie.expirationDate * 1000) }
-        : {}),
-      likelyAuth: !NON_AUTH_COOKIE_RE.test(cookie.name) && LIKELY_AUTH_COOKIE_RE.test(cookie.name),
-    }
-  }
-
-  private getRecentCookieChanges(
-    partition: string,
-    visibleUrl: string | null,
-  ): BrowserCookieChangeDiagnosticEntry[] {
-    const host = safeHost(visibleUrl)
-    return this.cookieChanges
-      .filter((change) => change.partition === partition)
-      .filter((change) => !host || cookieDomainMatchesHost(change.domain, host))
-      .slice(-50)
-      .map(({ partition: _partition, ...change }) => change)
-  }
-
   /** 销毁所有视图并清空窗口引用 */
   destroy(): void {
     for (const tabId of [...this.views.keys()]) {
@@ -1104,18 +1012,4 @@ export class BrowserManager {
     // 清空 mainWindow 引用，防止后续访问已销毁的窗口
     this.mainWindow = null as unknown as BrowserWindow
   }
-}
-
-function safeHost(value: string | null): string {
-  if (!value) return ''
-  try {
-    return new URL(value).hostname.toLowerCase()
-  } catch {
-    return ''
-  }
-}
-
-function cookieDomainMatchesHost(domain: string, host: string): boolean {
-  const normalizedDomain = domain.replace(/^\./, '').toLowerCase()
-  return host === normalizedDomain || host.endsWith(`.${normalizedDomain}`)
 }

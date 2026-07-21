@@ -76,6 +76,34 @@ describe('ProjectOpsService', () => {
     expect(result.issues[0]?.path).toBe('$')
   })
 
+  it('rejects an account profile that cannot map to an Electron session partition', async () => {
+    const service = new ProjectOpsService()
+    await service.createAccountsTemplate(workspacePath)
+    await writeFile(
+      join(workspacePath, 'cclink-accounts.json'),
+      JSON.stringify({
+        version: 1,
+        platforms: [
+          {
+            id: 'community',
+            name: 'Community',
+            url: 'https://example.com',
+            browserProfile: 'invalid/profile',
+          },
+        ],
+      }),
+      'utf-8',
+    )
+
+    const result = await service.getAccounts(workspacePath)
+
+    expect(result.error).toBe('项目账号配置格式不正确')
+    expect(result.issues).toContainEqual({
+      path: 'platforms.0.browserProfile',
+      message: 'Browser Profile ID 格式无效',
+    })
+  })
+
   it('creates a platform copy draft in docs', async () => {
     const service = new ProjectOpsService()
     await service.createAccountsTemplate(workspacePath)

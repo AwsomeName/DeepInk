@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { BROWSER_PROFILE_ID_MAX_LENGTH, BROWSER_PROFILE_ID_PATTERN } from '../browser-profile'
 
 const MAX_URL_LENGTH = 32_768
 const MAX_IDENTIFIER_LENGTH = 512
@@ -23,8 +24,8 @@ export const browserWorkspaceKeySchema = z
 export const browserProfileIdSchema = z
   .string()
   .min(1)
-  .max(128)
-  .regex(/^[A-Za-z0-9._-]+$/, 'Profile ID 格式无效')
+  .max(BROWSER_PROFILE_ID_MAX_LENGTH)
+  .regex(BROWSER_PROFILE_ID_PATTERN, 'Profile ID 格式无效')
   .nullable()
 
 export const browserUrlSchema = z
@@ -79,10 +80,32 @@ export const browserCreateViewOptionsSchema = z
 export const browserReconcileViewsSchema = z
   .object({
     workspaceKey: browserWorkspaceKeySchema,
-    validTabIds: z.array(browserIdentifierSchema).max(MAX_HISTORY_ENTRIES),
+    views: z
+      .array(
+        z
+          .object({
+            tabId: browserIdentifierSchema,
+            profileId: browserProfileIdSchema,
+          })
+          .strict(),
+      )
+      .max(MAX_HISTORY_ENTRIES),
     activeTabId: browserOptionalIdentifierSchema,
   })
   .strict()
+  .superRefine(({ views }, context) => {
+    const tabIds = new Set<string>()
+    views.forEach(({ tabId }, index) => {
+      if (tabIds.has(tabId)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['views', index, 'tabId'],
+          message: '浏览器 Tab 绑定重复',
+        })
+      }
+      tabIds.add(tabId)
+    })
+  })
 
 export const browserSessionDiagnosticRequestSchema = z
   .object({

@@ -12,16 +12,29 @@ import type {
   ProjectOpsPublicationRecordResult,
   ProjectOpsValidationIssue,
 } from '../../shared/ipc/project-ops'
+import { normalizeBrowserProfileId } from '../../shared/browser-profile'
 import { LEGACY_PROJECT_OPS_ACCOUNT_PATHS } from '../migrations/project-ops-legacy-account-paths'
 
-const PLATFORM_SCHEMA = z.object({
-  id: z.string().min(1),
-  name: z.string().min(1),
-  url: z.string().url(),
-  account: z.string().optional(),
-  notes: z.string().optional(),
-  browserProfile: z.string().optional(),
-})
+const PLATFORM_SCHEMA = z
+  .object({
+    id: z.string().min(1),
+    name: z.string().min(1),
+    url: z.string().url(),
+    account: z.string().optional(),
+    notes: z.string().optional(),
+    browserProfile: z.string().optional(),
+  })
+  .superRefine((platform, context) => {
+    try {
+      normalizeBrowserProfileId(platform.browserProfile || platform.id)
+    } catch (error) {
+      context.addIssue({
+        code: 'custom',
+        path: ['browserProfile'],
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  })
 
 const ACCOUNTS_SCHEMA = z.object({
   version: z.literal(1),
