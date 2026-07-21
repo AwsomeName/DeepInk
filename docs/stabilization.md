@@ -167,6 +167,8 @@ S3.2a 已关闭：所有生产 renderer IPC 注册均已确认收敛到 trusted 
 
 S3.2b1 已关闭：shared `IpcInvokeContract` 已建立，main 注册器自动执行参数 parser，preload client 使用同一 channel/result contract；Window、Identity、Official 为首批迁移域。当前工作树与全新 detached worktree 均通过 140 个测试文件/832 项测试、standalone 24/24 和严格认证 smoke，GitHub Actions run `29805753076` 成功。带参数的高权限 Settings、Dialog、FS、Agent 与 Browser 仍待后续批次迁移，S3.2 尚未关闭。
 
+S3.2b2 已关闭：Settings 与 Dialog 已迁移到 shared 轻量 invoke definition，并在主进程从同一声明绑定运行时 schema；Settings 的结构化失败语义和 Dialog 的可选参数语义保持不变。standalone 首次复验发现 sandbox preload 不能加载外部 Zod，现已通过 definition/parser 分层修复并补防回退测试，preload 不再携带 runtime schema。实现提交 `bcaadc9` 在当前工作树与全新 detached worktree 均通过 140 个测试文件/836 项测试、standalone 24/24 和严格认证 smoke，GitHub Actions run `29807348621` 成功。FS、Agent、Browser contract 与 S3.3 项目切换资源解绑仍未完成，因此 S3 和稳定化阶段均保持进行中。
+
 ### S4：收敛状态和复杂度
 
 - 明确 workspace、browser profile、conversation、terminal 和 tab 的唯一状态所有者。
