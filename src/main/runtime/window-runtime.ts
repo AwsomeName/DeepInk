@@ -13,7 +13,10 @@ import { PhysicalDeviceManager } from '../android/physical-device-manager'
 import { ScrcpyBridge } from '../android/scrcpy-bridge'
 import { createMainWindow } from './main-window'
 import { resolveMainRendererEntryUrl } from './main-window'
-import { createTrustedRendererGuard } from '../ipc/trusted-renderer-guard'
+import {
+  createTrustedRendererGuard,
+  disposeTrustedIpcRegistrations,
+} from '../ipc/trusted-renderer-guard'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 import { runShutdownStep } from './shutdown'
 
@@ -50,7 +53,6 @@ export function createWindowRuntime(
 
   runtime.mainWindow.on('closed', () => {
     runtime.mainWindow = null
-    runtime.trustedRendererGuard = null
   })
 
   registerDialogIpc(runtime.mainWindow, runtime.trustedRendererGuard)
@@ -66,6 +68,9 @@ export async function destroyWindowRuntime(runtime: CclinkStudioRuntimeState): P
   await runShutdownStep('ScrcpyBridge', () => runtime.scrcpyBridge?.disconnect())
   await runShutdownStep('ActiveDeviceManager', () => runtime.activeDeviceManager?.destroy())
   await runShutdownStep('PhysicalDeviceManager', () => runtime.physicalDeviceManager?.disconnect())
+  await runShutdownStep('IPC registrations', () =>
+    disposeTrustedIpcRegistrations(runtime.trustedRendererGuard),
+  )
   await runShutdownStep('MainWindow', () => {
     if (runtime.mainWindow && !runtime.mainWindow.isDestroyed()) runtime.mainWindow.destroy()
   })

@@ -1,6 +1,5 @@
 import type { CclinkStudioRuntimeState } from './app-runtime'
 import { ServiceRegistry } from './service-registry'
-import { cleanupIpcHandlers } from '../ipc/ipc-cleanup'
 import { createWindowRuntime, destroyWindowRuntime } from './window-runtime'
 import {
   bootstrapStateServices,
@@ -35,11 +34,6 @@ export function createRuntimeServiceRegistry(
   windowOptions: RuntimeWindowOptions,
 ): ServiceRegistry {
   const registry = new ServiceRegistry()
-  registry.register({
-    name: 'ipc-runtime',
-    start: () => undefined,
-    stop: () => cleanupIpcHandlers(),
-  })
   registry.register({
     name: 'state-services',
     start: () => bootstrapStateServices(runtime),

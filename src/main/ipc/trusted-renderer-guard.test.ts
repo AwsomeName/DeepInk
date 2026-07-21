@@ -1,12 +1,18 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mockIpcMain = vi.hoisted(() => ({ handle: vi.fn(), on: vi.fn() }))
+const mockIpcMain = vi.hoisted(() => ({
+  handle: vi.fn(),
+  on: vi.fn(),
+  removeHandler: vi.fn(),
+  removeListener: vi.fn(),
+}))
 
 vi.mock('electron', () => ({ ipcMain: mockIpcMain }))
 
 import {
   createTrustedRendererGuard,
   createTrustedIpcRegistrar,
+  disposeTrustedIpcRegistrations,
   isAllowedMainRendererUrl,
   registerTrustedIpcHandler,
   registerTrustedIpcListener,
@@ -15,6 +21,8 @@ import {
 beforeEach(() => {
   mockIpcMain.handle.mockReset()
   mockIpcMain.on.mockReset()
+  mockIpcMain.removeHandler.mockReset()
+  mockIpcMain.removeListener.mockReset()
 })
 
 describe('TrustedRendererGuard', () => {
@@ -78,6 +86,44 @@ describe('TrustedRendererGuard', () => {
 
     expect(() => registered?.({ sender: {} }, 'value')).toThrow('blocked')
     expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('disposes exactly the handlers and listeners registered by one window scope', () => {
+    const mainFrame = { url: 'http://localhost:5173/' }
+    const webContents = { isDestroyed: () => false, mainFrame }
+    const guard = createTrustedRendererGuard(
+      { isDestroyed: () => false, webContents } as never,
+      'http://localhost:5173/',
+    )
+    registerTrustedIpcHandler('test:scoped-handler', guard, vi.fn())
+    registerTrustedIpcListener('test:scoped-listener', guard, vi.fn())
+    const registeredListener = mockIpcMain.on.mock.calls[0]?.[1]
+
+    disposeTrustedIpcRegistrations(guard)
+    disposeTrustedIpcRegistrations(guard)
+
+    expect(mockIpcMain.removeHandler).toHaveBeenCalledTimes(1)
+    expect(mockIpcMain.removeHandler).toHaveBeenCalledWith('test:scoped-handler')
+    expect(mockIpcMain.removeListener).toHaveBeenCalledTimes(1)
+    expect(mockIpcMain.removeListener).toHaveBeenCalledWith(
+      'test:scoped-listener',
+      registeredListener,
+    )
+  })
+
+  it('rejects duplicate handlers inside the same registration scope', () => {
+    const mainFrame = { url: 'http://localhost:5173/' }
+    const webContents = { isDestroyed: () => false, mainFrame }
+    const guard = createTrustedRendererGuard(
+      { isDestroyed: () => false, webContents } as never,
+      'http://localhost:5173/',
+    )
+
+    registerTrustedIpcHandler('test:duplicate', guard, vi.fn())
+
+    expect(() => registerTrustedIpcHandler('test:duplicate', guard, vi.fn())).toThrow(
+      'IPC handler 重复注册',
+    )
   })
 })
 

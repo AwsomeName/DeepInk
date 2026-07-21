@@ -14,6 +14,7 @@ export class UntrustedIpcSenderError extends Error {
 export interface TrustedRendererGuard {
   assert(event: TrustedRendererEvent): void
   isTrusted(event: TrustedRendererEvent): boolean
+  readonly ipcRegistrations?: TrustedIpcRegistrationScope
 }
 
 export interface TrustedIpcRegistrar {
@@ -23,10 +24,60 @@ export interface TrustedIpcRegistrar {
   ): void
 }
 
+export class TrustedIpcRegistrationScope {
+  private readonly handlerChannels = new Set<string>()
+  private readonly disposers: Array<() => void> = []
+  private disposed = false
+
+  handle<Args extends unknown[], Result>(
+    channel: string,
+    handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
+  ): void {
+    this.assertActive()
+    if (this.handlerChannels.has(channel)) {
+      throw new Error(`IPC handler 重复注册: ${channel}`)
+    }
+    ipcMain.handle(channel, handler)
+    this.handlerChannels.add(channel)
+    this.disposers.push(() => {
+      ipcMain.removeHandler(channel)
+      this.handlerChannels.delete(channel)
+    })
+  }
+
+  on<Args extends unknown[]>(
+    channel: string,
+    listener: (event: IpcMainEvent, ...args: Args) => void,
+  ): void {
+    this.assertActive()
+    ipcMain.on(channel, listener)
+    this.disposers.push(() => ipcMain.removeListener(channel, listener))
+  }
+
+  dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    for (const dispose of [...this.disposers].reverse()) {
+      try {
+        dispose()
+      } catch (error) {
+        console.warn('[CCLink Studio] IPC registration 清理出错:', error)
+      }
+    }
+    this.disposers.length = 0
+    this.handlerChannels.clear()
+  }
+
+  private assertActive(): void {
+    if (this.disposed) throw new Error('IPC registration scope 已释放')
+  }
+}
+
 export function createTrustedRendererGuard(
   mainWindow: BrowserWindow,
   rendererEntryUrl: string,
 ): TrustedRendererGuard {
+  const ipcRegistrations = new TrustedIpcRegistrationScope()
   const isTrusted = (event: TrustedRendererEvent): boolean => {
     if (mainWindow.isDestroyed()) return false
     const trustedWebContents = mainWindow.webContents
@@ -36,6 +87,7 @@ export function createTrustedRendererGuard(
     return isAllowedMainRendererUrl(event.senderFrame.url, rendererEntryUrl)
   }
   return {
+    ipcRegistrations,
     isTrusted,
     assert(event): void {
       if (!isTrusted(event)) throw new UntrustedIpcSenderError()
@@ -48,10 +100,12 @@ export function registerTrustedIpcHandler<Args extends unknown[], Result>(
   guard: TrustedRendererGuard,
   handler: (event: IpcMainInvokeEvent, ...args: Args) => Result,
 ): void {
-  ipcMain.handle(channel, (event, ...args: Args) => {
+  const guardedHandler = (event: IpcMainInvokeEvent, ...args: Args): Result => {
     guard.assert(event)
     return handler(event, ...args)
-  })
+  }
+  if (guard.ipcRegistrations) guard.ipcRegistrations.handle(channel, guardedHandler)
+  else ipcMain.handle(channel, guardedHandler)
 }
 
 export function createTrustedIpcRegistrar(guard: TrustedRendererGuard): TrustedIpcRegistrar {
@@ -65,13 +119,19 @@ export function registerTrustedIpcListener<Args extends unknown[]>(
   guard: TrustedRendererGuard,
   listener: (event: IpcMainEvent, ...args: Args) => void,
 ): void {
-  ipcMain.on(channel, (event, ...args: Args) => {
+  const guardedListener = (event: IpcMainEvent, ...args: Args): void => {
     if (!guard.isTrusted(event)) {
       console.warn(`[IPC] 已拒绝非受信任 renderer 的单向事件: ${channel}`)
       return
     }
     listener(event, ...args)
-  })
+  }
+  if (guard.ipcRegistrations) guard.ipcRegistrations.on(channel, guardedListener)
+  else ipcMain.on(channel, guardedListener)
+}
+
+export function disposeTrustedIpcRegistrations(guard: TrustedRendererGuard | null): void {
+  guard?.ipcRegistrations?.dispose()
 }
 
 export function isAllowedMainRendererUrl(candidateUrl: string, rendererEntryUrl: string): boolean {

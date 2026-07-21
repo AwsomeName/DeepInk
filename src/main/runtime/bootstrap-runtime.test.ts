@@ -10,10 +10,6 @@ const lifecycle = vi.hoisted(() => ({
   },
 }))
 
-vi.mock('../ipc/ipc-cleanup', () => ({
-  cleanupIpcHandlers: () => lifecycle.step('stop:ipc'),
-}))
-
 vi.mock('./core-services', () => ({
   bootstrapStateServices: () => lifecycle.step('start:state'),
   shutdownStateServices: () => lifecycle.step('stop:state'),
@@ -68,7 +64,6 @@ describe('runtime lifecycle registry', () => {
       'stop:main',
       'stop:window',
       'stop:state',
-      'stop:ipc',
       'start:state',
       'start:window',
       'start:main',
@@ -79,7 +74,6 @@ describe('runtime lifecycle registry', () => {
       'stop:main',
       'stop:window',
       'stop:state',
-      'stop:ipc',
     ])
     expect(runtime.serviceRegistry?.getState()).toBe('idle')
   })
@@ -102,7 +96,6 @@ describe('runtime lifecycle registry', () => {
       'stop:main',
       'stop:window',
       'stop:state',
-      'stop:ipc',
     ])
     expect(runtime.serviceRegistry?.getState()).toBe('idle')
     error.mockRestore()
