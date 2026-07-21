@@ -42,9 +42,7 @@ import {
   type AgentSkillCandidate,
 } from '../../features/agent-conversations/view-model'
 import {
-  buildAgentSendPayload,
   stripTrailingMentionToken,
-  transientMessageResources,
   toMountedResource,
   toMountedSkill,
 } from '../../features/agent-conversations/payload'
@@ -52,7 +50,7 @@ import {
   getLocalAgentConversationMeta,
   type ConversationRuntimeAdapterStatus,
 } from '../../utils/conversation-runtime-adapter'
-import { createLocalAgentConversationProvider } from '../../utils/conversation-runtime-provider'
+import { createConversationRunController } from '../../features/agent-conversations/conversation-run-controller'
 import {
   AGENT_FOCUS_COMPOSER_EVENT,
   openFileRangeResource,
@@ -69,14 +67,7 @@ export function WorkbenchAgentConversation({
   const composerRef = useRef<HTMLDivElement>(null)
   const conversation = useAgentStore((state) => state.conversations[conversationId])
   const setInput = useAgentStore((state) => state.setInput)
-  const addUserMessage = useAgentStore((state) => state.addUserMessage)
-  const addSystemMessage = useAgentStore((state) => state.addSystemMessage)
-  const beginRun = useAgentStore((state) => state.beginRun)
-  const cancelStreaming = useAgentStore((state) => state.cancelStreaming)
-  const setBackendState = useAgentStore((state) => state.setBackendState)
   const setContextUsage = useAgentStore((state) => state.setContextUsage)
-  const beginContextCompaction = useAgentStore((state) => state.beginContextCompaction)
-  const finishContextCompaction = useAgentStore((state) => state.finishContextCompaction)
   const restoreArchivedConversation = useAgentStore((state) => state.restoreArchivedConversation)
   const pendingConfirmations = useAgentStore((state) => state.pendingConfirmations)
   const permissionMode = useAgentStore((state) => state.permissionMode)
@@ -84,7 +75,6 @@ export function WorkbenchAgentConversation({
   const setPermissionMode = useAgentStore((state) => state.setPermissionMode)
   const addMountedResource = useAgentStore((state) => state.addMountedResource)
   const removeMountedResource = useAgentStore((state) => state.removeMountedResource)
-  const clearTransientResources = useAgentStore((state) => state.clearTransientResources)
   const addMountedSkill = useAgentStore((state) => state.addMountedSkill)
   const removeMountedSkill = useAgentStore((state) => state.removeMountedSkill)
   const tabs = useTabStore((state) => state.tabs)
@@ -108,6 +98,10 @@ export function WorkbenchAgentConversation({
   const conversationScroll = useConversationScroll(
     `${workspaceRefKey(scrollWorkspaceRef) ?? '__global__'}::${conversationId}`,
     conversation?.messages,
+  )
+  const runController = useMemo(
+    () => createConversationRunController({ conversationId }),
+    [conversationId],
   )
 
   useEffect(() => {
@@ -257,33 +251,9 @@ export function WorkbenchAgentConversation({
 
   const handleCompactContext = useCallback(
     async (instructions: string) => {
-      if (!conversation?.sessionId || conversation.loading || contextCompacting) return
-      const runId = beginContextCompaction(conversationId)
-      try {
-        const result = await window.cclinkStudio.agent.compactConversation(conversationId, {
-          runId,
-          sessionId: conversation.sessionId,
-          workspaceRef: conversation.runtime.workspaceRef,
-          instructions: instructions.trim() || undefined,
-        })
-        if (!result.success) {
-          finishContextCompaction(false, conversationId, runId, result.error)
-          addSystemMessage(`上下文压缩失败: ${result.error ?? '未知错误'}`, conversationId)
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        finishContextCompaction(false, conversationId, runId, message)
-        addSystemMessage(`上下文压缩失败: ${message}`, conversationId)
-      }
+      await runController.compact(instructions)
     },
-    [
-      addSystemMessage,
-      beginContextCompaction,
-      contextCompacting,
-      conversation,
-      conversationId,
-      finishContextCompaction,
-    ],
+    [runController],
   )
   const handleOpenAgentSettings = useCallback(() => {
     openTab({ type: 'settings', title: 'Agent 设置', icon: '⚙️', settingsSection: 'agent' })
@@ -318,27 +288,6 @@ export function WorkbenchAgentConversation({
     runtimeMeta.chips,
   )
   const isArchived = Boolean(conversation.archivedAt)
-  const provider = createLocalAgentConversationProvider({
-    conversationId,
-    isBusy: () => Boolean(useAgentStore.getState().conversations[conversationId]?.loading),
-    setInput,
-    addUserMessage,
-    addSystemMessage,
-    beginRun,
-    cancelStreaming,
-    setBackendState,
-    buildSendInput: (content, runId) => {
-      const current = useAgentStore.getState().conversations[conversationId]
-      return buildAgentSendPayload(content, current, runId)
-    },
-    getMessageResources: () =>
-      transientMessageResources(
-        useAgentStore.getState().conversations[conversationId]?.mountedResources ?? [],
-      ),
-    clearTransientResources: () => clearTransientResources(conversationId),
-    sendMessage: window.cclinkStudio.agent.sendMessage,
-    abortMessage: window.cclinkStudio.agent.abort,
-  })
   const handleComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>): void => {
     if (event.nativeEvent.isComposing) return
 
@@ -380,7 +329,7 @@ export function WorkbenchAgentConversation({
       setResourceQuery(null)
       setSkillQuery(null)
       conversationScroll.followLatest()
-      void provider.send(conversation.input)
+      void runController.send(conversation.input)
     }
   }
 
@@ -474,7 +423,7 @@ export function WorkbenchAgentConversation({
                 onOpenSettings={handleOpenAgentSettings}
                 sendButton={
                   conversation.loading ? (
-                    <button onClick={() => void provider.abort?.()} title="中止当前任务">
+                    <button onClick={() => void runController.abort()} title="中止当前任务">
                       <IconStop size={16} />
                     </button>
                   ) : (
@@ -484,7 +433,7 @@ export function WorkbenchAgentConversation({
                         setResourceQuery(null)
                         setSkillQuery(null)
                         conversationScroll.followLatest()
-                        void provider.send(conversation.input)
+                        void runController.send(conversation.input)
                       }}
                       title="发送"
                     >

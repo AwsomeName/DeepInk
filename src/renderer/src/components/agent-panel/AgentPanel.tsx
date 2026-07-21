@@ -18,12 +18,11 @@ import {
   SkillCandidateMenu,
 } from '../../features/agent-conversations/context-candidate-menu'
 import {
-  buildAgentSendPayload,
   stripTrailingMentionToken,
-  transientMessageResources,
   toMountedResource,
   toMountedSkill,
 } from '../../features/agent-conversations/payload'
+import { createConversationRunController } from '../../features/agent-conversations/conversation-run-controller'
 import {
   buildArchivedQuickThreadList,
   buildResourceCandidates,
@@ -117,19 +116,11 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const allPendingConfirmations = useAgentStore((s) => s.pendingConfirmations)
   const permissionMode = useAgentStore((s) => s.permissionMode)
   const setInput = useAgentStore((s) => s.setInput)
-  const addUserMessage = useAgentStore((s) => s.addUserMessage)
-  const addSystemMessage = useAgentStore((s) => s.addSystemMessage)
-  const beginRun = useAgentStore((s) => s.beginRun)
-  const cancelStreaming = useAgentStore((s) => s.cancelStreaming)
-  const setBackendState = useAgentStore((s) => s.setBackendState)
   const setContextUsage = useAgentStore((s) => s.setContextUsage)
-  const beginContextCompaction = useAgentStore((s) => s.beginContextCompaction)
-  const finishContextCompaction = useAgentStore((s) => s.finishContextCompaction)
   const removePendingConfirmation = useAgentStore((s) => s.removePendingConfirmation)
   const setPermissionMode = useAgentStore((s) => s.setPermissionMode)
   const addMountedResource = useAgentStore((s) => s.addMountedResource)
   const removeMountedResource = useAgentStore((s) => s.removeMountedResource)
-  const clearTransientResources = useAgentStore((s) => s.clearTransientResources)
   const addMountedSkill = useAgentStore((s) => s.addMountedSkill)
   const removeMountedSkill = useAgentStore((s) => s.removeMountedSkill)
   const scope = useAgentStore((s) => s.scope)
@@ -165,8 +156,6 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const conversationMainRef = useRef<HTMLDivElement>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const startComposerRef = useRef<HTMLDivElement>(null)
-  /** 中止重入守卫：防止快速连点产生重复的中止提示 */
-  const abortingRef = useRef(false)
   const [resourceQuery, setResourceQuery] = useState<string | null>(null)
   const [skillQuery, setSkillQuery] = useState<string | null>(null)
   const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0)
@@ -190,6 +179,10 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const conversationScroll = useConversationScroll(
     `${workspaceRefKey(activeWorkspaceRef) ?? '__global__'}::${activeConversationId}`,
     scrollRevision,
+  )
+  const runController = useMemo(
+    () => createConversationRunController({ conversationId: activeConversationId }),
+    [activeConversationId],
   )
   const contextCompacting = contextCompaction.status === 'compacting'
 
@@ -384,80 +377,19 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     return () => window.removeEventListener(AGENT_FOCUS_COMPOSER_EVENT, focusComposer)
   }, [])
 
-  // 发送消息
   const handleSend = useCallback(async () => {
-    const text = input.trim()
-    if (!text || loading || contextCompacting) return
-    const conversationId = activeConversationId
     conversationScroll.followLatest()
-    setInput('', conversationId)
     setResourceQuery(null)
     setSkillQuery(null)
-    const conversation = useAgentStore.getState().conversations[conversationId]
-    addUserMessage(
-      text,
-      conversationId,
-      transientMessageResources(conversation?.mountedResources ?? []),
-    )
-    const runId = beginRun(conversationId)
-    try {
-      await window.cclinkStudio.agent.sendMessage(
-        conversationId,
-        buildAgentSendPayload(text, conversation, runId),
-      )
-      clearTransientResources(conversationId)
-    } catch (err) {
-      cancelStreaming(conversationId, 'error', runId)
-      addSystemMessage(`发送失败: ${String(err)}`, conversationId)
-      setBackendState('error', conversationId)
-    }
-  }, [
-    activeConversationId,
-    addSystemMessage,
-    addUserMessage,
-    beginRun,
-    cancelStreaming,
-    clearTransientResources,
-    conversationScroll,
-    input,
-    loading,
-    contextCompacting,
-    setBackendState,
-    setInput,
-  ])
+    await runController.send(input)
+  }, [conversationScroll, input, runController])
 
   const handleCompactContext = useCallback(
     async (instructions: string) => {
-      if (loading || contextCompacting || !sessionId) return
-      const conversationId = activeConversationId
-      const conversation = useAgentStore.getState().conversations[conversationId]
-      const runId = beginContextCompaction(conversationId)
-      try {
-        const result = await window.cclinkStudio.agent.compactConversation(conversationId, {
-          runId,
-          sessionId,
-          workspaceRef: conversation?.runtime.workspaceRef,
-          instructions: instructions.trim() || undefined,
-        })
-        if (!result.success) {
-          finishContextCompaction(false, conversationId, runId, result.error)
-          showToast(result.error ?? '上下文压缩失败', 'error')
-        }
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error)
-        finishContextCompaction(false, conversationId, runId, message)
-        showToast(message, 'error')
-      }
+      const result = await runController.compact(instructions)
+      if (result.status === 'failed') showToast(result.error, 'error')
     },
-    [
-      activeConversationId,
-      beginContextCompaction,
-      contextCompacting,
-      finishContextCompaction,
-      loading,
-      sessionId,
-      showToast,
-    ],
+    [runController, showToast],
   )
 
   const updateMentionQueryFromInput = useCallback((text: string) => {
@@ -520,19 +452,10 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     [activeConversationId, removeMountedSkill],
   )
 
-  // 中止（带重入守卫，避免连点产生重复提示）
   const handleAbort = useCallback(async () => {
-    if (abortingRef.current) return
-    abortingRef.current = true
-    try {
-      const conversationId = activeConversationId
-      await window.cclinkStudio.agent.abort(conversationId)
-      cancelStreaming(conversationId)
-      addSystemMessage('已手动中止当前任务', conversationId)
-    } finally {
-      abortingRef.current = false
-    }
-  }, [activeConversationId, cancelStreaming, addSystemMessage])
+    const result = await runController.abort()
+    if (result.status === 'failed') showToast(result.error, 'error')
+  }, [runController, showToast])
 
   // 权限确认：允许
   const handleConfirmApprove = useCallback(

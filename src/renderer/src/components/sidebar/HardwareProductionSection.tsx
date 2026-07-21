@@ -6,7 +6,7 @@ import type {
 } from '@shared/ipc/hardware'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
 import { useAgentStore, useFsStore, useHardwareStore, useTabStore } from '../../stores'
-import { buildAgentSendPayload } from '../../features/agent-conversations/payload'
+import { createConversationRunController } from '../../features/agent-conversations/conversation-run-controller'
 import {
   IconChevronDown,
   IconChevronRight,
@@ -115,8 +115,6 @@ export function HardwareProductionSection({
   const createConversation = useAgentStore((s) => s.createConversation)
   const renameConversation = useAgentStore((s) => s.renameConversation)
   const setInput = useAgentStore((s) => s.setInput)
-  const addUserMessage = useAgentStore((s) => s.addUserMessage)
-  const addSystemMessage = useAgentStore((s) => s.addSystemMessage)
   const refreshDir = useFsStore((s) => s.refreshDir)
   const summary = useHardwareStore((s) => s.summary)
   const report = useHardwareStore((s) => s.report)
@@ -221,8 +219,6 @@ export function HardwareProductionSection({
       activate: true,
     })
     renameConversation(conversationId, 'FPC 形状调整')
-    setInput('', conversationId)
-    addUserMessage(prompt, conversationId)
     openTab({
       type: 'conversation',
       title: 'FPC 形状调整',
@@ -238,14 +234,7 @@ export function HardwareProductionSection({
         sessionId: conversationId,
       },
     })
-    try {
-      await window.cclinkStudio.agent.sendMessage(
-        conversationId,
-        buildAgentSendPayload(prompt, useAgentStore.getState().conversations[conversationId]),
-      )
-    } catch (error) {
-      addSystemMessage(`发送失败: ${String(error)}`, conversationId)
-    }
+    await createConversationRunController({ conversationId }).send(prompt)
   }
 
   const openGerberLayers = (): void => {
