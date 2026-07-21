@@ -7,13 +7,17 @@ export function createSmokeRuntime(importMetaUrl) {
   const rootDir = fileURLToPath(new URL('..', importMetaUrl)).replace(/\/$/, '')
   const rootKey = createHash('sha256').update(rootDir).digest('hex').slice(0, 12)
   const rendererPort = resolveRendererPort(rootKey)
-  const runDir = process.env.CCLINK_STUDIO_SMOKE_RUN_DIR || `/tmp/cclink-studio-smoke-${rootKey}`
+  const runDir =
+    process.env.CCLINK_STUDIO_SMOKE_RUN_DIR ||
+    process.env.CCLINK_STUDIO_RUN_DIR ||
+    `/tmp/cclink-studio-smoke-${rootKey}`
   const logFile = process.env.CCLINK_STUDIO_LOG_FILE || join(runDir, 'cclink-studio-dev.log')
   const rendererOrigin = `http://localhost:${rendererPort}`
+  const screenName = process.env.CCLINK_STUDIO_SCREEN_NAME || `cclink-studio-smoke-${rootKey}`
   const controllerEnv = {
     ...process.env,
     CCLINK_STUDIO_RUN_DIR: runDir,
-    CCLINK_STUDIO_SCREEN_NAME: `cclink-studio-smoke-${rootKey}`,
+    CCLINK_STUDIO_SCREEN_NAME: screenName,
     CCLINK_STUDIO_DEV_PORTS: String(rendererPort),
     CCLINK_STUDIO_RENDERER_PORT: String(rendererPort),
     CCLINK_STUDIO_TEST_USER_DATA_PATH: join(runDir, 'user-data'),
