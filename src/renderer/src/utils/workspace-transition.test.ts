@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { WorkspaceStateSnapshot } from '@shared/ipc/workspace-state'
 import { localWorkspaceRef } from '../../../shared/workspace-ref'
 import { useAgentStore } from '../stores/agent-store'
@@ -6,6 +7,7 @@ import { useBrowserStore } from '../stores/browser-store'
 import { useBrowserTaskStore } from '../stores/browser-task-store'
 import { useEditorStore } from '../stores/editor-store'
 import { useTabStore } from '../stores/tab-store'
+import { useWorkspaceStore } from '../stores/workspace-store'
 import {
   getWorkspaceStateKey,
   setWorkspaceStateOwnerKey,
@@ -80,6 +82,7 @@ beforeEach(() => {
   useBrowserStore.setState(useBrowserStore.getInitialState(), true)
   useBrowserTaskStore.setState(useBrowserTaskStore.getInitialState(), true)
   useEditorStore.setState(useEditorStore.getInitialState(), true)
+  useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
   useTabStore.setState(
     {
       ...useTabStore.getInitialState(),
@@ -88,7 +91,7 @@ beforeEach(() => {
     },
     true,
   )
-  setWorkspaceStatePath('/workspace/a')
+  useWorkspaceStore.getState().commitActiveWorkspace(localWorkspaceRef('/workspace/a'))
   setWorkspaceStateOwnerKey('local:owner-1')
 })
 
@@ -111,6 +114,9 @@ describe('workspace-transition', () => {
     await applyWorkspaceRuntimeTransition(transition)
 
     expect(getWorkspaceStateKey()).toBe('/workspace/b')
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual(
+      localWorkspaceRef('/workspace/b'),
+    )
     expect(useTabStore.getState().activeTabId).toBe('browser-b')
     expect(window.cclinkStudio.browser.reconcileViews).toHaveBeenCalledWith({
       workspaceKey: '/workspace/b',
@@ -142,6 +148,35 @@ describe('workspace-transition', () => {
     expect(staleApplied).toBe(false)
     expect(currentApplied).toBe(true)
     expect(getWorkspaceStateKey()).toBe('/workspace/c')
+  })
+
+  it('does not partially commit identity or tabs when a transition becomes stale during prepare', async () => {
+    let resolveSessions!: (sessions: TerminalSessionSnapshot[]) => void
+    const listSessions = window.cclinkStudio.terminal.listSessions as ReturnType<typeof vi.fn>
+    listSessions.mockReturnValueOnce(
+      new Promise<TerminalSessionSnapshot[]>((resolve) => {
+        resolveSessions = resolve
+      }),
+    )
+    const transition = await prepareWorkspaceRuntimeTransition(localWorkspaceRef('/workspace/b'))
+
+    const applying = applyWorkspaceRuntimeTransition(transition)
+    await Promise.resolve()
+    expect(getWorkspaceStateKey()).toBe('/workspace/a')
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual(
+      localWorkspaceRef('/workspace/a'),
+    )
+    expect(useTabStore.getState().activeTabId).toBe('browser-a')
+
+    beginWorkspaceRuntimeTransition()
+    resolveSessions([])
+
+    await expect(applying).resolves.toBe(false)
+    expect(getWorkspaceStateKey()).toBe('/workspace/a')
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual(
+      localWorkspaceRef('/workspace/a'),
+    )
+    expect(useTabStore.getState().activeTabId).toBe('browser-a')
   })
 
   it('aborts a project switch when the target snapshot cannot be read', async () => {

@@ -4,16 +4,14 @@ import { workspaceRefKey } from '../../../shared/workspace-ref'
 import { useAgentStore } from '../stores/agent-store'
 import { useBrowserTaskStore } from '../stores/browser-task-store'
 import { useTabStore } from '../stores/tab-store'
+import { useWorkspaceStore } from '../stores/workspace-store'
+import { getWorkspaceStateKey, getWorkspaceStateOwnerKey } from './workspace-state'
 import {
-  getWorkspaceStateKey,
-  getWorkspaceStateOwnerKey,
-  setWorkspaceStateRef,
-} from './workspace-state'
-import {
+  applyTerminalRuntimeStatuses,
   hydrateRuntimeSections,
   persistRuntimeSections,
+  readTerminalRuntimeStatuses,
   reconcileAgentRuntimeStatuses,
-  reconcileTerminalRuntimeStatuses,
 } from './workspace-runtime'
 
 export interface WorkspaceRuntimeTransition {
@@ -132,17 +130,20 @@ export async function prepareWorkspaceRuntimeTransition(
 
 export async function applyWorkspaceRuntimeTransition(
   transition: WorkspaceRuntimeTransition,
-  options: { hydrate?: boolean; flush?: boolean } = {},
+  options: { hydrate?: boolean; flush?: boolean; commitProjection?: () => void } = {},
 ): Promise<boolean> {
   if (!isWorkspaceRuntimeTransitionCurrent(transition.generation)) return false
-  await bindBrowserRuntimeToWorkspace(transition.key, transition.snapshot)
+  const [, terminalSessions] = await Promise.all([
+    bindBrowserRuntimeToWorkspace(transition.key, transition.snapshot),
+    readTerminalRuntimeStatuses(),
+  ])
   if (!isWorkspaceRuntimeTransitionCurrent(transition.generation)) return false
-  setWorkspaceStateRef(transition.ref)
+  options.commitProjection?.()
+  useWorkspaceStore.getState().commitActiveWorkspace(transition.ref)
 
   if (options.hydrate !== false) {
     hydrateRuntimeSections(transition.snapshot)
-    await reconcileTerminalRuntimeStatuses(transition.key)
-    if (!isWorkspaceRuntimeTransitionCurrent(transition.generation)) return false
+    if (terminalSessions) applyTerminalRuntimeStatuses(terminalSessions, transition.key)
     void reconcileAgentRuntimeStatuses(transition.key)
   }
 

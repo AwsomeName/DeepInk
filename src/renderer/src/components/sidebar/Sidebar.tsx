@@ -138,6 +138,7 @@ function ProjectSidebarContent({
   const recentWorkspacePaths = useFsStore((s) => s.recentWorkspacePaths)
   const loading = useFsStore((s) => s.loading)
   const picking = useFsStore((s) => s.picking)
+  const switchingPath = useFsStore((s) => s.switchingPath)
   const tabs = useTabStore((s) => s.tabs)
   const openTab = useTabStore((s) => s.openTab)
   const closeTab = useTabStore((s) => s.closeTab)
@@ -150,8 +151,6 @@ function ProjectSidebarContent({
   const deleteConversation = useAgentStore((s) => s.deleteConversation)
   const renameConversation = useAgentStore((s) => s.renameConversation)
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
-  const switchToGlobalWorkspace = useWorkspaceStore((s) => s.switchToGlobalWorkspace)
-  const activatingWorkspace = useWorkspaceStore((s) => s.activating)
   const projectTabs = tabs.filter((tab) => tab.type !== 'settings')
   const sessionGroups = getWorkspaceConversationGroups(
     conversationOrder,
@@ -166,14 +165,13 @@ function ProjectSidebarContent({
           recentWorkspacePaths={recentWorkspacePaths}
           loading={loading}
           picking={picking}
+          switching={switchingPath !== null}
           projectTabsCount={projectTabs.length}
           activeWorkspaceKey={workspaceRefKey(activeWorkspaceRef)}
           activeWorkspaceKind={activeWorkspaceRef.kind}
-          activatingWorkspace={activatingWorkspace}
           openWorkspacePicker={openWorkspacePicker}
           openRecentWorkspace={openRecentWorkspace}
           closeWorkspace={closeWorkspace}
-          switchToGlobalWorkspace={switchToGlobalWorkspace}
         />
       )}
 
@@ -219,26 +217,25 @@ function ProjectsSidebarView({
   recentWorkspacePaths,
   loading,
   picking,
+  switching,
   projectTabsCount,
   activeWorkspaceKey,
   activeWorkspaceKind,
   openWorkspacePicker,
   openRecentWorkspace,
   closeWorkspace,
-  switchToGlobalWorkspace,
 }: {
   workspacePath: string | null
   recentWorkspacePaths: string[]
   loading: boolean
   picking: boolean
+  switching: boolean
   projectTabsCount: number
   activeWorkspaceKey: string | null
   activeWorkspaceKind: 'local' | 'remote' | 'global'
-  activatingWorkspace: boolean
   openWorkspacePicker: () => Promise<void>
   openRecentWorkspace: (path: string) => Promise<boolean>
   closeWorkspace: () => Promise<void>
-  switchToGlobalWorkspace: () => Promise<void>
 }): React.ReactElement {
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const activateFilesPanel = (): void => {
@@ -260,7 +257,7 @@ function ProjectsSidebarView({
               }
             })
           }}
-          disabled={loading || picking}
+          disabled={loading || picking || switching}
           title="打开项目"
         >
           打开项目
@@ -272,13 +269,13 @@ function ProjectsSidebarView({
           recentWorkspacePaths={recentWorkspacePaths}
           loading={loading}
           picking={picking}
+          switching={switching}
           projectTabsCount={projectTabsCount}
           activeWorkspaceKey={activeWorkspaceKey}
           activeWorkspaceKind={activeWorkspaceKind}
           openWorkspacePicker={openWorkspacePicker}
           openRecentWorkspace={openRecentWorkspace}
           closeWorkspace={closeWorkspace}
-          switchToGlobalWorkspace={switchToGlobalWorkspace}
           onPicked={activateFilesPanel}
           showAddButton={false}
         />
@@ -829,13 +826,13 @@ function ProjectListSection({
   recentWorkspacePaths,
   loading,
   picking,
+  switching,
   projectTabsCount,
   activeWorkspaceKey,
   activeWorkspaceKind,
   openWorkspacePicker,
   openRecentWorkspace,
   closeWorkspace,
-  switchToGlobalWorkspace,
   onPicked,
   showAddButton = true,
 }: {
@@ -843,13 +840,13 @@ function ProjectListSection({
   recentWorkspacePaths: string[]
   loading: boolean
   picking: boolean
+  switching: boolean
   projectTabsCount?: number
   activeWorkspaceKey: string | null
   activeWorkspaceKind: 'local' | 'remote' | 'global'
   openWorkspacePicker: () => Promise<void>
   openRecentWorkspace: (path: string) => Promise<boolean>
   closeWorkspace: () => Promise<void>
-  switchToGlobalWorkspace: () => Promise<void>
   onPicked: () => void
   showAddButton?: boolean
 }): React.ReactElement {
@@ -879,7 +876,7 @@ function ProjectListSection({
                     if (success) onPicked()
                   })
                 }}
-                disabled={loading || picking}
+                disabled={loading || picking || switching}
                 title={active ? '当前工作空间' : path}
               >
                 <IconProjects size={14} />
@@ -905,15 +902,13 @@ function ProjectListSection({
             onPicked()
             return
           }
-          const action =
-            activeWorkspaceKind === 'local' ? closeWorkspace() : switchToGlobalWorkspace()
-          void action.then(() => {
+          void closeWorkspace().then(() => {
             if (useWorkspaceStore.getState().activeWorkspaceRef.kind === 'global') {
               onPicked()
             }
           })
         }}
-        disabled={loading || picking}
+        disabled={loading || picking || switching}
         title={activeWorkspaceKind === 'global' ? '当前为未归档' : '切换到未归档'}
       >
         <IconBookmark size={14} />
@@ -932,7 +927,7 @@ function ProjectListSection({
               }
             })
           }}
-          disabled={loading || picking}
+          disabled={loading || picking || switching}
           title="打开项目"
         >
           <IconPlus size={14} />

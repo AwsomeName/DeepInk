@@ -53,6 +53,9 @@ describe('fs-store workspace switching', () => {
           getAll: vi.fn().mockResolvedValue({ lastWorkspacePath: '', recentWorkspacePaths: [] }),
           set: vi.fn().mockResolvedValue({ success: true }),
         },
+        dialog: {
+          showOpenDialog: vi.fn().mockResolvedValue({ canceled: true, filePaths: [] }),
+        },
       },
     })
     vi.stubGlobal('localStorage', {
@@ -156,7 +159,7 @@ describe('fs-store workspace switching', () => {
     const nextPath = '/Users/apple/next-project'
     const confirm = vi.fn(() => false)
     Object.assign(window, { confirm })
-    useWorkspaceStore.getState().activateLocalWorkspace(currentPath)
+    useWorkspaceStore.getState().commitActiveWorkspace({ kind: 'local', path: currentPath })
     useFsStore.setState({ workspacePath: currentPath })
     useEditorStore.getState().initVirtualFile('virtual:draft', '未保存草稿')
 
@@ -213,6 +216,142 @@ describe('fs-store workspace switching', () => {
     finishResolve?.({ valid: true, workspacePath: nextPath })
     await expect(switching).resolves.toBe(true)
     expect(useFsStore.getState().switchingPath).toBeNull()
+  })
+
+  it('keeps the current workspace projection until asynchronous runtime preparation finishes', async () => {
+    const currentPath = '/Users/apple/current-project'
+    const nextPath = '/Users/apple/next-project'
+    let resolveSessions!: (sessions: []) => void
+    const listSessions = vi.fn(
+      () =>
+        new Promise<[]>((resolve) => {
+          resolveSessions = resolve
+        }),
+    )
+    Object.assign(window.cclinkStudio, {
+      browser: { reconcileViews: vi.fn().mockResolvedValue(undefined) },
+      terminal: { listSessions },
+    })
+    useWorkspaceStore.getState().commitActiveWorkspace({ kind: 'local', path: currentPath })
+    useFsStore.setState({
+      workspacePath: currentPath,
+      selectedPath: `${currentPath}/selected.md`,
+      expandedPaths: [`${currentPath}/docs`],
+    })
+    useTabStore.setState({
+      tabs: [
+        {
+          id: 'browser-a',
+          type: 'browser',
+          title: 'A',
+          icon: 'browser',
+          workspaceRef: { kind: 'local', path: currentPath },
+        },
+      ],
+      activeTabId: 'browser-a',
+    })
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
+    getWorkspaceState.mockResolvedValue(
+      snapshot(nextPath, {
+        tabs: {
+          tabs: [
+            {
+              id: 'browser-b',
+              type: 'browser',
+              title: 'B',
+              icon: 'browser',
+              workspaceRef: { kind: 'local', path: nextPath },
+            },
+          ],
+          activeTabId: 'browser-b',
+        },
+      }),
+    )
+
+    const switching = useFsStore.getState().openRecentWorkspace(nextPath)
+    await vi.waitFor(() => expect(listSessions).toHaveBeenCalledOnce())
+
+    expect(useFsStore.getState().workspacePath).toBe(currentPath)
+    expect(useFsStore.getState().selectedPath).toBe(`${currentPath}/selected.md`)
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual({
+      kind: 'local',
+      path: currentPath,
+    })
+    expect(useTabStore.getState().activeTabId).toBe('browser-a')
+
+    resolveSessions([])
+    await expect(switching).resolves.toBe(true)
+    expect(useFsStore.getState().workspacePath).toBe(nextPath)
+    expect(useFsStore.getState().selectedPath).toBeNull()
+    expect(useFsStore.getState().expandedPaths).toEqual([])
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual({
+      kind: 'local',
+      path: nextPath,
+    })
+    expect(useTabStore.getState().activeTabId).toBe('browser-b')
+  })
+
+  it('commits the global workspace only after runtime preparation finishes', async () => {
+    const currentPath = '/Users/apple/current-project'
+    let resolveSessions!: (sessions: []) => void
+    const listSessions = vi.fn(
+      () =>
+        new Promise<[]>((resolve) => {
+          resolveSessions = resolve
+        }),
+    )
+    Object.assign(window.cclinkStudio, {
+      browser: { reconcileViews: vi.fn().mockResolvedValue(undefined) },
+      terminal: { listSessions },
+    })
+    useWorkspaceStore.getState().commitActiveWorkspace({ kind: 'local', path: currentPath })
+    useFsStore.setState({ workspacePath: currentPath })
+    const getWorkspaceState = window.cclinkStudio.workspaceState.get as ReturnType<typeof vi.fn>
+    getWorkspaceState.mockResolvedValue(
+      snapshot(null, {
+        tabs: { tabs: [], activeTabId: null },
+        fileTree: { expandedPaths: [], selectedPath: null },
+      }),
+    )
+
+    const closing = useFsStore.getState().closeWorkspace()
+    await vi.waitFor(() => expect(listSessions).toHaveBeenCalledOnce())
+
+    expect(useFsStore.getState().workspacePath).toBe(currentPath)
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual({
+      kind: 'local',
+      path: currentPath,
+    })
+
+    resolveSessions([])
+    await closing
+    expect(useFsStore.getState().workspacePath).toBeNull()
+    expect(useWorkspaceStore.getState().activeWorkspaceRef).toEqual({ kind: 'global' })
+    expect(useFsStore.getState().loading).toBe(false)
+    expect(useFsStore.getState().switchingPath).toBeNull()
+  })
+
+  it('rejects a second workspace transition while the project picker is open', async () => {
+    let resolveDialog!: (value: { canceled: boolean; filePaths: string[] }) => void
+    const showOpenDialog = window.cclinkStudio.dialog.showOpenDialog as ReturnType<typeof vi.fn>
+    showOpenDialog.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDialog = resolve
+      }),
+    )
+
+    const picking = useFsStore.getState().openWorkspacePicker()
+    expect(useFsStore.getState().picking).toBe(true)
+
+    await expect(
+      useFsStore.getState().openRecentWorkspace('/Users/apple/other-project'),
+    ).resolves.toBe(false)
+    expect(useFsStore.getState().error).toBe('另一个项目正在切换，请稍候')
+    expect(window.cclinkStudio.workspaceState.resolveLocalWorkspace).not.toHaveBeenCalled()
+
+    resolveDialog({ canceled: true, filePaths: [] })
+    await picking
+    expect(useFsStore.getState().picking).toBe(false)
   })
 
   it('restores recent projects from last workspace and local fallback after restart', async () => {
@@ -332,7 +471,9 @@ describe('fs-store workspace switching', () => {
 
   it('clears stale project runtime when the last workspace path no longer opens', async () => {
     const missingWorkspacePath = '/Users/apple/missing-project'
-    useWorkspaceStore.getState().activateLocalWorkspace(missingWorkspacePath)
+    useWorkspaceStore
+      .getState()
+      .commitActiveWorkspace({ kind: 'local', path: missingWorkspacePath })
     const staleConversationId = useAgentStore.getState().createConversation({ activate: true })
     useBrowserStore.getState().ensureTab('stale-browser', 'https://stale.example')
     useTabStore.getState().openTab({ type: 'browser', title: 'Stale', icon: '🌐' })

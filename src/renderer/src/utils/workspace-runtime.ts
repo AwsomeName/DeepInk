@@ -1,4 +1,5 @@
 import type { WorkspaceStateSnapshot } from '@shared/ipc/workspace-state'
+import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import { buildAgentConversationWorkspaceSnapshot, useAgentStore } from '../stores/agent-store'
 import { useBrowserStore } from '../stores/browser-store'
 import { useEditorStore } from '../stores/editor-store'
@@ -163,28 +164,41 @@ export async function reconcileAgentRuntimeStatuses(
 export async function reconcileTerminalRuntimeStatuses(
   workspaceKey: string | null = getWorkspaceStateKey(),
 ): Promise<void> {
+  const sessions = await readTerminalRuntimeStatuses()
+  if (!sessions) return
+  applyTerminalRuntimeStatuses(sessions, workspaceKey)
+}
+
+export async function readTerminalRuntimeStatuses(): Promise<TerminalSessionSnapshot[] | null> {
   const listSessions = window.cclinkStudio?.terminal?.listSessions
-  if (!listSessions) return
+  if (!listSessions) return null
 
   try {
-    const sessions = await listSessions()
-    if (getWorkspaceStateKey() !== workspaceKey) return
-
-    const sessionsById = new Map(sessions.map((session) => [session.sessionId, session]))
-    const tabStore = useTabStore.getState()
-    for (const tab of tabStore.tabs) {
-      if (
-        tab.type !== 'terminal' ||
-        !tab.terminal?.sessionId ||
-        !tab.workspaceRef ||
-        workspaceRefKey(tab.workspaceRef) !== workspaceKey
-      ) {
-        continue
-      }
-      const session = sessionsById.get(tab.terminal.sessionId)
-      if (session) tabStore.reconcileTerminalSession(session)
-    }
+    return await listSessions()
   } catch (error) {
     console.warn('[WorkspaceRuntime] Terminal session reconciliation failed:', error)
+    return null
+  }
+}
+
+export function applyTerminalRuntimeStatuses(
+  sessions: TerminalSessionSnapshot[],
+  workspaceKey: string | null = getWorkspaceStateKey(),
+): void {
+  if (getWorkspaceStateKey() !== workspaceKey) return
+
+  const sessionsById = new Map(sessions.map((session) => [session.sessionId, session]))
+  const tabStore = useTabStore.getState()
+  for (const tab of tabStore.tabs) {
+    if (
+      tab.type !== 'terminal' ||
+      !tab.terminal?.sessionId ||
+      !tab.workspaceRef ||
+      workspaceRefKey(tab.workspaceRef) !== workspaceKey
+    ) {
+      continue
+    }
+    const session = sessionsById.get(tab.terminal.sessionId)
+    if (session) tabStore.reconcileTerminalSession(session)
   }
 }

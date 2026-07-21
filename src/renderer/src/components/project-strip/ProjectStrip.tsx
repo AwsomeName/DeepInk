@@ -46,6 +46,8 @@ export function ProjectStrip(): React.ReactElement {
   const openRecentWorkspace = useFsStore((state) => state.openRecentWorkspace)
   const closeWorkspace = useFsStore((state) => state.closeWorkspace)
   const switchingPath = useFsStore((state) => state.switchingPath)
+  const workspaceLoading = useFsStore((state) => state.loading)
+  const workspacePicking = useFsStore((state) => state.picking)
   const activeWorkspaceRef = useWorkspaceStore((state) => state.activeWorkspaceRef)
   const conversations = useAgentStore((state) => state.conversations)
   const showToast = useToastStore((state) => state.show)
@@ -70,6 +72,7 @@ export function ProjectStrip(): React.ReactElement {
   const suppressClickRef = useRef(false)
 
   const activePath = activeWorkspaceRef.kind === 'local' ? activeWorkspaceRef.path : null
+  const workspaceBusy = workspaceLoading || workspacePicking || switchingPath !== null
   const labels = useMemo(() => buildProjectLabels(openProjectPaths), [openProjectPaths])
   const runningProjectCounts = useMemo(
     () => getRunningProjectCounts(conversations),
@@ -241,7 +244,7 @@ export function ProjectStrip(): React.ReactElement {
                   data-project-path={path}
                   title={path}
                   aria-current={active ? 'page' : undefined}
-                  disabled={switchingPath !== null}
+                  disabled={workspaceBusy}
                   onClick={() => {
                     if (suppressClickRef.current) return
                     void activateProject(path)
@@ -325,7 +328,7 @@ export function ProjectStrip(): React.ReactElement {
                       type="button"
                       className="project-history-item"
                       title={path}
-                      disabled={switchingPath !== null}
+                      disabled={workspaceBusy}
                       onClick={() => void openHistoryProject(path)}
                     >
                       <IconProjects size={14} />
