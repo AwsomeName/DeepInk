@@ -15,7 +15,7 @@
 import { randomUUID } from 'node:crypto'
 import type { BrowserWindow } from 'electron'
 import type { PermissionMode, ToolAnnotations } from './types'
-import type { ToolConfirmationRequest } from '../../shared/ipc/agent'
+import { agentIpcEvents, type ToolConfirmationRequest } from '../../shared/ipc/agent'
 
 export type { ToolConfirmationRequest } from '../../shared/ipc/agent'
 
@@ -113,7 +113,7 @@ export class PermissionManager {
 
       // 发送确认请求到渲染进程
       if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-        this.mainWindow.webContents.send('agent:requestConfirmation', request)
+        this.mainWindow.webContents.send(agentIpcEvents.requestConfirmation, request)
         console.log(`[PermissionManager] 请求确认: ${req.toolName} (${req.riskLevel})`)
       } else {
         // 窗口已关闭，直接拒绝

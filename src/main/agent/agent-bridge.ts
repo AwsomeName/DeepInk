@@ -30,6 +30,14 @@ import type {
   AgentCompactConversationPayload,
   AgentContextUsageSnapshot,
 } from '../../shared/agent-protocol'
+import { agentIpcEvents } from '../../shared/ipc/agent'
+
+const AGENT_EVENT_CHANNELS: Record<AgentRuntimeEvent['type'], string> = {
+  stream: agentIpcEvents.stream,
+  complete: agentIpcEvents.complete,
+  error: agentIpcEvents.error,
+  system: agentIpcEvents.stream,
+}
 
 export interface AgentBridgeOptions {
   agentEngine?: 'local-claude-code'
@@ -532,22 +540,14 @@ export class AgentBridge {
 
   /** 将后端事件转发到渲染进程 */
   private forwardToRenderer(
-    type: string,
+    type: AgentRuntimeEvent['type'],
     data: unknown,
     conversationId = DEFAULT_CONVERSATION_ID,
     runId: string | null = null,
   ): void {
     if (!this.mainWindow || this.mainWindow.isDestroyed()) return
 
-    // 映射后端事件类型到 IPC channel
-    const channelMap: Record<string, string> = {
-      stream: 'agent:stream',
-      complete: 'agent:complete',
-      error: 'agent:error',
-      system: 'agent:stream',
-    }
-
-    const channel = channelMap[type]
+    const channel = AGENT_EVENT_CHANNELS[type]
     if (channel) {
       const payload =
         typeof data === 'object' && data !== null

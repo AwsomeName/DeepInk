@@ -1,8 +1,20 @@
 export * from '../agent-protocol'
 
+import { defineIpcCall } from './contract'
 import type {
   AgentApiContract as CoreAgentApiContract,
+  AgentCapabilityStatus,
   AgentCommandResult,
+  AgentCompactConversationPayload,
+  AgentContextUsageSnapshot,
+  AgentScope,
+  AgentStatus,
+  AgentToolModuleStatus,
+  ClaudeResultEventData,
+  ClaudeStreamEventData,
+  ExternalMcpServer,
+  ExternalMcpServerSummary,
+  ToolConfirmationRequest,
 } from '../agent-protocol'
 import type { WorkspaceRef } from '../workspace-ref'
 
@@ -90,9 +102,80 @@ export interface AgentSendMessagePayload {
 
 export type AgentSendMessageInput = string | AgentSendMessagePayload
 
+export type AgentSendMessageArgs =
+  | [message: AgentSendMessageInput]
+  | [conversationId: string, message: AgentSendMessageInput]
+
+export type AgentSetScopeArgs = [scope: AgentScope] | [conversationId: string, scope: AgentScope]
+
+export type AgentPermissionMode = 'auto' | 'categorized' | 'strict'
+
+export interface AgentErrorEvent {
+  message: string
+  code?: string
+  conversationId?: string
+  runId?: string
+  operation?: 'message' | 'compact'
+}
+
 export interface AgentApiContract extends Omit<CoreAgentApiContract, 'sendMessage'> {
   sendMessage: {
     (message: AgentSendMessageInput): Promise<AgentCommandResult>
     (conversationId: string, message: AgentSendMessageInput): Promise<AgentCommandResult>
   }
+}
+
+export const agentIpc = {
+  sendMessage: defineIpcCall<AgentSendMessageArgs, AgentCommandResult>('agent:sendMessage'),
+  abort: defineIpcCall<[conversationId?: string], void>('agent:abort'),
+  getStatus: defineIpcCall<[conversationId?: string], AgentStatus>('agent:getStatus'),
+  getContextUsage: defineIpcCall<[conversationId?: string], AgentContextUsageSnapshot | null>(
+    'agent:getContextUsage',
+  ),
+  compactConversation: defineIpcCall<
+    [conversationId: string, payload: AgentCompactConversationPayload],
+    AgentCommandResult
+  >('agent:compactConversation'),
+  setScope: defineIpcCall<AgentSetScopeArgs, boolean>('agent:setScope'),
+  getScope: defineIpcCall<[conversationId?: string], AgentScope>('agent:getScope'),
+  resetSession: defineIpcCall<[conversationId?: string], void>('agent:resetSession'),
+  restoreConversation: defineIpcCall<[conversationId: string, sessionId: string | null], void>(
+    'agent:restoreConversation',
+  ),
+  closeConversation: defineIpcCall<[conversationId: string], void>('agent:closeConversation'),
+  getCapabilities: defineIpcCall<[], AgentCapabilityStatus[]>('agent:getCapabilities'),
+  listToolModules: defineIpcCall<[], AgentToolModuleStatus[]>('agent:listToolModules'),
+  setToolModuleEnabled: defineIpcCall<[moduleId: string, enabled: boolean], AgentCommandResult>(
+    'agent:setToolModuleEnabled',
+  ),
+  resolveToolConfirmation: defineIpcCall<
+    [id: string, approved: boolean, alwaysAllow?: boolean],
+    void
+  >('agent:resolveToolConfirmation'),
+  getPermissionMode: defineIpcCall<[], AgentPermissionMode>('agent:getPermissionMode'),
+  setPermissionMode: defineIpcCall<[mode: AgentPermissionMode], void>('agent:setPermissionMode'),
+} as const
+
+export const agentMcpIpc = {
+  listServers: defineIpcCall<[], ExternalMcpServer[]>('mcp:listServers'),
+  addServer: defineIpcCall<[server: ExternalMcpServer], AgentCommandResult>('mcp:addServer'),
+  removeServer: defineIpcCall<[name: string], boolean>('mcp:removeServer'),
+  updateServer: defineIpcCall<[name: string, updates: Partial<ExternalMcpServer>], boolean>(
+    'mcp:updateServer',
+  ),
+  reloadConfig: defineIpcCall<[], ExternalMcpServerSummary[]>('mcp:reloadConfig'),
+} as const
+
+export const agentIpcEvents = {
+  stream: 'agent:stream',
+  complete: 'agent:complete',
+  error: 'agent:error',
+  requestConfirmation: 'agent:requestConfirmation',
+} as const
+
+export interface AgentIpcEventPayloads {
+  [agentIpcEvents.stream]: ClaudeStreamEventData
+  [agentIpcEvents.complete]: ClaudeResultEventData
+  [agentIpcEvents.error]: AgentErrorEvent
+  [agentIpcEvents.requestConfirmation]: ToolConfirmationRequest
 }

@@ -1,81 +1,98 @@
 import { ipcRenderer } from 'electron'
-import type {
-  AgentApiContract,
-  AgentCompactConversationPayload,
-  AgentScope,
-  ExternalMcpServer,
+import {
+  agentIpc,
+  agentIpcEvents,
+  agentMcpIpc,
+  type AgentApiContract,
+  type AgentCommandResult,
+  type AgentScope,
+  type AgentSendMessageInput,
 } from '../shared/ipc/agent'
-import type { AgentSendMessageInput } from '../shared/ipc/agent'
+import { invokeIpcContract } from './ipc-contract-client'
+
+function sendMessage(message: AgentSendMessageInput): Promise<AgentCommandResult>
+function sendMessage(
+  conversationId: string,
+  message: AgentSendMessageInput,
+): Promise<AgentCommandResult>
+function sendMessage(
+  conversationIdOrMessage: string | AgentSendMessageInput,
+  maybeMessage?: AgentSendMessageInput,
+): Promise<AgentCommandResult> {
+  return maybeMessage === undefined
+    ? invokeIpcContract(agentIpc.sendMessage, conversationIdOrMessage)
+    : invokeIpcContract(agentIpc.sendMessage, conversationIdOrMessage as string, maybeMessage)
+}
+
+function setScope(scope: AgentScope): Promise<boolean>
+function setScope(conversationId: string, scope: AgentScope): Promise<boolean>
+function setScope(
+  conversationIdOrScope: string | AgentScope,
+  maybeScope?: AgentScope,
+): Promise<boolean> {
+  return maybeScope === undefined
+    ? invokeIpcContract(agentIpc.setScope, conversationIdOrScope as AgentScope)
+    : invokeIpcContract(agentIpc.setScope, conversationIdOrScope as string, maybeScope)
+}
 
 export const agentApi: AgentApiContract = {
-  sendMessage: (
-    conversationIdOrMessage: string | AgentSendMessageInput,
-    maybeMessage?: AgentSendMessageInput,
-  ) =>
-    maybeMessage === undefined
-      ? ipcRenderer.invoke('agent:sendMessage', conversationIdOrMessage)
-      : ipcRenderer.invoke('agent:sendMessage', conversationIdOrMessage, maybeMessage),
-  abort: (conversationId?: string) => ipcRenderer.invoke('agent:abort', conversationId),
-  getStatus: (conversationId?: string) => ipcRenderer.invoke('agent:getStatus', conversationId),
+  sendMessage,
+  abort: (conversationId) => invokeIpcContract(agentIpc.abort, conversationId),
+  getStatus: (conversationId) => invokeIpcContract(agentIpc.getStatus, conversationId),
   getContextUsage: (conversationId?: string) =>
-    ipcRenderer.invoke('agent:getContextUsage', conversationId),
-  compactConversation: (conversationId: string, payload: AgentCompactConversationPayload) =>
-    ipcRenderer.invoke('agent:compactConversation', conversationId, payload),
-  setScope: (conversationIdOrScope: string | AgentScope, maybeScope?: AgentScope) =>
-    maybeScope === undefined
-      ? ipcRenderer.invoke('agent:setScope', conversationIdOrScope)
-      : ipcRenderer.invoke('agent:setScope', conversationIdOrScope, maybeScope),
-  getScope: (conversationId?: string) => ipcRenderer.invoke('agent:getScope', conversationId),
-  resetSession: (conversationId?: string) =>
-    ipcRenderer.invoke('agent:resetSession', conversationId),
-  restoreConversation: (conversationId: string, sessionId: string | null) =>
-    ipcRenderer.invoke('agent:restoreConversation', conversationId, sessionId),
-  closeConversation: (conversationId: string) =>
-    ipcRenderer.invoke('agent:closeConversation', conversationId),
+    invokeIpcContract(agentIpc.getContextUsage, conversationId),
+  compactConversation: (conversationId, payload) =>
+    invokeIpcContract(agentIpc.compactConversation, conversationId, payload),
+  setScope,
+  getScope: (conversationId) => invokeIpcContract(agentIpc.getScope, conversationId),
+  resetSession: (conversationId) => invokeIpcContract(agentIpc.resetSession, conversationId),
+  restoreConversation: (conversationId, sessionId) =>
+    invokeIpcContract(agentIpc.restoreConversation, conversationId, sessionId),
+  closeConversation: (conversationId) =>
+    invokeIpcContract(agentIpc.closeConversation, conversationId),
   onStreamEvent: (callback) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
       data: Parameters<typeof callback>[0],
     ): void => callback(data)
-    ipcRenderer.on('agent:stream', listener)
-    return () => ipcRenderer.removeListener('agent:stream', listener)
+    ipcRenderer.on(agentIpcEvents.stream, listener)
+    return () => ipcRenderer.removeListener(agentIpcEvents.stream, listener)
   },
   onComplete: (callback) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
       data: Parameters<typeof callback>[0],
     ): void => callback(data)
-    ipcRenderer.on('agent:complete', listener)
-    return () => ipcRenderer.removeListener('agent:complete', listener)
+    ipcRenderer.on(agentIpcEvents.complete, listener)
+    return () => ipcRenderer.removeListener(agentIpcEvents.complete, listener)
   },
   onError: (callback) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
       data: Parameters<typeof callback>[0],
     ): void => callback(data)
-    ipcRenderer.on('agent:error', listener)
-    return () => ipcRenderer.removeListener('agent:error', listener)
+    ipcRenderer.on(agentIpcEvents.error, listener)
+    return () => ipcRenderer.removeListener(agentIpcEvents.error, listener)
   },
-  getCapabilities: () => ipcRenderer.invoke('agent:getCapabilities'),
-  listToolModules: () => ipcRenderer.invoke('agent:listToolModules'),
-  setToolModuleEnabled: (moduleId: string, enabled: boolean) =>
-    ipcRenderer.invoke('agent:setToolModuleEnabled', moduleId, enabled),
+  getCapabilities: () => invokeIpcContract(agentIpc.getCapabilities),
+  listToolModules: () => invokeIpcContract(agentIpc.listToolModules),
+  setToolModuleEnabled: (moduleId, enabled) =>
+    invokeIpcContract(agentIpc.setToolModuleEnabled, moduleId, enabled),
   onRequestConfirmation: (callback) => {
     const listener = (
       _event: Electron.IpcRendererEvent,
       data: Parameters<typeof callback>[0],
     ): void => callback(data)
-    ipcRenderer.on('agent:requestConfirmation', listener)
-    return () => ipcRenderer.removeListener('agent:requestConfirmation', listener)
+    ipcRenderer.on(agentIpcEvents.requestConfirmation, listener)
+    return () => ipcRenderer.removeListener(agentIpcEvents.requestConfirmation, listener)
   },
-  resolveToolConfirmation: (id: string, approved: boolean, alwaysAllow?: boolean) =>
-    ipcRenderer.invoke('agent:resolveToolConfirmation', id, approved, alwaysAllow),
-  getPermissionMode: () => ipcRenderer.invoke('agent:getPermissionMode'),
-  setPermissionMode: (mode) => ipcRenderer.invoke('agent:setPermissionMode', mode),
-  listMcpServers: () => ipcRenderer.invoke('mcp:listServers'),
-  addMcpServer: (server: ExternalMcpServer) => ipcRenderer.invoke('mcp:addServer', server),
-  removeMcpServer: (name: string) => ipcRenderer.invoke('mcp:removeServer', name),
-  updateMcpServer: (name: string, updates: Partial<ExternalMcpServer>) =>
-    ipcRenderer.invoke('mcp:updateServer', name, updates),
-  reloadMcpConfig: () => ipcRenderer.invoke('mcp:reloadConfig'),
+  resolveToolConfirmation: (id, approved, alwaysAllow) =>
+    invokeIpcContract(agentIpc.resolveToolConfirmation, id, approved, alwaysAllow),
+  getPermissionMode: () => invokeIpcContract(agentIpc.getPermissionMode),
+  setPermissionMode: (mode) => invokeIpcContract(agentIpc.setPermissionMode, mode),
+  listMcpServers: () => invokeIpcContract(agentMcpIpc.listServers),
+  addMcpServer: (server) => invokeIpcContract(agentMcpIpc.addServer, server),
+  removeMcpServer: (name) => invokeIpcContract(agentMcpIpc.removeServer, name),
+  updateMcpServer: (name, updates) => invokeIpcContract(agentMcpIpc.updateServer, name, updates),
+  reloadMcpConfig: () => invokeIpcContract(agentMcpIpc.reloadConfig),
 }
