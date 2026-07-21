@@ -43,26 +43,32 @@ export async function bootstrapAutomationRuntime(runtime: CclinkStudioRuntimeSta
     console.error('[CCLink Studio] MCP 工具主机创建失败:', error)
   }
 
-  try {
-    const cdpPort = await discoverCdpPort()
-    console.log(`[CCLink Studio] CDP 端口: ${cdpPort}`)
+  const browserWindowFailed =
+    runtime.capabilities.get('browser').state === 'failed' && !runtime.browserManager
+  if (browserWindowFailed) {
+    console.warn('[CCLink Studio] Browser 窗口能力已失败，跳过 CDP/Playwright 初始化')
+  } else {
+    try {
+      const cdpPort = await discoverCdpPort()
+      console.log(`[CCLink Studio] CDP 端口: ${cdpPort}`)
 
-    runtime.playwrightBridge = new PlaywrightBridge(
-      runtime.browserDownloadStore,
-      runtime.browserTaskRuntime,
-    )
-    await runtime.playwrightBridge.connect(cdpPort)
-    console.log('[CCLink Studio] Playwright 已连接')
+      runtime.playwrightBridge = new PlaywrightBridge(
+        runtime.browserDownloadStore,
+        runtime.browserTaskRuntime,
+      )
+      await runtime.playwrightBridge.connect(cdpPort)
+      console.log('[CCLink Studio] Playwright 已连接')
 
-    if (runtime.browserManager) {
-      runtime.browserManager.attachPlaywright(runtime.playwrightBridge)
+      if (runtime.browserManager) {
+        runtime.browserManager.attachPlaywright(runtime.playwrightBridge)
+      }
+      runtime.capabilities.ready('browser')
+    } catch (error) {
+      await runtime.playwrightBridge?.disconnect().catch(() => undefined)
+      runtime.playwrightBridge = null
+      runtime.capabilities.failed('browser', error)
+      console.error('[CCLink Studio] CDP/Playwright 初始化失败:', error)
     }
-    runtime.capabilities.ready('browser')
-  } catch (error) {
-    await runtime.playwrightBridge?.disconnect().catch(() => undefined)
-    runtime.playwrightBridge = null
-    runtime.capabilities.failed('browser', error)
-    console.error('[CCLink Studio] CDP/Playwright 初始化失败:', error)
   }
 
   if (!runtime.toolHost) return

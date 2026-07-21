@@ -22,6 +22,11 @@ interface CreateWindowRuntimeOptions {
   rendererHtmlPath: string
 }
 
+export interface WindowCapabilityBootstrappers {
+  browser: (runtime: CclinkStudioRuntimeState) => void
+  android: (runtime: CclinkStudioRuntimeState) => void
+}
+
 export function createWindowRuntime(
   runtime: CclinkStudioRuntimeState,
   options: CreateWindowRuntimeOptions,
@@ -47,46 +52,77 @@ export function createWindowRuntime(
     runtime.trustedRendererGuard = null
   })
 
+  registerDialogIpc(runtime.mainWindow, runtime.trustedRendererGuard)
+  registerWindowIpc(runtime.mainWindow, runtime.trustedRendererGuard)
+  bootstrapWindowCapabilities(runtime)
+}
+
+export function bootstrapWindowCapabilities(
+  runtime: CclinkStudioRuntimeState,
+  overrides: Partial<WindowCapabilityBootstrappers> = {},
+): void {
+  if (!runtime.mainWindow || !runtime.settingsService || !runtime.trustedRendererGuard) {
+    throw new Error('窗口能力依赖的主窗口、设置或可信 renderer 尚未初始化')
+  }
+
+  const bootstrappers: WindowCapabilityBootstrappers = {
+    browser: bootstrapBrowserWindowCapability,
+    android: bootstrapAndroidWindowCapability,
+    ...overrides,
+  }
+  startWindowCapability(runtime, 'browser', bootstrappers.browser, '浏览器自动化尚未连接')
+  startWindowCapability(runtime, 'android', bootstrappers.android, '未连接用户真机')
+}
+
+function bootstrapBrowserWindowCapability(runtime: CclinkStudioRuntimeState): void {
+  const mainWindow = runtime.mainWindow
+  const trustedRendererGuard = runtime.trustedRendererGuard
+  if (!mainWindow || !trustedRendererGuard) throw new Error('Browser 窗口依赖尚未初始化')
   const settings = runtime.settingsService!.getAll()
-  runtime.browserManager = new BrowserManager(runtime.mainWindow, {
+  runtime.browserManager = new BrowserManager(mainWindow, {
     zoomMode: settings.defaultZoomMode,
     viewMode: settings.defaultDeviceMode,
   })
-  runtime.capabilities.unavailable('browser', '浏览器自动化尚未连接')
-
   runtime.browserInstanceStore = new BrowserInstanceStore()
-  void runtime.browserInstanceStore.load().then(() => runtime.browserInstanceStore?.clear())
+  void runtime.browserInstanceStore
+    .load()
+    .then(() => runtime.browserInstanceStore?.clear())
+    .catch((error) => console.error('[CCLink Studio] Browser 实例状态加载失败:', error))
   runtime.browserManager.attachInstanceStore(runtime.browserInstanceStore)
   runtime.browserAuthProcessService = new BrowserAuthProcessService(
-    runtime.mainWindow,
+    mainWindow,
     runtime.browserManager,
   )
   runtime.browserManager.attachBrowserAuthRequestHandler((request) =>
     runtime.browserAuthProcessService?.open(request),
   )
-  runtime.browserTaskRuntime = new BrowserTaskRuntime(runtime.mainWindow)
+  runtime.browserTaskRuntime = new BrowserTaskRuntime(mainWindow)
   runtime.browserDownloadStore = new BrowserDownloadStore(
-    runtime.mainWindow,
+    mainWindow,
     () => runtime.settingsService?.getAll().lastWorkspacePath ?? null,
   )
-  void runtime.browserDownloadStore.load()
+  void runtime.browserDownloadStore
+    .load()
+    .catch((error) => console.error('[CCLink Studio] Browser 下载状态加载失败:', error))
   runtime.browserManager.onViewDestroyed((tabId) =>
     runtime.browserTaskRuntime?.cancelTasksForTab(tabId, 'tab_closed'),
   )
   registerBrowserIpc(
     runtime.browserManager,
-    runtime.trustedRendererGuard,
+    trustedRendererGuard,
     runtime.browserInstanceStore,
     runtime.browserTaskRuntime,
     runtime.browserDownloadStore,
     () => runtime.playwrightBridge,
   )
+}
 
-  registerDialogIpc(runtime.mainWindow, runtime.trustedRendererGuard)
-  registerWindowIpc(runtime.mainWindow, runtime.trustedRendererGuard)
-
+function bootstrapAndroidWindowCapability(runtime: CclinkStudioRuntimeState): void {
+  const mainWindow = runtime.mainWindow
+  const trustedRendererGuard = runtime.trustedRendererGuard
+  if (!mainWindow || !trustedRendererGuard) throw new Error('Android 窗口依赖尚未初始化')
   runtime.adbBridge = new AdbBridge()
-  runtime.scrcpyBridge = new ScrcpyBridge(runtime.mainWindow)
+  runtime.scrcpyBridge = new ScrcpyBridge(mainWindow)
   runtime.activeDeviceManager = new ActiveDeviceManager()
   runtime.physicalDeviceManager = new PhysicalDeviceManager(
     runtime.adbBridge,
@@ -94,12 +130,63 @@ export function createWindowRuntime(
   )
   registerAndroidIpc(
     runtime.adbBridge,
-    runtime.mainWindow,
+    mainWindow,
     runtime.scrcpyBridge,
     runtime.activeDeviceManager,
     runtime.physicalDeviceManager,
-    runtime.trustedRendererGuard,
+    trustedRendererGuard,
   )
-  runtime.capabilities.unavailable('android', '未连接用户真机')
   console.log('[CCLink Studio] Android 模块已注册（真机连接）')
+}
+
+function startWindowCapability(
+  runtime: CclinkStudioRuntimeState,
+  capability: 'browser' | 'android',
+  bootstrap: (runtime: CclinkStudioRuntimeState) => void,
+  unavailableReason: string,
+): void {
+  try {
+    bootstrap(runtime)
+    runtime.capabilities.unavailable(capability, unavailableReason)
+  } catch (error) {
+    resetWindowCapability(runtime, capability)
+    runtime.capabilities.failed(capability, error)
+    console.error(`[CCLink Studio] ${capability} 窗口能力初始化失败:`, error)
+  }
+}
+
+function resetWindowCapability(
+  runtime: CclinkStudioRuntimeState,
+  capability: 'browser' | 'android',
+): void {
+  if (capability === 'browser') {
+    try {
+      runtime.browserAuthProcessService?.destroy()
+    } catch {
+      // 失败路径释放仅做 best effort。
+    }
+    try {
+      runtime.browserManager?.destroy()
+    } catch {
+      // 失败路径释放仅做 best effort。
+    }
+    runtime.browserManager = null
+    runtime.browserTaskRuntime = null
+    runtime.browserDownloadStore = null
+    runtime.browserAuthProcessService = null
+    runtime.browserInstanceStore = null
+    return
+  }
+
+  void runtime.scrcpyBridge?.disconnect().catch(() => undefined)
+  try {
+    runtime.activeDeviceManager?.destroy()
+  } catch {
+    // 失败路径释放仅做 best effort。
+  }
+  void runtime.physicalDeviceManager?.disconnect().catch(() => undefined)
+  runtime.adbBridge = null
+  runtime.scrcpyBridge = null
+  runtime.activeDeviceManager = null
+  runtime.physicalDeviceManager = null
 }

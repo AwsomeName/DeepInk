@@ -148,6 +148,21 @@ describe('bootstrapAutomationRuntime', () => {
     expect(runtime.capabilities.get('hardware').state).toBe('ready')
     expect(runtime.capabilities.get('mcp').state).toBe('ready')
   })
+
+  it('does not overwrite an earlier Browser window failure with CDP state', async () => {
+    const runtime = createAutomationRuntime()
+    runtime.capabilities.failed('browser', new Error('browser manager unavailable'))
+
+    await bootstrapAutomationRuntime(runtime)
+
+    expect(mocks.discoverCdpPort).not.toHaveBeenCalled()
+    expect(runtime.playwrightBridge).toBeNull()
+    expect(runtime.capabilities.get('browser')).toMatchObject({
+      state: 'failed',
+      reason: 'browser manager unavailable',
+    })
+    expect(runtime.capabilities.get('mcp').state).toBe('ready')
+  })
 })
 
 function createAutomationRuntime() {

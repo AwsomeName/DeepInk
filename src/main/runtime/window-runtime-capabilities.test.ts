@@ -1,0 +1,73 @@
+import { describe, expect, it, vi } from 'vitest'
+import { createRuntimeState } from './app-runtime'
+import { bootstrapWindowCapabilities } from './window-runtime'
+
+describe('bootstrapWindowCapabilities', () => {
+  it('continues Android startup after Browser initialization fails', () => {
+    const runtime = createReadyRuntime()
+    const destroyBrowser = vi.fn(() => {
+      throw new Error('cleanup failed')
+    })
+    const startAndroid = vi.fn()
+
+    bootstrapWindowCapabilities(runtime, {
+      browser: (state) => {
+        state.browserManager = { destroy: destroyBrowser } as never
+        throw new Error('browser view bootstrap failed')
+      },
+      android: (state) => {
+        startAndroid()
+        state.adbBridge = {} as never
+      },
+    })
+
+    expect(destroyBrowser).toHaveBeenCalledOnce()
+    expect(runtime.browserManager).toBeNull()
+    expect(runtime.capabilities.get('browser')).toMatchObject({
+      state: 'failed',
+      reason: 'browser view bootstrap failed',
+    })
+    expect(startAndroid).toHaveBeenCalledOnce()
+    expect(runtime.capabilities.get('android')).toMatchObject({
+      state: 'unavailable',
+      reason: '未连接用户真机',
+    })
+  })
+
+  it('continues Browser startup after Android initialization fails', () => {
+    const runtime = createReadyRuntime()
+    const startBrowser = vi.fn()
+    const destroyDevice = vi.fn()
+
+    bootstrapWindowCapabilities(runtime, {
+      browser: (state) => {
+        startBrowser()
+        state.browserManager = {} as never
+      },
+      android: (state) => {
+        state.activeDeviceManager = { destroy: destroyDevice } as never
+        throw new Error('adb bridge bootstrap failed')
+      },
+    })
+
+    expect(startBrowser).toHaveBeenCalledOnce()
+    expect(runtime.capabilities.get('browser')).toMatchObject({
+      state: 'unavailable',
+      reason: '浏览器自动化尚未连接',
+    })
+    expect(destroyDevice).toHaveBeenCalledOnce()
+    expect(runtime.activeDeviceManager).toBeNull()
+    expect(runtime.capabilities.get('android')).toMatchObject({
+      state: 'failed',
+      reason: 'adb bridge bootstrap failed',
+    })
+  })
+})
+
+function createReadyRuntime() {
+  const runtime = createRuntimeState(true)
+  runtime.mainWindow = {} as never
+  runtime.settingsService = {} as never
+  runtime.trustedRendererGuard = {} as never
+  return runtime
+}
