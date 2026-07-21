@@ -1,6 +1,6 @@
 # S4 与稳定化退出验收
 
-> 状态：自动化候选验证中，真人验收未开始。分支：`codex/stabilization-s4`。日期：2026-07-21。
+> 状态：H1-H4 真人验收通过，等待最终关闭提交自身复验。分支：`codex/stabilization-s4`。日期：2026-07-21。
 
 ## 范围
 
@@ -10,12 +10,12 @@
 
 ## 自动化证据
 
-- 候选提交：`5b94ca0`（H4 首测候选，已失败）；H4 修复候选待提交。
+- 候选提交：`f07dbea`（包含 H4 首测失败后的修复）。
 - 当前工作树 `pnpm verify`：通过，145 个测试文件/878 项测试，typecheck 与生产构建成功。
 - 当前工作树 `pnpm smoke:standalone`：通过，local 9/9、UI 6/6、workflow 5/5、restore 4/4。
 - 当前工作树严格 `smoke:auth-window`：通过；Profile Cookie/localStorage 跨进程重启保留，干净认证进程到达 Google account validation，CDP 对照被拒绝。
-- detached worktree 路径与结果：`/tmp/cclink-studio-s4-diagnostics-verify.SzMwvQ`，锁定安装、145/874、standalone 24/24、严格认证 smoke 全部通过，HEAD 与工作树干净。
-- GitHub Actions run：`29829964023`，`verify` 与确定性 `smoke` job 成功。
+- detached worktree 路径与结果：`/tmp/cclink-studio-s4-h4-verify.t0YF07`，从 `f07dbea` 执行锁定安装、145/878、standalone 24/24、严格认证 smoke，全部通过且 HEAD 与工作树干净。
+- GitHub Actions run：`29841461326`，绑定 `f07dbea`，`verify` 与确定性 `smoke` job 成功。
 - 安全检查：复制报告不得包含真实 Session ID、Cookie 值、密码、验证码、token 或完整手机号/邮箱。
 
 ## 真人验收
@@ -61,10 +61,11 @@
 3. 切回 A，确认任务仍明确显示 running/completed/cancelled/failed 之一，不出现“看不出是否停止”的状态。
 4. 完成或取消任务后复制诊断，确认 workspace/conversation/task/run/session/profile 仍属于 A。
 
-- 结果：失败，修复候选待复验
-- 时间：2026-07-21 22:42 CST
-- 证据：真人在项目 A 的 `V2EX操作会话` 启动 30 秒只读任务，切到项目 B 后项目条至少 10 秒停留在“正在切换”，未在可接受时间内完成。诊断显示第一次标题为 `仪表盘 - Brioi`，等待期间切换项目后第二次标题错误变为项目 B 的 `V2EX › 使用邀请码激活账号`。根因拆为两条：Agent 流式会话快照逐次排队落盘，切换等待旧项目写队列；Browser MCP 按 workspace 同步 Tab 后仍从全局活跃 Page 执行动作，和 UI 切换发生竞态。已补最新快照合并、1.5 秒可选对账上限、conversation/BrowserTask 精确 Page 寻址及回归测试；本条只能在修复提交和新应用进程上重新真人验收后改为通过。
+- 结果：通过（首次失败后修复复测）
+- 时间：首次失败 2026-07-21 22:42 CST；修复复测通过 2026-07-21 23:40 CST。
+- 首次失败证据：真人在项目 A 的 `V2EX操作会话` 启动 30 秒只读任务，切到项目 B 后项目条至少 10 秒停留在“正在切换”，未在可接受时间内完成。诊断显示第一次标题为 `仪表盘 - Brioi`，等待期间切换项目后第二次标题错误变为项目 B 的 `V2EX › 使用邀请码激活账号`。根因拆为两条：Agent 流式会话快照逐次排队落盘，切换等待旧项目写队列；Browser MCP 按 workspace 同步 Tab 后仍从全局活跃 Page 执行动作，和 UI 切换发生竞态。
+- 修复与复测证据：`f07dbea` 将快照持久化改为单飞并只合并最新待写值，为 Browser/Terminal 可选对账设置 1.5 秒上限，并按 conversation 关联的 BrowserTask 精确选择 Tab Page。回归测试、当前工作树、全新 detached worktree 和远端 CI 均通过。真人在修复后的新 Studio 进程重复 30 秒只读任务，在运行中切换到项目 B、等待并回切项目 A；项目切换不再出现 10 秒卡顿，B 未混入 A 的运行投影，A 的两次页面标题保持一致且未漂移到 B，H4 确认通过。
 
 ## 退出结论
 
-待全部证据通过后填写。当前不得宣称 S4 或稳定化阶段已关闭。
+H1-H4 真人验收及 `f07dbea` 的当前工作树、全新 detached worktree、严格认证 smoke 和远端 CI 均通过。下一步只形成独立关闭提交，并要求该最新 HEAD 再次通过干净工作树、完整门禁、全新 detached worktree 与远端 CI；在这组关闭提交证据完成前不提前宣称稳定化阶段已关闭。

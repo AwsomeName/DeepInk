@@ -1,6 +1,6 @@
 # S4 状态与复杂度库存
 
-> 状态：S4.1、S4.2、S4.3a、S4.3b 已关闭，S4.4 验证中。分支：`codex/stabilization-s4`。起始基线：`1059ba6`。S4.1 实现基线：`7b9f81e`。S4.2 实现基线：`e08150d`。S4.3a 实现基线：`f29e51d`。S4.3b 实现基线：`4cdd1d5`。日期：2026-07-21。
+> 状态：S4.1-S4.4 实现和真人验收已完成，等待最终关闭提交自身复验。分支：`codex/stabilization-s4`。起始基线：`1059ba6`。S4.1 实现基线：`7b9f81e`。S4.2 实现基线：`e08150d`。S4.3a 实现基线：`f29e51d`。S4.3b 实现基线：`4cdd1d5`。S4.4 修复基线：`f07dbea`。日期：2026-07-21。
 
 ## 结论
 
@@ -178,7 +178,7 @@ S4.3b 已关闭。真实长任务发送、人工取消和压缩交互仍需在 S
 - [x] 当前工作树完整 `pnpm verify`、standalone 与严格认证 smoke 通过。
 - [x] 实现提交后的全新 detached worktree 完成锁定安装和相同门禁，工作树干净。
 - [x] GitHub Actions `verify` 与确定性 `smoke` job 通过。
-- [ ] `docs/ops/stabilization-s4-acceptance.md` 的最终真人验收通过。
+- [x] `docs/ops/stabilization-s4-acceptance.md` 的 H1-H4 最终真人验收通过。
 
 架构复审已写入 `docs/architecture.md`：当前没有需要 ADR 的例外，也没有已知 P0/P1 阻断项。超过约一千行的高变模块仍是维护债务，但已有状态 owner 和行为测试保护；稳定化退出后按“先测试、后按 owner 拆分”治理，不在 S4.4 扩大改动面。
 
@@ -186,13 +186,13 @@ S4.3b 已关闭。真实长任务发送、人工取消和压缩交互仍需在 S
 
 实现提交为 `5b94ca0`。全新 detached worktree `/tmp/cclink-studio-s4-diagnostics-verify.SzMwvQ` 从该提交执行 `pnpm install --frozen-lockfile`，并通过相同的 145 个测试文件/874 项测试、standalone 24/24 与严格认证 smoke；detached HEAD 与工作树均干净。GitHub Actions run `29829964023` 绑定同一提交，`verify` 和确定性 `smoke` job 全部成功。S4.4 只剩真人验收与最终关闭提交。
 
-H4 首次真人验收捕获两个阻断：Agent 流式快照形成磁盘写队列，项目切换超过 10 秒；切换期间 Browser MCP 同步目标 Tab 后又读取全局活跃 Page，导致原项目会话第二次读取到新项目 V2EX 页面。当前修复候选把快照写入收敛为最新值合并，以 conversation 关联的 BrowserTask 精确选择 Page，并为 Browser/Terminal 对账设置 1.5 秒上限。定向 45 项测试与当前工作树 `pnpm verify` 145 个测试文件/878 项测试已通过；H4 必须在该候选上重新真人验收，旧的 `5b94ca0` detached/CI 证据不能替代修复后的最新 HEAD 复验。
+H4 首次真人验收捕获两个阻断：Agent 流式快照形成磁盘写队列，项目切换超过 10 秒；切换期间 Browser MCP 同步目标 Tab 后又读取全局活跃 Page，导致原项目会话第二次读取到新项目 V2EX 页面。修复提交 `f07dbea` 把快照写入收敛为单飞和最新值合并，以 conversation 关联的 BrowserTask 精确选择 Page，并为 Browser/Terminal 对账设置 1.5 秒上限。定向 45 项测试、当前工作树 `pnpm verify` 145 个测试文件/878 项测试、全新 detached worktree `/tmp/cclink-studio-s4-h4-verify.t0YF07` 的相同门禁及 GitHub Actions run `29841461326` 均通过。真人在修复后的新 Studio 进程完成运行中项目切换与回切，确认切换不再长时间卡住、项目投影不串、原会话两次读取保持在项目 A 页面；H4 已通过。旧的 `5b94ca0` 证据只保留为首次失败前基线，不替代修复提交证据。
 
 ## 后续阻断项
 
 | 工作包 | 目标                                                                                    | 退出证据                                                                                   |
 | ------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| S4.4   | 统一诊断关联字段并完成架构复审（验证中）                                              | workspace/task/run/session/profile 可从脱敏日志串联；完整门禁、detached、CI 和人工验收通过 |
+| S4.4   | 统一诊断关联字段并完成架构复审（已完成，待关闭提交复验）                              | workspace/task/run/session/profile 可从脱敏日志串联；完整门禁、detached、CI 和人工验收通过 |
 
 ## 拷问
 
