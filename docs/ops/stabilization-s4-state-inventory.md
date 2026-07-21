@@ -1,6 +1,6 @@
 # S4 状态与复杂度库存
 
-> 状态：S4.1、S4.2 已关闭，S4 继续。分支：`codex/stabilization-s4`。起始基线：`1059ba6`。S4.1 实现基线：`7b9f81e`。S4.2 实现基线：`e08150d`。日期：2026-07-21。
+> 状态：S4.1、S4.2、S4.3a 已关闭，S4 继续。分支：`codex/stabilization-s4`。起始基线：`1059ba6`。S4.1 实现基线：`7b9f81e`。S4.2 实现基线：`e08150d`。S4.3a 实现基线：`f29e51d`。日期：2026-07-21。
 
 ## 结论
 
@@ -10,8 +10,9 @@ S4 分四个可独立回滚和验收的工作包推进：
 
 1. S4.1：Terminal 运行事实与 Tab 投影收敛。
 2. S4.2：workspace/tab 的选择、切换和持久化写入边界收敛。
-3. S4.3：conversation/browser profile 投影收敛，并在行为测试保护下拆分超大模块。
-4. S4.4：诊断关联、架构复审和稳定化退出验收。
+3. S4.3a：browser profile 绑定与 Session 诊断收敛。
+4. S4.3b：conversation 投影与 run 编排收敛，并在行为测试保护下拆分超大模块。
+5. S4.4：诊断关联、架构复审和稳定化退出验收。
 
 在 S4.4 完成前，S4 和整个稳定化阶段都不算关闭。
 
@@ -20,7 +21,7 @@ S4 分四个可独立回滚和验收的工作包推进：
 | 状态域          | 运行事实所有者                                                                                                                                | 可见投影                                                                                 | 持久化所有者                                                   | 当前判断                                                           |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------ |
 | workspace       | renderer `workspace-transition.ts` 拥有运行时切换事务与 generation；`workspace-store.commitActiveWorkspace` 是唯一身份提交入口                | `fs-store.workspacePath` 只是已挂载文件树根路径，项目条和工作台读取 `activeWorkspaceRef` | main `WorkspaceStateService` 保存按 owner/workspace 分区的快照 | S4.2 候选已把异步准备与最终投影提交分离                            |
-| browser profile | Electron 持久化 `session` partition 拥有 Cookie/localStorage 事实，`BrowserManager` 拥有 Tab 到 Profile 的运行绑定                            | Browser Tab 的 `browserProfile` 只保存绑定 ID                                            | Electron userData 下的持久化 partition                         | 登录凭证不进入 renderer；S4.3 复核重建与诊断投影                   |
+| browser profile | Electron 持久化 `session` partition 拥有 Cookie/localStorage 事实，`BrowserManager` 拥有 Tab 到 Profile 的运行绑定                            | Browser Tab 的 `browserProfile` 只保存绑定 ID                                            | Electron userData 下的持久化 partition                         | S4.3a 已关闭；绑定、重建、配置和诊断共用同一 Profile 规则          |
 | conversation    | main Agent runtime 拥有连接、run 和 session 的执行事实                                                                                        | renderer `agent-store` 拥有消息文档、输入和可见运行投影                                  | `WorkspaceStateService.agentConversations`                     | 已有恢复对账；S4.3 继续拆分 1400+ 行 store，禁止组件直接拼跨域事务 |
 | terminal        | main `TerminalSessionRegistry` 拥有当前进程状态，`TerminalSessionStore` 保存同一 session 的可恢复记录；`terminal:listSessions` 是对外事实入口 | Terminal Tab 与 terminal renderer store 只显示 session 投影                              | main `TerminalSessionStore`；workspace Tab 快照只保存挂载关系  | S4.1 已关闭陈旧 Tab 状态问题                                       |
 | tab             | renderer `tab-store` 拥有当前窗口的布局、顺序和激活状态                                                                                       | Workbench/TabBar                                                                         | `WorkspaceStateService.tabs` 是按 workspace 的恢复快照         | S4.2 候选已把 hydrate 收敛到 generation 保护的最终提交点           |
@@ -91,16 +92,48 @@ S4.1 实现提交为 `7b9f81e`。全新 detached worktree `/tmp/cclink-studio-s4
 
 S4.2 实现提交为 `e08150d`。全新 detached worktree `/tmp/cclink-studio-s4-workspace-verify.BqRT9u` 从该提交执行 `pnpm install --frozen-lockfile`，并通过相同的 143 个测试文件/858 项测试、standalone 24/24 与严格认证 smoke；detached HEAD 与工作树均干净。GitHub Actions run `29823522729` 绑定同一提交，`verify` 和 `smoke` job 全部成功。S4.2 已关闭，下一工作包为 S4.3 conversation/browser profile 投影与高变模块拆分；S4 与稳定化阶段继续。
 
+## S4.3a Browser Profile 绑定与 Session 诊断
+
+### 基线问题
+
+Browser Profile 曾存在三套不一致规则：IPC 允许 128 字符和点号，`BrowserManager` 只允许 64 字符且拒绝后静默回退默认 Session，运营配置则只检查“是字符串”。同时 `createView` 只在 workspace 改变时重建，同一 `tabId` 更换 Profile 仍会复用旧 Electron Session；`reconcileViews` 也只携带 Tab ID，后台旧 View 可能在用户激活前被 Agent 取到。Cookie 诊断和 partition 拼接则散落在 1100+ 行的 `BrowserManager` 内。
+
+### 方案
+
+- `shared/browser-profile.ts` 唯一定义 Profile ID 与 Electron partition 映射；非法值明确失败，不再落入默认凭证域。
+- `createView` 同时比较 workspace 与 Profile 绑定，任一变化都销毁旧 View 并使用目标持久化 Session 重建。
+- `reconcileViews` 契约从 `validTabIds` 升级为 `tabId + profileId` 绑定列表；同工作区缺失、重复或 Profile 不匹配的 View 被拒绝或清理，后台其他项目 View 保持 warm。
+- workspace hydrate 与 Browser lifecycle 都提交完整绑定；激活 Browser Tab 时幂等调用 `createView`，确保 renderer 的 `ready` 投影不能阻止主进程修正绑定。
+- 运营账号配置复用同一 Profile 规则，非法配置在进入 Tab 投影前返回定位到字段的校验问题。
+- Cookie 观察、脱敏元数据和变化历史迁入 `BrowserSessionDiagnostics`；诊断不包含 Cookie 值，`BrowserManager` 从 1121 行降到 1015 行。
+
+### 验收
+
+- [x] IPC、运营配置、View 创建和诊断使用同一 Profile ID/partition 规则。
+- [x] 非法 Profile 明确失败，不会静默读取或写入默认 Session。
+- [x] 同一 Tab 的 workspace 或 Profile 绑定变化都会重建 View。
+- [x] workspace 对账能在后台 View 被工具复用前清理 Profile 不匹配的运行实例。
+- [x] 重复 Tab 绑定被 IPC schema 拒绝，其他工作区的后台 View 不被误删。
+- [x] Session 诊断仅返回 Cookie 元数据和变化原因，不暴露 Cookie 值。
+- [x] 当前工作树完整 `pnpm verify`、standalone 与严格认证 smoke 通过。
+- [x] 实现提交后的全新 detached worktree 完成锁定安装和相同门禁，工作树干净。
+- [x] 远端 CI 通过，提交和 run ID 写回本文。
+
+当前工作树与实现提交 `f29e51d` 均通过 144 个测试文件/863 项测试、standalone 24/24 和严格认证 smoke。严格认证结果确认 Profile 的 Cookie/localStorage 跨 Electron 进程重启保留，干净认证进程到达 Google account validation，CDP 与当前调试控制路径继续被判为不安全浏览器；该既有差异没有被 Profile 收敛掩盖。
+
+全新 detached worktree `/tmp/cclink-studio-s4-profile-verify.ZTeLDu` 从 `f29e51d` 执行 `pnpm install --frozen-lockfile`，并通过相同的 144 个测试文件/863 项测试、standalone 24/24 与严格认证 smoke；detached HEAD 与工作树均干净。GitHub Actions run `29825345007` 绑定同一提交，`verify` 和确定性 `smoke` job 全部成功。S4.3a 已关闭；S4.3b conversation 投影与 run 编排仍未完成，因此 S4.3、S4 和稳定化阶段都继续。
+
 ## 后续阻断项
 
-| 工作包 | 目标                                                                                                            | 退出证据                                                                                   |
-| ------ | --------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| S4.3   | 明确 conversation 与 browser profile 的事实/投影边界，拆分 AgentPanel、agent-store 和 BrowserManager 的高变职责 | 拆分前后行为测试不变；无第二凭证源、第二 run owner 或组件级跨 store 事务                   |
-| S4.4   | 统一诊断关联字段并完成架构复审                                                                                  | workspace/task/run/session/profile 可从脱敏日志串联；完整门禁、detached、CI 和人工验收通过 |
+| 工作包 | 目标                                                                                    | 退出证据                                                                                   |
+| ------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| S4.3b  | 明确 conversation 事实/投影边界，迁出 AgentPanel 的 run 编排并拆分 agent-store 高变职责 | 拆分前后行为测试不变；无第二 run owner 或组件级跨 store 事务                               |
+| S4.4   | 统一诊断关联字段并完成架构复审                                                          | workspace/task/run/session/profile 可从脱敏日志串联；完整门禁、detached、CI 和人工验收通过 |
 
 ## 拷问
 
 - `listSessions` 绿色不代表 session 永远存在；后续必须明确“找不到记录”是已关闭、被清理还是 runtime 不可用，不能擅自把所有缺失都改成 `exited`。
 - workspace transition 等待 Terminal 对账会增加切换延迟；查询必须保持本地、有界且失败可降级，不能演变为等待外部能力。S4.2 只保证提交前状态一致，尚未为本地 IPC 增加超时。
-- 把 owner 写进文档不等于 owner 已唯一；S4.3 必须继续用源码入口审计和行为测试证明 conversation/browser 没有旁路写入。
+- Browser Profile 已有单一规则不代表第三方站点永不退出登录；站点主动失效 Cookie 仍必须由脱敏 Session 诊断解释，不能伪造续期或保存密码。
+- 把 owner 写进文档不等于 owner 已唯一；S4.3b 必须继续用源码入口审计和行为测试证明 conversation 没有第二 run owner。
 - 拆大文件不是按行数机械切割。先固定行为与状态边界，再移动职责；否则只是把隐式事务分散到更多文件。
