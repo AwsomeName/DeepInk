@@ -130,6 +130,18 @@ export function ContextMenuHost(): React.ReactElement | null {
     }
   }, [hide, open])
 
+  useEffect(() => {
+    if (!open || editingContributionId) return
+    const handleGlobalEscape = (event: KeyboardEvent): void => {
+      if (event.key !== 'Escape') return
+      event.preventDefault()
+      event.stopPropagation()
+      hide('escape')
+    }
+    document.addEventListener('keydown', handleGlobalEscape, true)
+    return () => document.removeEventListener('keydown', handleGlobalEscape, true)
+  }, [editingContributionId, hide, open])
+
   if (!open || !context || !target || items.length === 0) return null
 
   const execute = async (item: ResolvedMenuItem, value?: string): Promise<void> => {

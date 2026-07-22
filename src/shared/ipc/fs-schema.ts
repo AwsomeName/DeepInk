@@ -64,7 +64,15 @@ export const fsDocumentTargetPathSchema = z
 
 export const fsMarkdownTrashSchema = z
   .object({
+    workspacePath: fsPathSchema,
     documentPath: fsPathSchema,
     includeAssets: z.boolean(),
+  })
+  .strict()
+
+export const fsScopedPathSchema = z
+  .object({
+    workspacePath: fsPathSchema,
+    targetPath: fsPathSchema,
   })
   .strict()

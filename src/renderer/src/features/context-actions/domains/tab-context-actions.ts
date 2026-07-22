@@ -2,6 +2,7 @@ import type { Command } from '../../../stores/command-store'
 import { useAgentStore } from '../../../stores/agent-store'
 import { useTabStore } from '../../../stores/tab-store'
 import { resolveConversationTab } from '../../../utils/conversation-tab'
+import { closeTabsWithDraftPolicy } from '../../../utils/close-tab'
 import {
   buildHtmlBrowserTabDraft,
   buildHtmlTextTabDraft,
@@ -92,6 +93,57 @@ export function createTabContextCommands(): Command[] {
         useTabStore.getState().duplicateTab(tabId)
       },
     },
+    {
+      id: 'workbench.closeOtherTabs',
+      label: '关闭其他 Tab',
+      contextOnly: true,
+      category: 'Tab',
+      enabled: (context) => {
+        const tabId = tabIdFromContext(context)
+        const tabs = useTabStore.getState().tabs
+        return {
+          enabled: Boolean(tabId && tabs.some((tab) => tab.id === tabId) && tabs.length > 1),
+          reason: '没有其他可关闭的标签页',
+        }
+      },
+      action: async (context) => {
+        const tabId = tabIdFromContext(context)
+        if (!tabId) throw new Error('标签页已不存在')
+        const tabs = useTabStore.getState().tabs
+        const ids = tabs
+          .filter((tab) => tab.id !== tabId)
+          .map((tab) => tab.id)
+          .reverse()
+        await closeTabsWithDraftPolicy(ids)
+      },
+    },
+    {
+      id: 'workbench.closeTabsToRight',
+      label: '关闭右侧 Tab',
+      contextOnly: true,
+      category: 'Tab',
+      enabled: (context) => {
+        const tabId = tabIdFromContext(context)
+        const tabs = useTabStore.getState().tabs
+        const index = tabs.findIndex((tab) => tab.id === tabId)
+        return {
+          enabled: index >= 0 && index < tabs.length - 1,
+          reason: index < 0 ? '标签页已关闭' : '右侧没有标签页',
+        }
+      },
+      action: async (context) => {
+        const tabId = tabIdFromContext(context)
+        const tabs = useTabStore.getState().tabs
+        const index = tabs.findIndex((tab) => tab.id === tabId)
+        if (index < 0) throw new Error('标签页已不存在')
+        await closeTabsWithDraftPolicy(
+          tabs
+            .slice(index + 1)
+            .map((tab) => tab.id)
+            .reverse(),
+        )
+      },
+    },
   ]
 }
 
@@ -134,5 +186,21 @@ export const tabMenuContributions: MenuContribution[] = [
     order: 10,
     commandId: 'workbench.closeTab',
     icon: '✕',
+  },
+  {
+    id: 'tab.close-others',
+    targetKinds: ['tab'],
+    group: '90-manage',
+    order: 20,
+    commandId: 'workbench.closeOtherTabs',
+    icon: '✕',
+  },
+  {
+    id: 'tab.close-right',
+    targetKinds: ['tab'],
+    group: '90-manage',
+    order: 30,
+    commandId: 'workbench.closeTabsToRight',
+    icon: '→',
   },
 ]

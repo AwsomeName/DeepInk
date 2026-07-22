@@ -90,6 +90,10 @@ export function registerFsIpc(
 
   handle(fsIpc.trashMarkdownDocument, async (_event, input) => fs.trashMarkdownDocument(input))
 
+  handle(fsIpc.trashPath, async (_event, input) => fs.trashPath(input))
+
+  handle(fsIpc.revealPath, (_event, input) => fs.revealPath(input))
+
   // 获取文件/目录元数据
   handle(fsIpc.stat, async (_event, filePath) => {
     return fs.stat(filePath)

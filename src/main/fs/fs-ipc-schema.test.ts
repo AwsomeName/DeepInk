@@ -4,6 +4,7 @@ import {
   fsPathSchema,
   fsSaveDocumentAssetSchema,
   fsSaveTextDocumentSchema,
+  fsScopedPathSchema,
 } from './fs-ipc-schema'
 
 describe('filesystem IPC runtime schema', () => {
@@ -18,6 +19,12 @@ describe('filesystem IPC runtime schema', () => {
     expect(
       fsMarkdownSaveAsSchema.parse({ targetPath: '/workspace/copy.md', content: '# Copy' }),
     ).toMatchObject({ targetPath: '/workspace/copy.md' })
+    expect(
+      fsScopedPathSchema.parse({
+        workspacePath: '/workspace',
+        targetPath: '/workspace/note.md',
+      }),
+    ).toEqual({ workspacePath: '/workspace', targetPath: '/workspace/note.md' })
   })
 
   it('rejects empty or NUL paths, unknown fields and malformed hashes', () => {
@@ -36,6 +43,9 @@ describe('filesystem IPC runtime schema', () => {
         content: 'text',
         extra: true,
       }),
+    ).toThrow()
+    expect(() =>
+      fsScopedPathSchema.parse({ workspacePath: '/workspace', targetPath: '', extra: true }),
     ).toThrow()
   })
 

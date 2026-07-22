@@ -15,6 +15,7 @@ import {
   threadMenuContributions,
 } from './domains/thread-context-actions'
 import { useMenuContributionRegistry } from './menu-contribution-registry'
+import { createShellContextCommands, shellMenuContributions } from './domains/shell-context-actions'
 
 const commands = [
   ...createTabContextCommands(),
@@ -22,6 +23,7 @@ const commands = [
   ...createProjectContextCommands(),
   ...createSelectionContextCommands(),
   ...createThreadContextCommands(),
+  ...createShellContextCommands(),
 ]
 const contributions = [
   ...tabMenuContributions,
@@ -29,6 +31,7 @@ const contributions = [
   ...projectMenuContributions,
   ...selectionMenuContributions,
   ...threadMenuContributions,
+  ...shellMenuContributions,
 ]
 
 export function useRegisterContextActions(): void {

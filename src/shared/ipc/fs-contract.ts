@@ -10,6 +10,7 @@ import {
   fsPathSchema,
   fsSaveDocumentAssetSchema,
   fsSaveTextDocumentSchema,
+  fsScopedPathSchema,
   fsTextContentSchema,
   fsWatchIdSchema,
 } from './fs-schema'
@@ -75,6 +76,14 @@ export const fsIpcContracts = {
   trashMarkdownDocument: bindIpcParser(fsIpc.trashMarkdownDocument, (args) => {
     requireArgs(args, 1, fsIpc.trashMarkdownDocument.channel)
     return ipcArgs(fsMarkdownTrashSchema.parse(args[0]))
+  }),
+  trashPath: bindIpcParser(fsIpc.trashPath, (args) => {
+    requireArgs(args, 1, fsIpc.trashPath.channel)
+    return ipcArgs(fsScopedPathSchema.parse(args[0]))
+  }),
+  revealPath: bindIpcParser(fsIpc.revealPath, (args) => {
+    requireArgs(args, 1, fsIpc.revealPath.channel)
+    return ipcArgs(fsScopedPathSchema.parse(args[0]))
   }),
   stat: bindPath(fsIpc.stat),
   isDirectory: bindPath(fsIpc.isDirectory),

@@ -7,6 +7,7 @@ export {
   fsPathSchema,
   fsSaveDocumentAssetSchema,
   fsSaveTextDocumentSchema,
+  fsScopedPathSchema,
   fsTextContentSchema,
   fsWatchIdSchema,
 } from '../../shared/ipc/fs-schema'

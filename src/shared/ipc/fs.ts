@@ -200,8 +200,14 @@ export interface FsDocumentTargetPathInput {
 }
 
 export interface FsMarkdownTrashInput {
+  workspacePath: string
   documentPath: string
   includeAssets: boolean
+}
+
+export interface FsScopedPathInput {
+  workspacePath: string
+  targetPath: string
 }
 
 export interface FsApiContract {
@@ -219,6 +225,8 @@ export interface FsApiContract {
   relocateMarkdownDocument: (input: FsPathPairInput) => Promise<FsMarkdownRelocateResult>
   exportMarkdownDocumentZip: (input: FsDocumentTargetPathInput) => Promise<FsMarkdownExportResult>
   trashMarkdownDocument: (input: FsMarkdownTrashInput) => Promise<FsTrashMarkdownDocumentResult>
+  trashPath: (input: FsScopedPathInput) => Promise<{ trashedPath: string }>
+  revealPath: (input: FsScopedPathInput) => Promise<void>
   stat: (filePath: string) => Promise<FsFileStat>
   isDirectory: (filePath: string) => Promise<boolean>
   mkdir: (dirPath: string) => Promise<void>
@@ -261,6 +269,8 @@ export const fsIpc = {
   trashMarkdownDocument: defineIpcCall<[FsMarkdownTrashInput], FsTrashMarkdownDocumentResult>(
     'fs:trashMarkdownDocument',
   ),
+  trashPath: defineIpcCall<[FsScopedPathInput], { trashedPath: string }>('fs:trashPath'),
+  revealPath: defineIpcCall<[FsScopedPathInput], void>('fs:revealPath'),
   stat: defineIpcCall<[string], FsFileStat>('fs:stat'),
   isDirectory: defineIpcCall<[string], boolean>('fs:isDirectory'),
   mkdir: defineIpcCall<[string], void>('fs:mkdir'),

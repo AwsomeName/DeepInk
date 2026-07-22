@@ -5,6 +5,10 @@ import { getWorkspaceStateOwnerKey } from '../../utils/workspace-state'
 import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
 import { IconHistory, IconProjects } from '../common/Icons'
 import { useToastStore } from '../common/Toast'
+import {
+  buildKeyboardContextMenuInput,
+  isContextMenuKeyboardEvent,
+} from '../../features/context-actions/context-menu-trigger'
 
 type DropPlacement = 'before' | 'after'
 
@@ -210,6 +214,17 @@ export function ProjectStrip(): React.ReactElement {
                       y: event.clientY,
                       focusReturn: event.currentTarget,
                     })
+                  }}
+                  onKeyDown={(event) => {
+                    if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+                    event.preventDefault()
+                    setHistoryOpen(false)
+                    showContextMenu(
+                      buildKeyboardContextMenuInput(
+                        { kind: 'project', workspaceKey: path, path },
+                        event.currentTarget,
+                      ),
+                    )
                   }}
                   onDragStart={(event) => {
                     suppressClickRef.current = true

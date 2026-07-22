@@ -22,6 +22,25 @@ export type ContextTarget =
       path: string
     }
   | {
+      kind: 'activity'
+      activityId: string
+    }
+  | {
+      kind: 'sidebar'
+      workspaceKey: string | null
+      panelId: string
+    }
+  | {
+      kind: 'status-item'
+      workspaceKey: string | null
+      itemId: string
+    }
+  | {
+      kind: 'layout'
+      workspaceKey: string | null
+      area: 'sidebar' | 'agent'
+    }
+  | {
       kind: 'thread'
       workspaceKey: string | null
       conversationId: string

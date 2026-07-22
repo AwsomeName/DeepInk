@@ -11,7 +11,7 @@ export type ContextMenuCloseReason =
   | 'workspace-switch'
   | 'target-invalidated'
 
-interface ShowContextMenuInput {
+export interface ShowContextMenuInput {
   target: ContextTarget
   x: number
   y: number

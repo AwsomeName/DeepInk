@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const electronMock = vi.hoisted(() => ({
   home: '',
   trashItem: vi.fn(async () => {}),
+  showItemInFolder: vi.fn(),
 }))
 
 vi.mock('electron', () => ({
@@ -14,6 +15,7 @@ vi.mock('electron', () => ({
   },
   shell: {
     trashItem: electronMock.trashItem,
+    showItemInFolder: electronMock.showItemInFolder,
   },
 }))
 
@@ -25,6 +27,7 @@ beforeEach(async () => {
   tempDir = await mkdtemp(join(tmpdir(), 'cclink-studio-fs-'))
   electronMock.home = tempDir
   electronMock.trashItem.mockClear()
+  electronMock.showItemInFolder.mockClear()
 })
 
 afterEach(async () => {
@@ -314,12 +317,46 @@ describe('FileService', () => {
     await writeFile(join(assetDir, 'image.png'), Buffer.from([1]))
 
     const result = await service.trashMarkdownDocument({
+      workspacePath: tempDir,
       documentPath,
       includeAssets: true,
     })
 
     expect(result).toEqual({ trashedPaths: [documentPath, assetDir], failedPaths: [] })
     expect(electronMock.trashItem.mock.calls).toEqual([[documentPath], [assetDir]])
+  })
+
+  it('trashes only descendants of the declared workspace and protects its root', async () => {
+    const service = new FileService()
+    const workspacePath = join(tempDir, 'workspace')
+    const targetPath = join(workspacePath, 'note.txt')
+    const outsidePath = join(tempDir, 'outside.txt')
+    await mkdir(workspacePath)
+    await writeFile(targetPath, 'note', 'utf-8')
+    await writeFile(outsidePath, 'outside', 'utf-8')
+
+    await expect(service.trashPath({ workspacePath, targetPath })).resolves.toEqual({
+      trashedPath: targetPath,
+    })
+    await expect(service.trashPath({ workspacePath, targetPath: workspacePath })).rejects.toThrow(
+      '不能从文件树删除工作区根目录',
+    )
+    await expect(service.trashPath({ workspacePath, targetPath: outsidePath })).rejects.toThrow(
+      '目标路径不属于当前工作区',
+    )
+    expect(electronMock.trashItem).toHaveBeenCalledTimes(1)
+  })
+
+  it('reveals only paths associated with the declared workspace', () => {
+    const service = new FileService()
+    const workspacePath = join(tempDir, 'workspace')
+    const targetPath = join(workspacePath, 'note.txt')
+
+    service.revealPath({ workspacePath, targetPath })
+    expect(electronMock.showItemInFolder).toHaveBeenCalledWith(targetPath)
+    expect(() =>
+      service.revealPath({ workspacePath, targetPath: join(tempDir, 'outside.txt') }),
+    ).toThrow('目标路径不属于当前工作区')
   })
 
   it('checks directories without throwing for missing paths', async () => {

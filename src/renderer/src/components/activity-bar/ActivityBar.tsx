@@ -11,6 +11,11 @@ import {
   IconTerminal,
   IconTool,
 } from '../common/Icons'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
+import {
+  buildKeyboardContextMenuInput,
+  isContextMenuKeyboardEvent,
+} from '../../features/context-actions/context-menu-trigger'
 
 // 项目切换暂时统一收口到顶栏；保留 Activity/Sidebar 实现，后续可直接重新启用。
 const PROJECT_ACTIVITY_ENABLED = false
@@ -41,6 +46,7 @@ export function ActivityBar(): React.ReactElement {
   const setActivePanel = useUIStore((s) => s.setActivePanel)
   const hideSidebar = useUIStore((s) => s.hideSidebar)
   const openTab = useTabStore((s) => s.openTab)
+  const showContextMenu = useContextMenuStore((s) => s.show)
 
   const handleClick = (id: ActivityPanel): void => {
     setActivePanel(id)
@@ -55,20 +61,66 @@ export function ActivityBar(): React.ReactElement {
     <div className="activity-bar">
       <div className="activity-bar-main">
         {MAIN_ICONS.map(({ id, Icon, label }) => (
-          <div
+          <button
+            type="button"
             key={id}
             className={`activity-bar-icon ${activePanel === id ? 'active' : ''}`}
             onClick={() => handleClick(id)}
+            onContextMenu={(event) => {
+              event.preventDefault()
+              showContextMenu({
+                target: { kind: 'activity', activityId: id },
+                x: event.clientX,
+                y: event.clientY,
+                focusReturn: event.currentTarget,
+              })
+            }}
+            onKeyDown={(event) => {
+              if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+              event.preventDefault()
+              showContextMenu(
+                buildKeyboardContextMenuInput(
+                  { kind: 'activity', activityId: id },
+                  event.currentTarget,
+                ),
+              )
+            }}
+            aria-label={label}
             title={label}
           >
             <Icon size={22} />
-          </div>
+          </button>
         ))}
       </div>
       <div className="activity-bar-bottom">
-        <div className="activity-bar-icon" onClick={handleOpenSettings} title="设置">
+        <button
+          type="button"
+          className="activity-bar-icon"
+          onClick={handleOpenSettings}
+          onContextMenu={(event) => {
+            event.preventDefault()
+            showContextMenu({
+              target: { kind: 'activity', activityId: 'settings' },
+              x: event.clientX,
+              y: event.clientY,
+              focusReturn: event.currentTarget,
+            })
+          }}
+          onKeyDown={(event) => {
+            if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+            event.preventDefault()
+            showContextMenu(
+              buildKeyboardContextMenuInput(
+                { kind: 'activity', activityId: 'settings' },
+                event.currentTarget,
+              ),
+            )
+          }}
+          aria-label="设置"
+          title="设置"
+        >
           <IconSettings size={22} />
-        </div>
+        </button>
       </div>
     </div>
   )

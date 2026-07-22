@@ -1,4 +1,11 @@
 import { useCallback, useRef } from 'react'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
+import {
+  buildKeyboardContextMenuInput,
+  isContextMenuKeyboardEvent,
+} from '../../features/context-actions/context-menu-trigger'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import { workspaceRefKey } from '@shared/workspace-ref'
 
 interface ResizeHandleProps {
   /** 拖拽时回调，参数为本次拖拽从起点到当前的宽度变化量 (px) */
@@ -9,6 +16,7 @@ interface ResizeHandleProps {
   onResizeEnd?: () => void
   /** 被调整的面板位置：左侧面板向右拖变宽，右侧面板向左拖变宽 */
   side?: 'left' | 'right'
+  area: 'sidebar' | 'agent'
 }
 
 /**
@@ -22,9 +30,17 @@ export function ResizeHandle({
   onResizeStart,
   onResizeEnd,
   side = 'right',
+  area,
 }: ResizeHandleProps): React.ReactElement {
   const dragStartXRef = useRef(0)
   const draggingRef = useRef(false)
+  const showContextMenu = useContextMenuStore((state) => state.show)
+  const activeWorkspaceRef = useWorkspaceStore((state) => state.activeWorkspaceRef)
+  const target = {
+    kind: 'layout' as const,
+    workspaceKey: workspaceRefKey(activeWorkspaceRef),
+    area,
+  }
 
   const handlePointerDown = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
@@ -69,5 +85,29 @@ export function ResizeHandle({
     [onResize, onResizeEnd, onResizeStart, side],
   )
 
-  return <div className="resize-handle" onPointerDown={handlePointerDown} />
+  return (
+    <div
+      className="resize-handle"
+      role="separator"
+      aria-orientation="vertical"
+      aria-label={area === 'sidebar' ? '侧栏宽度' : 'Agent 面板宽度'}
+      tabIndex={0}
+      data-layout-area={area}
+      onPointerDown={handlePointerDown}
+      onContextMenu={(event) => {
+        event.preventDefault()
+        showContextMenu({
+          target,
+          x: event.clientX,
+          y: event.clientY,
+          focusReturn: event.currentTarget,
+        })
+      }}
+      onKeyDown={(event) => {
+        if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+        event.preventDefault()
+        showContextMenu(buildKeyboardContextMenuInput(target, event.currentTarget))
+      }}
+    />
+  )
 }

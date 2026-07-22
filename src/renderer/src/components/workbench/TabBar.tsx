@@ -4,6 +4,7 @@ import { IconClose, IconFile, IconGlobe, IconPlus, IconRobot, IconTerminal } fro
 import { BrowserFavicon } from '../common/BrowserFavicon'
 import { useBrowserStore } from '../../stores/browser-store'
 import { getBrowserDisplayTitle } from '../sidebar/browser-sidebar-view-model'
+import { isContextMenuKeyboardEvent } from '../../features/context-actions/context-menu-trigger'
 
 const TAB_ICONS: Record<string, string> = {
   browser: '🌐',
@@ -142,6 +143,9 @@ export function TabBar({
           key={tab.id}
           className={`tab ${activeTabId === tab.id ? 'active' : ''} ${draggingId === tab.id ? 'dragging' : ''} ${dragOverId === tab.id ? 'drop-target' : ''}`}
           draggable
+          role="tab"
+          tabIndex={activeTabId === tab.id ? 0 : -1}
+          aria-selected={activeTabId === tab.id}
           onDragStart={(event) => handleDragStart(event, tab.id)}
           onDragOver={(event) => handleDragOver(event, tab.id)}
           onDrop={(event) => handleDrop(event, tab.id)}
@@ -150,6 +154,17 @@ export function TabBar({
           onContextMenu={(event) => {
             event.preventDefault()
             onShowMenu(tab.id, event.clientX, event.clientY, event.currentTarget)
+          }}
+          onKeyDown={(event) => {
+            if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+            event.preventDefault()
+            const rect = event.currentTarget.getBoundingClientRect()
+            onShowMenu(
+              tab.id,
+              rect.left + Math.min(24, rect.width / 2),
+              rect.top + Math.min(24, rect.height),
+              event.currentTarget,
+            )
           }}
         >
           <span className="tab-icon">

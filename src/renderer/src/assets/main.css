@@ -576,6 +576,12 @@ input:focus {
     border-color var(--transition-normal),
     background var(--transition-fast);
   position: relative;
+  padding: 0;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: transparent;
+  font: inherit;
 }
 
 .activity-bar-icon:hover {

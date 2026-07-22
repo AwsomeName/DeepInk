@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { useAgentStore } from '../../../stores/agent-store'
 import { useTabStore } from '../../../stores/tab-store'
-import { renameWorkbenchTab } from './tab-context-actions'
+import { createTabContextCommands, renameWorkbenchTab } from './tab-context-actions'
 
 beforeEach(() => {
   useTabStore.setState(useTabStore.getInitialState(), true)
@@ -55,5 +55,42 @@ describe('renameWorkbenchTab', () => {
     expect(renameWorkbenchTab(tab.id, '设计复盘')).toBe(true)
     expect(useTabStore.getState().tabs[0].title).toBe('设计复盘')
     expect(useAgentStore.getState().conversations[conversationId].title).toBe('设计复盘')
+  })
+})
+
+describe('tab management context commands', () => {
+  function openBrowserTabs(...titles: string[]): string[] {
+    for (const title of titles) {
+      useTabStore.getState().openTab({ type: 'browser', title, icon: '🌐', forceNew: true })
+    }
+    return useTabStore.getState().tabs.map((tab) => tab.id)
+  }
+
+  it('closes only tabs to the right of the target', async () => {
+    const [first, second] = openBrowserTabs('一', '二', '三')
+    const command = createTabContextCommands().find(
+      (item) => item.id === 'workbench.closeTabsToRight',
+    )!
+
+    await command.action({
+      source: 'context-menu',
+      target: { kind: 'tab', workspaceKey: null, tabId: second, tabType: 'browser' },
+    })
+
+    expect(useTabStore.getState().tabs.map((tab) => tab.id)).toEqual([first, second])
+  })
+
+  it('keeps the target while closing every other tab', async () => {
+    const [, second] = openBrowserTabs('一', '二', '三')
+    const command = createTabContextCommands().find(
+      (item) => item.id === 'workbench.closeOtherTabs',
+    )!
+
+    await command.action({
+      source: 'context-menu',
+      target: { kind: 'tab', workspaceKey: null, tabId: second, tabType: 'browser' },
+    })
+
+    expect(useTabStore.getState().tabs.map((tab) => tab.id)).toEqual([second])
   })
 })

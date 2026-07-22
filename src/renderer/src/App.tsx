@@ -48,7 +48,6 @@ function MainLayout(): React.ReactElement {
   const workspacePicking = useFsStore((s) => s.picking)
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
   const contextMenuOpen = useContextMenuStore((s) => s.open)
-  const contextMenuBrowserPreview = useContextMenuStore((s) => s.browserPreviewDataUrl)
   const [tabCreateMenuOpen, setTabCreateMenuOpen] = useState(false)
   const [panelResizing, setPanelResizing] = useState(false)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
@@ -85,11 +84,7 @@ function MainLayout(): React.ReactElement {
   useAgentWorkContext(workspaceReady)
   useBrowserOpenRequests(workspaceReady)
   useBrowserViewLifecycle(
-    agentInCenter ||
-      floatingSurfaceOpen ||
-      panelResizing ||
-      (contextMenuOpen && contextMenuBrowserPreview) ||
-      tabCreateMenuOpen
+    agentInCenter || floatingSurfaceOpen || panelResizing || contextMenuOpen || tabCreateMenuOpen
       ? undefined
       : activeTab,
     tabs,
@@ -176,6 +171,7 @@ function MainLayout(): React.ReactElement {
 
         {sidebarVisible && (
           <ResizeHandle
+            area="sidebar"
             side="left"
             onResize={handleSidebarResize}
             onResizeStart={() => setPanelResizing(true)}
@@ -206,6 +202,7 @@ function MainLayout(): React.ReactElement {
 
         {agentInRight && (
           <ResizeHandle
+            area="agent"
             side="right"
             onResize={handleAgentResize}
             onResizeStart={() => setPanelResizing(true)}

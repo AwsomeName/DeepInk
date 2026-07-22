@@ -16,6 +16,11 @@ import {
   workspaceRefSourceLabel,
 } from '../../../../shared/workspace-ref'
 import { APP_EDITION_LABEL } from '../../app-metadata'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
+import {
+  buildKeyboardContextMenuInput,
+  isContextMenuKeyboardEvent,
+} from '../../features/context-actions/context-menu-trigger'
 
 /** Agent 状态 → 显示文本 */
 const AGENT_STATUS_MAP: Record<string, { text: string; color: string }> = {
@@ -56,9 +61,38 @@ export function StatusBar(): React.ReactElement {
   const submitFirstGitBackup = useGitBackupStore((s) => s.submitFirstBackup)
   const setRepositoryInput = useGitBackupStore((s) => s.setRepositoryInput)
   const closeGitDialog = useGitBackupStore((s) => s.closeDialog)
+  const showContextMenu = useContextMenuStore((s) => s.show)
 
   const agentStatus = AGENT_STATUS_MAP[backendState] ?? AGENT_STATUS_MAP.disconnected
   const tabLabel = activeTab ? (TAB_TYPE_LABEL[activeTab.type] ?? activeTab.title) : ''
+  const workspaceKey = workspaceRefKey(activeWorkspaceRef)
+
+  const showStatusMenu = (
+    itemId: string,
+    element: HTMLElement,
+    position?: { x: number; y: number },
+  ): void => {
+    const target = { kind: 'status-item' as const, workspaceKey, itemId }
+    showContextMenu(
+      position
+        ? { target, x: position.x, y: position.y, focusReturn: element }
+        : buildKeyboardContextMenuInput(target, element),
+    )
+  }
+
+  const statusContextProps = (itemId: string) => ({
+    'data-status-item': itemId,
+    tabIndex: 0,
+    onContextMenu: (event: React.MouseEvent<HTMLElement>) => {
+      event.preventDefault()
+      showStatusMenu(itemId, event.currentTarget, { x: event.clientX, y: event.clientY })
+    },
+    onKeyDown: (event: React.KeyboardEvent<HTMLElement>) => {
+      if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+      event.preventDefault()
+      showStatusMenu(itemId, event.currentTarget)
+    },
+  })
 
   useEffect(() => {
     void loadGitWorkspace(workspacePath)
@@ -89,29 +123,41 @@ export function StatusBar(): React.ReactElement {
     <>
       <div className="status-bar">
         {/* 左侧：Agent 状态 */}
-        <span className="status-bar-item">
+        <span className="status-bar-item" {...statusContextProps('agent')}>
           <IconRobot size={12} />
           {agentStatus.text}
           <IconCircle size={6} filled color={agentStatus.color} />
         </span>
 
         {switchingPath && (
-          <span className="status-bar-item" title={switchingPath}>
+          <span
+            className="status-bar-item"
+            title={switchingPath}
+            {...statusContextProps('workspace-switch')}
+          >
             <IconProjects size={12} />
             正在切换到 {switchingPath.split('/').filter(Boolean).at(-1) ?? switchingPath}...
           </span>
         )}
 
         {/* 活跃 Tab 信息 */}
-        {tabLabel && <span className="status-bar-item">{tabLabel}</span>}
+        {tabLabel && (
+          <span className="status-bar-item" {...statusContextProps('active-tab')}>
+            {tabLabel}
+          </span>
+        )}
 
-        <span className="status-bar-item" title={workspaceRefKey(activeWorkspaceRef) ?? '未归档'}>
+        <span
+          className="status-bar-item"
+          title={workspaceKey ?? '未归档'}
+          {...statusContextProps('workspace')}
+        >
           {workspaceRefSourceLabel(activeWorkspaceRef)} · {workspaceRefLabel(activeWorkspaceRef)}
         </span>
 
         {/* 浏览器 URL（截断显示） */}
         {activeTab?.type === 'browser' && currentUrl && (
-          <span className="status-bar-item status-bar-url">
+          <span className="status-bar-item status-bar-url" {...statusContextProps('browser-url')}>
             <IconLink size={12} />
             {truncateUrl(currentUrl)}
           </span>
@@ -131,6 +177,7 @@ export function StatusBar(): React.ReactElement {
               '将当前项目全部可备份变更提交并 Push'
             }
             onClick={() => void handleGitBackupClick()}
+            {...statusContextProps('git-backup')}
           >
             <IconLink size={12} />
             {gitBusy
@@ -148,6 +195,7 @@ export function StatusBar(): React.ReactElement {
           <button
             className="status-bar-item update-badge"
             onClick={handleDownloadUpdate}
+            {...statusContextProps('update')}
             title={`下载 v${latestVersion} 到下载文件夹并打开`}
           >
             🆕 新版本 v{latestVersion} {downloading ? '下载中...' : '立即下载'}
@@ -155,7 +203,11 @@ export function StatusBar(): React.ReactElement {
         )}
 
         {/* 右侧：版本 */}
-        <span className="status-bar-item" title="本地开源桌面工作台">
+        <span
+          className="status-bar-item"
+          title="本地开源桌面工作台"
+          {...statusContextProps('edition')}
+        >
           {APP_EDITION_LABEL}
         </span>
       </div>

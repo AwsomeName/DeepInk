@@ -1,6 +1,10 @@
 import { useRef, useState, useEffect, useCallback, type DragEvent } from 'react'
 import { useFsStore, useTabStore } from '../../stores'
 import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
+import {
+  buildKeyboardContextMenuInput,
+  isContextMenuKeyboardEvent,
+} from '../../features/context-actions/context-menu-trigger'
 import type { FileTreeNode } from '../../stores/fs-store'
 import {
   IconFolder,
@@ -438,6 +442,9 @@ function FileTreeNodeView({
         className={`file-tree-item ${isDir ? 'directory' : 'file'} ${isRenaming ? 'renaming' : ''} ${selectedPath === node.path ? 'selected' : ''} ${draggingPath === node.path ? 'dragging' : ''} ${dropTargetPath === node.path ? 'drop-target' : ''}`}
         style={{ paddingLeft: `${depth * 16 + 8}px` }}
         draggable={!isRenaming}
+        role="treeitem"
+        tabIndex={0}
+        aria-expanded={isDir ? Boolean(node.expanded) : undefined}
         onDragStart={(event) => onDragStart(node, event)}
         onDragEnd={onDragEnd}
         onDragOver={(event) => {
@@ -470,6 +477,25 @@ function FileTreeNodeView({
             y: e.clientY,
             focusReturn: e.currentTarget,
           })
+        }}
+        onKeyDown={(event) => {
+          if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+          event.preventDefault()
+          event.stopPropagation()
+          showMenu(
+            buildKeyboardContextMenuInput(
+              {
+                kind: 'file',
+                workspaceKey: workspacePath,
+                path: node.path,
+                name: node.name,
+                fileType: node.type,
+                extension: node.extension,
+                expanded: node.expanded,
+              },
+              event.currentTarget,
+            ),
+          )
         }}
       >
         {/* 展开/折叠箭头（目录才有） */}

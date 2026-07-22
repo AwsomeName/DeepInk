@@ -73,6 +73,29 @@ async function copyText(text: string, successMessage: string): Promise<void> {
   }
 }
 
+function removeTrashedTargets(trashedPaths: string[]): void {
+  const isTrashed = (path: string | undefined): boolean =>
+    Boolean(
+      path &&
+      trashedPaths.some(
+        (trashedPath) => path === trashedPath || path.startsWith(`${trashedPath}/`),
+      ),
+    )
+  const tabStore = useTabStore.getState()
+  for (const tab of [...tabStore.tabs]) if (isTrashed(tab.filePath)) tabStore.closeTab(tab.id)
+  const editorStore = useEditorStore.getState()
+  for (const path of Object.keys(editorStore.files))
+    if (isTrashed(path)) editorStore.closeFile(path)
+  const agentStore = useAgentStore.getState()
+  for (const [conversationId, conversation] of Object.entries(agentStore.conversations)) {
+    for (const resource of conversation.mountedResources) {
+      if (isTrashed(resource.ref.path)) {
+        agentStore.removeMountedResource(resource.id, conversationId)
+      }
+    }
+  }
+}
+
 export function createFileContextCommands(): Command[] {
   return [
     {
@@ -176,6 +199,20 @@ export function createFileContextCommands(): Command[] {
       },
     },
     {
+      id: 'fileTree.revealInFileManager',
+      label: '在 Finder 中显示',
+      contextOnly: true,
+      category: '文件',
+      action: async (context) => {
+        const target = requireFileTarget(context)
+        if (!target.workspaceKey) throw new Error('当前文件没有本地工作区归属')
+        await window.cclinkStudio.fs.revealPath({
+          workspacePath: target.workspaceKey,
+          targetPath: target.path,
+        })
+      },
+    },
+    {
       id: 'fileTree.extractZip',
       label: '解压到同名文件夹',
       contextOnly: true,
@@ -276,16 +313,19 @@ export function createFileContextCommands(): Command[] {
       action: () => undefined,
     },
     {
-      id: 'fileTree.trashMarkdown',
+      id: 'fileTree.trash',
       label: '移到废纸篓…',
       contextOnly: true,
       category: '文件',
       risk: 'destructive',
-      visible: (context) => isMarkdown(fileTarget(context)),
       action: async (context) => {
         const target = requireFileTarget(context)
-        const inspection = await window.cclinkStudio.fs.inspectMarkdownDocument(target.path)
-        const hasAssets = inspection.assetDirectoryPresent || Boolean(inspection.legacyAssetDir)
+        if (!target.workspaceKey) throw new Error('当前文件没有本地工作区归属')
+        const markdown = isMarkdown(target)
+        const inspection = markdown
+          ? await window.cclinkStudio.fs.inspectMarkdownDocument(target.path)
+          : null
+        const hasAssets = Boolean(inspection?.assetDirectoryPresent || inspection?.legacyAssetDir)
         const confirmation = await window.cclinkStudio.dialog.showMessageBox({
           type: 'warning',
           title: '移到废纸篓',
@@ -299,30 +339,24 @@ export function createFileContextCommands(): Command[] {
         })
         if (confirmation.response === 0) return
         const includeAssets = hasAssets && confirmation.response === 2
-        const result = await window.cclinkStudio.fs.trashMarkdownDocument({
-          documentPath: target.path,
-          includeAssets,
-        })
-        const isTrashed = (path: string | undefined): boolean =>
-          Boolean(
-            path &&
-            result.trashedPaths.some(
-              (trashedPath) => path === trashedPath || path.startsWith(`${trashedPath}/`),
-            ),
-          )
-        const tabStore = useTabStore.getState()
-        for (const tab of [...tabStore.tabs]) if (isTrashed(tab.filePath)) tabStore.closeTab(tab.id)
-        const editorStore = useEditorStore.getState()
-        for (const path of Object.keys(editorStore.files))
-          if (isTrashed(path)) editorStore.closeFile(path)
-        const agentStore = useAgentStore.getState()
-        for (const [conversationId, conversation] of Object.entries(agentStore.conversations)) {
-          for (const resource of conversation.mountedResources) {
-            if (isTrashed(resource.ref.path)) {
-              agentStore.removeMountedResource(resource.id, conversationId)
+        const result = markdown
+          ? await window.cclinkStudio.fs.trashMarkdownDocument({
+              workspacePath: target.workspaceKey,
+              documentPath: target.path,
+              includeAssets,
+            })
+          : {
+              trashedPaths: [
+                (
+                  await window.cclinkStudio.fs.trashPath({
+                    workspacePath: target.workspaceKey,
+                    targetPath: target.path,
+                  })
+                ).trashedPath,
+              ],
+              failedPaths: [],
             }
-          }
-        }
+        removeTrashedTargets(result.trashedPaths)
         await useFsStore.getState().refreshDir(parentPath(target.path))
         if (result.failedPaths.length > 0) {
           useToastStore
@@ -335,7 +369,7 @@ export function createFileContextCommands(): Command[] {
           useToastStore
             .getState()
             .show(
-              includeAssets ? 'Markdown 和资源已移到废纸篓' : 'Markdown 已移到废纸篓',
+              includeAssets ? 'Markdown 和资源已移到废纸篓' : `${target.name} 已移到废纸篓`,
               'success',
             )
         }
@@ -410,6 +444,14 @@ export const fileMenuContributions: MenuContribution[] = [
     icon: '📎',
   },
   {
+    id: 'file.reveal',
+    targetKinds: ['file'],
+    group: '40-copy',
+    order: 30,
+    commandId: 'fileTree.revealInFileManager',
+    icon: '↗',
+  },
+  {
     id: 'file.extract-zip',
     targetKinds: ['file'],
     group: '50-package',
@@ -450,11 +492,11 @@ export const fileMenuContributions: MenuContribution[] = [
     icon: 'ⓘ',
   },
   {
-    id: 'file.trash-markdown',
+    id: 'file.trash',
     targetKinds: ['file'],
     group: '90-danger',
     order: 10,
-    commandId: 'fileTree.trashMarkdown',
+    commandId: 'fileTree.trash',
     icon: '⌫',
   },
 ]

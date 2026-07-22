@@ -243,6 +243,82 @@ async function main() {
     return url || 'blank'
   })
 
+  await runCheck('workbench frame context actions bind the intended target', async () => {
+    await ensureSidebarVisible(page)
+
+    const verifyMouseAndKeyboardMenu = async (target, actionId) => {
+      await target.click({ button: 'right' })
+      await page.locator(`[data-context-action="${actionId}"]`).waitFor({ timeout: 10_000 })
+      await page.keyboard.press('Escape')
+      await target.focus()
+      await page.keyboard.press('Shift+F10')
+      await page.locator(`[data-context-action="${actionId}"]`).waitFor({ timeout: 10_000 })
+      await page.keyboard.press('Escape')
+    }
+
+    const fileItem = page.locator('.file-tree-item.file', { hasText: 'todo.txt' }).first()
+    if (!(await fileItem.isVisible())) await clickByTitle(page, '文件')
+    await fileItem.waitFor({ timeout: 10_000 })
+    await verifyMouseAndKeyboardMenu(fileItem, 'file.reveal')
+    await fileItem.click({ button: 'right' })
+    assert(
+      (await page.locator('[data-context-action="file.trash"]').count()) === 1,
+      'generic file trash action is missing',
+    )
+    await page.keyboard.press('Escape')
+
+    const activity = page.locator('.activity-bar-icon[title="文件"]').first()
+    await verifyMouseAndKeyboardMenu(activity, 'activity.open')
+    await activity.click({ button: 'right' })
+    assert(
+      (await page.locator('[data-context-action="activity.sidebar"]').count()) === 1,
+      'activity layout action is missing',
+    )
+    await page.keyboard.press('Escape')
+
+    const sidebar = page.locator('.sidebar').first()
+    const sidebarBox = await sidebar.boundingBox()
+    assert(sidebarBox, 'sidebar bounds are unavailable')
+    await sidebar.click({
+      button: 'right',
+      position: { x: 4, y: Math.max(4, sidebarBox.height - 4) },
+    })
+    await page.locator('[data-context-action="sidebar.hide"]').waitFor({ timeout: 10_000 })
+    await page.keyboard.press('Escape')
+    await sidebar.focus()
+    await page.keyboard.press('Shift+F10')
+    await page.locator('[data-context-action="sidebar.hide"]').waitFor({ timeout: 10_000 })
+    await page.keyboard.press('Escape')
+
+    const layoutHandle = page.locator('[data-layout-area="sidebar"]').first()
+    await verifyMouseAndKeyboardMenu(layoutHandle, 'layout.reset-size')
+
+    const workspaceStatus = page.locator('[data-status-item="workspace"]')
+    await verifyMouseAndKeyboardMenu(workspaceStatus, 'status.copy')
+    await workspaceStatus.click({ button: 'right' })
+    assert(
+      (await page.locator('[data-context-action="status.diagnostics"]').count()) === 1,
+      'workspace diagnostics action is missing',
+    )
+    await page.keyboard.press('Escape')
+
+    const project = page.locator(`.project-strip-item[data-project-path="${workspaceDir}"]`).first()
+    await verifyMouseAndKeyboardMenu(project, 'project.copy-path')
+    await project.click({ button: 'right' })
+    assert(
+      (await page.locator('[data-context-action="project.diagnostics"]').count()) === 1,
+      'project diagnostics action is missing',
+    )
+    await page.keyboard.press('Escape')
+
+    const tab = page.locator('.tab').first()
+    await verifyMouseAndKeyboardMenu(tab, 'tab.close-others')
+    await tab.click({ button: 'right' })
+    await page.locator('[data-context-action="tab.close-right"]').waitFor({ timeout: 10_000 })
+    await page.keyboard.press('Escape')
+    return 'file/activity/status/project/tab'
+  })
+
   await runCheck('terminal can execute a command in the local workspace', async () => {
     const result = await page.evaluate(async (workspacePath) => {
       const sessionId = `workflow-terminal-${Date.now()}`

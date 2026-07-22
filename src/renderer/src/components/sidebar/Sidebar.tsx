@@ -7,6 +7,10 @@ import {
   useWorkspaceStore,
 } from '../../stores'
 import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
+import {
+  buildKeyboardContextMenuInput,
+  isContextMenuKeyboardEvent,
+} from '../../features/context-actions/context-menu-trigger'
 import type { TerminalStatus } from '@shared/terminal'
 import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
@@ -91,6 +95,12 @@ export function Sidebar(): React.ReactElement {
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
   const openTab = useTabStore((s) => s.openTab)
   const sidebarTitle = getSidebarTitle(activePanel, activeWorkspaceRef, workspacePath)
+  const showContextMenu = useContextMenuStore((s) => s.show)
+  const sidebarTarget = {
+    kind: 'sidebar' as const,
+    workspaceKey: workspaceRefKey(activeWorkspaceRef),
+    panelId: activePanel,
+  }
 
   const openNewTerminal = useCallback((): void => {
     const draft = buildTerminalTabDraft(activeWorkspaceRef)
@@ -99,7 +109,27 @@ export function Sidebar(): React.ReactElement {
   }, [activeWorkspaceRef, openTab])
 
   return (
-    <div className="sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
+    <div
+      className="sidebar"
+      style={{ width: sidebarWidth, minWidth: sidebarWidth }}
+      tabIndex={0}
+      aria-label={`${sidebarTitle}侧栏`}
+      onContextMenu={(event) => {
+        if (event.defaultPrevented) return
+        event.preventDefault()
+        showContextMenu({
+          target: sidebarTarget,
+          x: event.clientX,
+          y: event.clientY,
+          focusReturn: event.currentTarget,
+        })
+      }}
+      onKeyDown={(event) => {
+        if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+        event.preventDefault()
+        showContextMenu(buildKeyboardContextMenuInput(sidebarTarget, event.currentTarget))
+      }}
+    >
       {activePanel !== 'projects' && activePanel !== 'files' && activePanel !== 'sessions' && (
         <div className="sidebar-header">
           <span className="sidebar-header-title" title={workspacePath ?? sidebarTitle}>
@@ -294,6 +324,8 @@ function BrowserManagementView(): React.ReactElement {
   const addBookmark = useBrowserStore((s) => s.addBookmark)
   const removeBookmark = useBrowserStore((s) => s.removeBookmark)
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
+  const showContextMenu = useContextMenuStore((s) => s.show)
+  const workspaceKey = workspaceRefKey(activeWorkspaceRef)
   const activeTab = tabs.find((tab) => tab.id === activeTabId)
   const browserWorkbenchTabs = useMemo(
     () => getBrowserTabsForWorkspace(tabs, activeWorkspaceRef),
@@ -375,6 +407,27 @@ function BrowserManagementView(): React.ReactElement {
                   className="browser-sidebar-row-main"
                   type="button"
                   onClick={() => activateTab(tab.id)}
+                  onContextMenu={(event) => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    showContextMenu({
+                      target: { kind: 'tab', workspaceKey, tabId: tab.id, tabType: tab.type },
+                      x: event.clientX,
+                      y: event.clientY,
+                      focusReturn: event.currentTarget,
+                    })
+                  }}
+                  onKeyDown={(event) => {
+                    if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+                    event.preventDefault()
+                    event.stopPropagation()
+                    showContextMenu(
+                      buildKeyboardContextMenuInput(
+                        { kind: 'tab', workspaceKey, tabId: tab.id, tabType: tab.type },
+                        event.currentTarget,
+                      ),
+                    )
+                  }}
                   title={url || title}
                 >
                   <span className="browser-sidebar-favicon">
@@ -699,6 +752,22 @@ function TerminalSidebarView({ workspaceRef }: { workspaceRef: WorkspaceRef }): 
                     focusReturn: event.currentTarget,
                   })
                 }}
+                onKeyDown={(event) => {
+                  if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  showContextMenu(
+                    buildKeyboardContextMenuInput(
+                      {
+                        kind: 'tab',
+                        workspaceKey,
+                        tabId: tab.id,
+                        tabType: tab.type,
+                      },
+                      event.currentTarget,
+                    ),
+                  )
+                }}
                 title={sessionId ?? tab.title}
               >
                 <IconTerminal size={14} />
@@ -860,6 +929,7 @@ function ProjectListSection({
   onPicked: () => void
   showAddButton?: boolean
 }): React.ReactElement {
+  const showContextMenu = useContextMenuStore((state) => state.show)
   const recentProjects =
     workspacePath && !recentWorkspacePaths.includes(workspacePath)
       ? [workspacePath, ...recentWorkspacePaths]
@@ -885,6 +955,27 @@ function ProjectListSection({
                   void openRecentWorkspace(path).then((success) => {
                     if (success) onPicked()
                   })
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  showContextMenu({
+                    target: { kind: 'project', workspaceKey: path, path },
+                    x: event.clientX,
+                    y: event.clientY,
+                    focusReturn: event.currentTarget,
+                  })
+                }}
+                onKeyDown={(event) => {
+                  if (!isContextMenuKeyboardEvent(event.nativeEvent)) return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  showContextMenu(
+                    buildKeyboardContextMenuInput(
+                      { kind: 'project', workspaceKey: path, path },
+                      event.currentTarget,
+                    ),
+                  )
                 }}
                 disabled={loading || picking || switching}
                 title={active ? '当前工作空间' : path}

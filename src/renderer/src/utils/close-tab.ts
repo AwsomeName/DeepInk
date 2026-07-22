@@ -45,7 +45,7 @@ async function saveVirtualDraftAsFile(tab: Tab, fileKey: string): Promise<boolea
   }
 }
 
-async function closeVirtualDraft(tab: Tab, fileKey: string): Promise<void> {
+async function closeVirtualDraft(tab: Tab, fileKey: string): Promise<boolean> {
   const editorStore = useEditorStore.getState()
   const file = editorStore.files[fileKey]
   const hasContent = Boolean(file?.currentContent.trim())
@@ -53,7 +53,7 @@ async function closeVirtualDraft(tab: Tab, fileKey: string): Promise<void> {
   if (!hasContent) {
     editorStore.closeFile(fileKey)
     useTabStore.getState().closeTab(tab.id)
-    return
+    return true
   }
 
   const { response } = await window.cclinkStudio.dialog.showMessageBox({
@@ -68,30 +68,32 @@ async function closeVirtualDraft(tab: Tab, fileKey: string): Promise<void> {
 
   if (response === 0) {
     const saved = await saveVirtualDraftAsFile(tab, fileKey)
-    if (!saved) return
+    if (!saved) return false
     useTabStore.getState().closeTab(tab.id)
-    return
+    return true
   }
 
   if (response === 1) {
     useTabStore.getState().closeTab(tab.id)
-    return
+    return true
   }
 
   if (response === 2) {
     editorStore.closeFile(fileKey)
     useTabStore.getState().closeTab(tab.id)
+    return true
   }
+  return false
 }
 
-async function closeNamedEditorFile(tab: Tab, fileKey: string): Promise<void> {
+async function closeNamedEditorFile(tab: Tab, fileKey: string): Promise<boolean> {
   const editorStore = useEditorStore.getState()
   const file = editorStore.files[fileKey]
 
   if (!file?.dirty) {
     editorStore.closeFile(fileKey)
     useTabStore.getState().closeTab(tab.id)
-    return
+    return true
   }
 
   const { response } = await window.cclinkStudio.dialog.showMessageBox({
@@ -109,61 +111,70 @@ async function closeNamedEditorFile(tab: Tab, fileKey: string): Promise<void> {
       await editorStore.saveFile(fileKey)
       editorStore.closeFile(fileKey)
       useTabStore.getState().closeTab(tab.id)
+      return true
     } catch (error) {
       await showSaveError(error)
+      return false
     }
-    return
   }
 
   if (response === 1) {
     editorStore.closeFile(fileKey)
     useTabStore.getState().closeTab(tab.id)
+    return true
   }
+  return false
 }
 
-async function closeConversationView(tab: Tab): Promise<void> {
+async function closeConversationView(tab: Tab): Promise<boolean> {
   const conversationTarget = resolveConversationTab(tab)
-  if (!conversationTarget) return
+  if (!conversationTarget) return false
   useTabStore.getState().closeTab(tab.id)
+  return true
 }
 
 function terminalHasActiveProcess(tab: Tab): boolean {
   return ['starting', 'running', 'blocked'].includes(tab.terminal?.status ?? 'idle')
 }
 
-async function closeTerminalView(tab: Tab): Promise<void> {
+async function closeTerminalView(tab: Tab): Promise<boolean> {
   const terminal = tab.terminal
   const message = terminalHasActiveProcess(tab)
     ? 'Terminal 视图已关闭，进程保留'
     : 'Terminal 视图已关闭'
   await recordTerminalLifecycleEvent(terminal, 'closed', message)
   useTabStore.getState().closeTab(tab.id)
+  return true
 }
 
-export async function closeTabWithDraftPolicy(tabId: string): Promise<void> {
+export async function closeTabWithDraftPolicy(tabId: string): Promise<boolean> {
   const tab = useTabStore.getState().tabs.find((item) => item.id === tabId)
-  if (!tab) return
+  if (!tab) return false
 
   if (resolveConversationTab(tab)) {
-    await closeConversationView(tab)
-    return
+    return closeConversationView(tab)
   }
 
   if (tab.type === 'terminal') {
-    await closeTerminalView(tab)
-    return
+    return closeTerminalView(tab)
   }
 
   if (tab.type !== 'editor') {
     useTabStore.getState().closeTab(tabId)
-    return
+    return true
   }
 
   const fileKey = getEditorFileKey(tab)
   if (!tab.filePath) {
-    await closeVirtualDraft(tab, fileKey)
-    return
+    return closeVirtualDraft(tab, fileKey)
   }
 
-  await closeNamedEditorFile(tab, fileKey)
+  return closeNamedEditorFile(tab, fileKey)
+}
+
+export async function closeTabsWithDraftPolicy(tabIds: string[]): Promise<boolean> {
+  for (const tabId of tabIds) {
+    if (!(await closeTabWithDraftPolicy(tabId))) return false
+  }
+  return true
 }

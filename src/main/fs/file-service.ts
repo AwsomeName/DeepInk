@@ -1,6 +1,6 @@
 import { readdir, readFile, writeFile, stat, mkdir, rename, unlink } from 'fs/promises'
 import { createWriteStream, watch } from 'fs'
-import { join, resolve, extname, dirname, parse, sep, basename, relative } from 'path'
+import { join, resolve, extname, dirname, parse, sep, basename, relative, isAbsolute } from 'path'
 import { pipeline } from 'stream/promises'
 import { app, shell } from 'electron'
 import { createHash, randomUUID } from 'crypto'
@@ -76,6 +76,26 @@ export class FileService {
       throw new Error(`路径不在允许范围内: ${resolved}`)
     }
     return resolved
+  }
+
+  private validateWorkspaceTarget(
+    workspacePath: string,
+    targetPath: string,
+    options: { allowWorkspaceRoot: boolean },
+  ): { workspacePath: string; targetPath: string } {
+    const safeWorkspacePath = this.validatePath(workspacePath)
+    const safeTargetPath = this.validatePath(targetPath)
+    const relativeTarget = relative(safeWorkspacePath, safeTargetPath)
+    const isWithinWorkspace =
+      relativeTarget === '' ||
+      (relativeTarget !== '..' &&
+        !relativeTarget.startsWith(`..${sep}`) &&
+        !isAbsolute(relativeTarget))
+    if (!isWithinWorkspace) throw new Error('目标路径不属于当前工作区')
+    if (!options.allowWorkspaceRoot && relativeTarget === '') {
+      throw new Error('不能从文件树删除工作区根目录')
+    }
+    return { workspacePath: safeWorkspacePath, targetPath: safeTargetPath }
   }
 
   /** 读取目录内容（options.showHiddenFiles 为真时不过滤 . 开头的隐藏文件） */
@@ -378,8 +398,16 @@ export class FileService {
     return this.markdownDocuments.exportZip(documentPath, targetPath)
   }
 
-  async trashMarkdownDocument(input: { documentPath: string; includeAssets: boolean }) {
-    const documentPath = this.validatePath(input.documentPath)
+  async trashMarkdownDocument(input: {
+    workspacePath: string
+    documentPath: string
+    includeAssets: boolean
+  }) {
+    const { targetPath: documentPath } = this.validateWorkspaceTarget(
+      input.workspacePath,
+      input.documentPath,
+      { allowWorkspaceRoot: false },
+    )
     if (!isMarkdownDocumentPath(documentPath)) throw new Error('仅支持删除 Markdown 文档资源组')
     const resourceDirectories = input.includeAssets
       ? await this.markdownDocuments.existingResourceDirectories(documentPath)
@@ -397,6 +425,21 @@ export class FileService {
       }
     }
     return { trashedPaths, failedPaths }
+  }
+
+  async trashPath(input: { workspacePath: string; targetPath: string }) {
+    const { targetPath } = this.validateWorkspaceTarget(input.workspacePath, input.targetPath, {
+      allowWorkspaceRoot: false,
+    })
+    await shell.trashItem(targetPath)
+    return { trashedPath: targetPath }
+  }
+
+  revealPath(input: { workspacePath: string; targetPath: string }): void {
+    const { targetPath } = this.validateWorkspaceTarget(input.workspacePath, input.targetPath, {
+      allowWorkspaceRoot: true,
+    })
+    shell.showItemInFolder(targetPath)
   }
 
   /** 获取文件/目录元数据 */
