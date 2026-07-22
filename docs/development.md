@@ -1,6 +1,6 @@
 # CCLink Studio 开发指南
 
-> 当前事实源。最后更新：2026-07-20。
+> 当前事实源。最后更新：2026-07-22。
 
 ## 结论
 
@@ -8,7 +8,9 @@
 
 官方构建、签名、公证和生产 API 注入在 `/Users/apple/Desktop/cclink-dev` 处理；CCLink 云函数与 Agent runtime 在 `/Users/apple/Desktop/chat-cc/deploy` 和 `/Users/apple/Desktop/chat-cc/Agent`。
 
-所有功能开发必须遵守 `docs/architecture.md` 的“架构宪法”。当前处于 `docs/stabilization.md` 定义的稳定化阶段，默认不扩大功能面。
+所有功能开发必须遵守 `docs/architecture.md` 的“架构宪法”。S0-S4 稳定化阶段已经关闭，后续功能可以从当前 `main` 稳定基线受控推进，但不得重新引入跨模块硬依赖、第二状态所有者或未经验证的权限扩张。
+
+统一右键、命令面板、快捷键和工具栏入口的产品与工程方案见 `docs/features/context-action-system.md`。在其 M1 完成前，不继续为新区域添加独立右键组件。
 
 ## 环境准备
 

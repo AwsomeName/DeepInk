@@ -8,11 +8,12 @@
 - `/grilling` 风格要求：先给结论，再主动拷问假设、完成度、边界条件、失败路径和下一步最该做什么；不能只报喜。
 - 对普通小修、小 bug、明确代码实现任务，保持简洁执行；最终总结仍要点出残余风险和验证结果。
 
-## 架构宪法与稳定化阶段
+## 架构宪法与稳定基线
 
 - `docs/architecture.md` 的“架构宪法”是所有方案、实现和评审的最高工程约束。
-- 当前处于 `docs/stabilization.md` 定义的稳定化阶段。默认只接受安全、可靠性、质量门禁、独立降级、生命周期、IPC 契约、状态收敛和必要测试/文档改动，不继续扩大功能面。
+- `docs/stabilization.md` 定义的 S0-S4 已关闭，当前 `main` 是稳定基线。允许按模块受控开发新功能，但不得重新引入跨能力硬依赖、第二状态所有者、生命周期分叉、重复 IPC 契约或未经验证的权限扩张。
 - 新功能开始实现前，必须明确能力边界、失败降级、状态所有者、生命周期、权限面、人工确认点、诊断方式和验证方式。
+- 统一上下文操作遵守 `docs/features/context-action-system.md`；M1 完成前不得继续为新区域添加独立右键菜单实现。
 - 需要违反架构宪法时，先在 `docs/decisions/` 提交 ADR；没有 ADR 不得把例外实现成新默认模式。
 - `pnpm verify` 或受影响 smoke 未通过时，不得宣称功能完成或可交付。
 
@@ -26,12 +27,12 @@
 
 ## 项目边界
 
-| 位置 | 角色 |
-| --- | --- |
-| `/Users/apple/Desktop/cclink-dev/cclink-studio` | 开源桌面壳。默认不内置官方生产 API 地址，不带登录/订阅/官方消息网络/云同步/网络工作区实现。 |
-| `/Users/apple/Desktop/cclink-dev` | 闭源总控/官方编译工作区。承接官方集成层、签名、公证、生产 API 注入、多仓库集成脚本和 release 基线。 |
-| `/Users/apple/Desktop/chat-cc/deploy` | CCLink 云函数与账号体系。 |
-| `/Users/apple/Desktop/chat-cc/Agent` | CCLink Agent runtime。 |
+| 位置                                            | 角色                                                                                                |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `/Users/apple/Desktop/cclink-dev/cclink-studio` | 开源桌面壳。默认不内置官方生产 API 地址，不带登录/订阅/官方消息网络/云同步/网络工作区实现。         |
+| `/Users/apple/Desktop/cclink-dev`               | 闭源总控/官方编译工作区。承接官方集成层、签名、公证、生产 API 注入、多仓库集成脚本和 release 基线。 |
+| `/Users/apple/Desktop/chat-cc/deploy`           | CCLink 云函数与账号体系。                                                                           |
+| `/Users/apple/Desktop/chat-cc/Agent`            | CCLink Agent runtime。                                                                              |
 
 不存在额外拆分出的云端或 Agent 独立项目。
 
@@ -66,19 +67,19 @@
 
 ## 技术栈
 
-| 层级 | 技术 |
-| --- | --- |
-| 桌面框架 | Electron 43 |
-| 前端 | React 19 + TypeScript 5 |
-| 构建 | electron-vite + Vite |
-| 包管理 | pnpm |
-| 状态管理 | Zustand |
-| 浏览器自动化 | Playwright over CDP |
+| 层级         | 技术                                   |
+| ------------ | -------------------------------------- |
+| 桌面框架     | Electron 43                            |
+| 前端         | React 19 + TypeScript 5                |
+| 构建         | electron-vite + Vite                   |
+| 包管理       | pnpm                                   |
+| 状态管理     | Zustand                                |
+| 浏览器自动化 | Playwright over CDP                    |
 | Android 连接 | @yume-chan/adb + scrcpy + agent-device |
-| 文档编辑 | Tiptap/ProseMirror |
-| MCP 工具 | @modelcontextprotocol/sdk |
-| Schema | Zod |
-| 样式 | CSS variables + component CSS |
+| 文档编辑     | Tiptap/ProseMirror                     |
+| MCP 工具     | @modelcontextprotocol/sdk              |
+| Schema       | Zod                                    |
+| 样式         | CSS variables + component CSS          |
 
 ## 项目结构
 
