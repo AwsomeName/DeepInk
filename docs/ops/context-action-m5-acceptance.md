@@ -7,11 +7,12 @@
 - [x] catalog：command/contribution 唯一、无孤儿、21 种 target 全覆盖。
 - [x] boundary：17 个 renderer owner、1 个 native owner、1 个 Store owner。
 - [x] 诊断：构建失败、陈旧目标、权限拒绝、领域失败可区分且默认脱敏。
-- [ ] `pnpm verify` 和 `pnpm smoke:standalone` 在最新提交的全新 detached worktree 通过。
+- [x] `pnpm verify` 和 `pnpm smoke:standalone` 在实现提交的全新 detached worktree 通过。
 
-当前工作树证据：`pnpm verify` 通过（155 files / 937 tests）；`pnpm smoke:standalone`
-通过（local 9/9、UI 6/6、workflow 9/9、restore 4/4）。workflow 的键盘与焦点检查连续
-复跑三轮通过。提交后的全新 detached worktree 复验仍待执行。
+实现提交 `000bf69` 的全新 detached worktree 证据：`pnpm install --frozen-lockfile`、
+`pnpm verify` 通过（155 files / 937 tests）；`pnpm smoke:standalone` 通过（local 9/9、
+UI 6/6、workflow 9/9、restore 4/4）。开发工作树中的 workflow 键盘与焦点检查另连续
+复跑三轮通过。
 
 ## H1 区域与对象
 
