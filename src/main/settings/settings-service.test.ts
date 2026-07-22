@@ -116,3 +116,42 @@ describe('SettingsService secrets', () => {
     expect(await readFile(join(tempDir, 'settings.json'), 'utf-8')).toBe(legacySettings)
   })
 })
+
+describe('SettingsService Claude runtime migration', () => {
+  it('migrates a legacy configured path to the custom runtime source', async () => {
+    await writeFile(
+      join(tempDir, 'settings.json'),
+      JSON.stringify({ claudeCodePath: '/usr/local/bin/claude' }),
+      'utf8',
+    )
+
+    const service = new SettingsService()
+    await service.loadState()
+
+    expect(service.getAll()).toMatchObject({
+      claudeRuntimeSource: 'custom',
+      claudeCodePath: '/usr/local/bin/claude',
+    })
+    expect(JSON.parse(await readFile(join(tempDir, 'settings.json'), 'utf8'))).toMatchObject({
+      claudeRuntimeSource: 'custom',
+      claudeCodePath: '/usr/local/bin/claude',
+    })
+  })
+
+  it('normalizes path-only updates and source changes as one setting transaction', async () => {
+    const service = new SettingsService()
+    await service.loadState()
+
+    await service.set({ claudeCodePath: '/opt/homebrew/bin/claude' })
+    expect(service.getAll()).toMatchObject({
+      claudeRuntimeSource: 'custom',
+      claudeCodePath: '/opt/homebrew/bin/claude',
+    })
+
+    await service.set({ claudeRuntimeSource: 'system' })
+    expect(service.getAll()).toMatchObject({
+      claudeRuntimeSource: 'system',
+      claudeCodePath: '',
+    })
+  })
+})

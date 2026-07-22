@@ -11,6 +11,9 @@ export type BackendType = 'claude-code' | 'http-api'
 /** Agent 引擎。M9 开源底座优先支持本机 Claude Code 完整工具模式。 */
 export type AgentEngine = 'local-claude-code'
 
+/** Claude Code 运行时来源。 */
+export type ClaudeRuntimeSource = 'bundled' | 'system' | 'custom'
+
 /** 权限模式 */
 export type PermissionMode = 'auto' | 'categorized' | 'strict'
 
@@ -61,7 +64,9 @@ export interface AppSettings {
   disabledAgentToolModules: string[]
   /** 单次对话最大 AI 调用费用（USD） */
   maxBudgetUsd: number
-  /** Claude Code CLI 路径；空串表示自动检测 / PATH 解析 */
+  /** Claude Code 运行时来源。 */
+  claudeRuntimeSource: ClaudeRuntimeSource
+  /** 自定义 Claude Code CLI 路径；仅在 claudeRuntimeSource=custom 时生效。 */
   claudeCodePath: string
   /** 新浏览器 Tab 默认缩放模式 */
   defaultZoomMode: ZoomMode
@@ -189,6 +194,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   permissionMode: 'auto',
   disabledAgentToolModules: [],
   maxBudgetUsd: 1.0,
+  // 法务/再分发门禁完成前，新旧安装都保持系统运行时默认值。
+  claudeRuntimeSource: 'system',
   claudeCodePath: '',
   defaultZoomMode: 'fit',
   defaultDeviceMode: 'desktop',
@@ -228,6 +235,22 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
   // 文件浏览
   showHiddenFiles: false,
+}
+
+export function normalizeClaudeRuntimeSettingsUpdate(
+  current: Pick<AppSettings, 'claudeRuntimeSource' | 'claudeCodePath'>,
+  update: Partial<AppSettings>,
+): Partial<AppSettings> {
+  const normalized = { ...update }
+  if (update.claudeRuntimeSource) {
+    normalized.claudeCodePath =
+      update.claudeRuntimeSource === 'custom'
+        ? (update.claudeCodePath ?? current.claudeCodePath)
+        : ''
+  } else if (typeof update.claudeCodePath === 'string') {
+    normalized.claudeRuntimeSource = update.claudeCodePath.trim() ? 'custom' : 'system'
+  }
+  return normalized
 }
 
 /**

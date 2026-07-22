@@ -6,6 +6,7 @@ import {
 } from './agent-store'
 import type { ContentBlock } from '../types'
 import { localWorkspaceRef } from '../../../shared/workspace-ref'
+import { createAgentConversationState } from '../features/agent-conversations/conversation-state'
 
 beforeEach(() => {
   resetAgentWorkspaceActiveConversationMemoryForTests()
@@ -634,6 +635,8 @@ describe('useAgentStore', () => {
   })
 
   describe('hydrateFromWorkspaceState', () => {
+    const sessionCompatibilityFingerprint = 'a'.repeat(64)
+
     it('恢复时丢弃预算中止后留下的不可续接 SDK session', () => {
       const now = Date.now()
       useAgentStore.getState().hydrateFromWorkspaceState({
@@ -708,6 +711,7 @@ describe('useAgentStore', () => {
             runStatus: 'running',
             activeRunId: 'run-before-restart',
             sessionId: 'session-1',
+            sessionCompatibilityFingerprint,
             streamingMessageId: 'message-1',
             lastCost: null,
             scope: { kind: 'all' },
@@ -750,6 +754,7 @@ describe('useAgentStore', () => {
             loading: true,
             backendState: 'streaming',
             sessionId: 'sess-a',
+            sessionCompatibilityFingerprint,
             streamingMessageId: 'stream-a',
             lastCost: 0.01,
             scope: { kind: 'browser', instanceId: 'browser' },
@@ -773,6 +778,7 @@ describe('useAgentStore', () => {
             loading: false,
             backendState: 'connected',
             sessionId: 'sess-b',
+            sessionCompatibilityFingerprint,
             streamingMessageId: null,
             lastCost: 0.02,
             scope: { kind: 'editor' },
@@ -795,6 +801,34 @@ describe('useAgentStore', () => {
       expect(state.conversations.a.streamingMessageId).toBe('stream-a')
       expect(state.conversations.a.input).toBe('')
       expect(state.conversations.b.messages[0].isStreaming).toBe(false)
+    })
+
+    it('旧快照缺少运行时指纹时保留消息但丢弃 SDK session', () => {
+      const now = Date.now()
+      useAgentStore.getState().hydrateFromWorkspaceState({
+        conversations: {
+          legacy: {
+            ...createAgentConversationState('legacy'),
+            sessionId: 'legacy-session',
+            messages: [
+              {
+                id: 'legacy-message',
+                role: 'assistant',
+                content: [{ type: 'text', text: '本地历史仍然保留' }],
+                rawText: '本地历史仍然保留',
+                timestamp: now,
+              },
+            ],
+          },
+        },
+        conversationOrder: ['legacy'],
+        activeConversationId: 'legacy',
+      })
+
+      const conversation = useAgentStore.getState().conversations.legacy
+      expect(conversation.sessionId).toBeNull()
+      expect(conversation.sessionCompatibilityFingerprint).toBeNull()
+      expect(conversation.messages[0].rawText).toBe('本地历史仍然保留')
     })
 
     it('快照 activeConversationId 无效时回退到第一个可用会话', () => {

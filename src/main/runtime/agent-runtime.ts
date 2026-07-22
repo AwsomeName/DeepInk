@@ -1,7 +1,13 @@
+import { join } from 'node:path'
 import { AgentBridge } from '../agent/agent-bridge'
+import {
+  buildClaudeSessionCompatibilityFingerprint,
+  ClaudeRuntimeManager,
+  ClaudeRuntimeResolutionError,
+} from '../agent/claude-runtime-manager'
 import type { CclinkStudioRuntimeState } from './app-runtime'
 
-export function bootstrapAgentRuntime(runtime: CclinkStudioRuntimeState): void {
+export async function bootstrapAgentRuntime(runtime: CclinkStudioRuntimeState): Promise<void> {
   if (
     runtime.mainWindow &&
     runtime.toolHost &&
@@ -12,6 +18,27 @@ export function bootstrapAgentRuntime(runtime: CclinkStudioRuntimeState): void {
   ) {
     try {
       const settings = runtime.settingsService.getRuntimeSettings()
+      runtime.claudeRuntimeManager ??= new ClaudeRuntimeManager({
+        bundledRoot: runtime.isDev
+          ? join(process.cwd(), '.agent-runtime-staging')
+          : join(process.resourcesPath, 'agent-runtime'),
+      })
+      const claudeCodePath = settings.claudeCodePath?.trim() ?? ''
+      const claudeRuntime = await runtime.claudeRuntimeManager.initialize(
+        settings.claudeRuntimeSource === 'bundled'
+          ? { source: 'bundled' }
+          : settings.claudeRuntimeSource === 'custom' || claudeCodePath
+            ? { source: 'custom', customPath: claudeCodePath }
+            : { source: 'system' },
+      )
+      if (claudeRuntime.source === 'bundled' && !settings.apiKey.trim()) {
+        const failure = {
+          code: 'AUTH_REQUIRED' as const,
+          message: '内置 Claude Code 仅支持用户显式配置的 API 凭证，不能使用 Claude 订阅登录',
+        }
+        runtime.claudeRuntimeManager.reportFailure(failure)
+        throw new ClaudeRuntimeResolutionError(failure)
+      }
       runtime.agentBridge = new AgentBridge(
         runtime.mainWindow,
         runtime.playwrightBridge,
@@ -23,7 +50,16 @@ export function bootstrapAgentRuntime(runtime: CclinkStudioRuntimeState): void {
           agentEngine: settings.agentEngine,
           backendType: settings.backendType,
           maxBudgetUsd: settings.maxBudgetUsd,
-          claudeCodePath: settings.claudeCodePath,
+          claudeCodePath: claudeRuntime.executablePath,
+          sessionCompatibilityFingerprint: buildClaudeSessionCompatibilityFingerprint(
+            claudeRuntime.fingerprint,
+            settings,
+          ),
+          runtimeProvenance: {
+            source: claudeRuntime.source,
+            sdkVersion: claudeRuntime.sdkVersion ?? null,
+            claudeCodeVersion: claudeRuntime.claudeCodeVersion,
+          },
           apiFormat: settings.apiFormat,
           apiBaseUrl: settings.apiBaseUrl,
           apiKey: settings.apiKey,
@@ -42,10 +78,28 @@ export function bootstrapAgentRuntime(runtime: CclinkStudioRuntimeState): void {
         )
       }
       runtime.capabilities.ready('agent-backend')
-      console.log(`[CCLink Studio] Agent 后端就绪 (${settings.agentEngine})`)
+      console.log(
+        `[CCLink Studio] Agent 后端就绪 (${settings.agentEngine}, ${claudeRuntime.source}, Claude Code ${claudeRuntime.claudeCodeVersion})`,
+      )
     } catch (error) {
       runtime.agentBridge = null
-      runtime.capabilities.failed('agent-backend', error)
+      const runtimeState = runtime.claudeRuntimeManager?.getStatus().state
+      const reason =
+        error instanceof ClaudeRuntimeResolutionError
+          ? `${error.code}: ${error.message}`
+          : error instanceof Error
+            ? error.message
+            : String(error)
+      if (
+        runtimeState === 'unavailable' ||
+        (error instanceof ClaudeRuntimeResolutionError && error.code === 'AUTH_REQUIRED')
+      ) {
+        runtime.capabilities.unavailable('agent-backend', reason)
+      } else if (runtimeState === 'degraded') {
+        runtime.capabilities.degraded('agent-backend', reason)
+      } else {
+        runtime.capabilities.failed('agent-backend', error)
+      }
       console.error('[CCLink Studio] Agent 后端初始化失败:', error)
     }
     return
@@ -62,5 +116,6 @@ export async function shutdownAgentRuntime(runtime: CclinkStudioRuntimeState): P
     await runtime.agentBridge?.destroy()
   } finally {
     runtime.agentBridge = null
+    runtime.claudeRuntimeManager?.dispose()
   }
 }

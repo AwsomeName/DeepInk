@@ -170,6 +170,27 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
     expect(getSystemPromptAppend()).toContain('| browser_new_tab |')
   })
 
+  it('lets the SDK use its own executable only when no resolved path was supplied', async () => {
+    const playwrightBridge: BrowserAutomationHost = { getPage: () => null }
+    const toolHost = {
+      getPort: () => 39876,
+      createToolSession: () => 'mcp-session-1',
+      releaseToolSession: vi.fn(),
+      getAllTools: () => [],
+    } as unknown as McpToolHost
+    const backend = new LocalClaudeCodeBackend(
+      playwrightBridge,
+      toolHost,
+      { composeMcpConfig: () => ({ mcpServers: {} }) },
+      undefined as never,
+      { getWorkspacePath: () => '/Users/apple/Desktop/project' },
+    )
+
+    await backend.sendMessage('普通问答')
+
+    expect(getLastQueryParams().options).not.toHaveProperty('pathToClaudeCodeExecutable')
+  })
+
   it('blocks built-in file tools from using absolute paths outside the conversation workspace', async () => {
     await createBackend().sendMessage('继续处理下一篇')
 
@@ -549,6 +570,46 @@ describe('LocalClaudeCodeBackend visible browser policy', () => {
       data: expect.objectContaining({ code: 'sdk_session_invalid' }),
     })
   })
+
+  it.each([
+    ['authentication_failed', 'API Error: 401 authentication_error invalid API key'],
+    ['rate_limited', 'API Error: 429 Too many requests'],
+    [
+      'proxy_gateway_error',
+      'API returned an empty or malformed response (HTTP 200) — check for a proxy or gateway',
+    ],
+    ['network_unavailable', 'fetch failed: ECONNRESET'],
+  ])(
+    'classifies provider failure as %s without discarding the SDK session',
+    async (code, message) => {
+      const backend = createBackend()
+      backend.setSessionId('123e4567-e89b-12d3-a456-426614174000')
+      const events: Array<{ type: string; data: any }> = []
+      backend.onEvent((type, data) => events.push({ type, data }))
+      queryMock.mockReturnValueOnce(
+        createMockQuery([
+          {
+            type: 'result',
+            is_error: true,
+            result: message,
+          },
+        ]),
+      )
+
+      await backend.sendMessage('继续')
+
+      await vi.waitFor(() =>
+        expect(events.some((event) => event.type === 'error' && event.data?.code === code)).toBe(
+          true,
+        ),
+      )
+      expect(backend.getSessionId()).toBe('123e4567-e89b-12d3-a456-426614174000')
+      expect(events).toContainEqual({
+        type: 'error',
+        data: expect.objectContaining({ code }),
+      })
+    },
+  )
 
   it('does not duplicate an SDK error already delivered as a result event', async () => {
     const backend = createBackend()

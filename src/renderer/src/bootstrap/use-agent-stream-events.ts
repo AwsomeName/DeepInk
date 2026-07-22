@@ -9,6 +9,7 @@ type AgentStreamEventPayload = {
   type?: string
   subtype?: string
   session_id?: string
+  sessionCompatibilityFingerprint?: string | null
   conversationId?: string
   runId?: string
   operation?: 'message' | 'compact'
@@ -85,7 +86,7 @@ export function applyAgentStreamEventToStore(
   switch (event.type) {
     case 'system': {
       if (event.subtype === 'init' && event.session_id) {
-        store.setSessionId(event.session_id, conversationId)
+        store.setSessionId(event.session_id, conversationId, event.sessionCompatibilityFingerprint)
         store.setBackendState('connected', conversationId)
       }
       if (event.subtype === 'context_usage' && event.contextUsage) {

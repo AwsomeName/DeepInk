@@ -13,6 +13,10 @@ const MAX_RESOURCE_PAYLOAD_BYTES = 5 * 1024 * 1024
 export const agentConversationIdSchema = boundedIdentifierSchema()
 export const optionalAgentConversationIdSchema = agentConversationIdSchema.optional()
 export const nullableAgentSessionIdSchema = boundedIdentifierSchema().nullable()
+export const nullableAgentSessionCompatibilityFingerprintSchema = z
+  .string()
+  .regex(/^[a-f0-9]{64}$/)
+  .nullable()
 
 const workspaceRefSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('global') }).strict(),
@@ -129,6 +133,8 @@ export const agentSendMessageInputSchema = z.union([
       resources: resourcesSchema.optional(),
       skills: skillsSchema.optional(),
       sessionId: nullableAgentSessionIdSchema.optional(),
+      sessionCompatibilityFingerprint:
+        nullableAgentSessionCompatibilityFingerprintSchema.optional(),
       workspaceRef: workspaceRefSchema.optional(),
       continuity: continuitySchema.optional(),
     })
@@ -139,6 +145,7 @@ export const agentCompactPayloadSchema = z
   .object({
     runId: boundedIdentifierSchema().optional(),
     sessionId: boundedIdentifierSchema(),
+    sessionCompatibilityFingerprint: nullableAgentSessionCompatibilityFingerprintSchema.optional(),
     workspaceRef: workspaceRefSchema.optional(),
     instructions: boundedTextSchema(1_000).trim().min(1).optional(),
   })

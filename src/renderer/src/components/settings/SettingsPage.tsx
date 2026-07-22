@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { DEFAULT_SETTINGS, PROVIDER_PRESETS, getPresetBaseUrl } from '@shared/ipc/settings'
 import type { ApiFormat, AppSettings, CadBackend, Provider } from '@shared/ipc/settings'
 import type { SettingsSecretStatus } from '@shared/ipc/settings'
+import type {
+  ClaudeRuntimeSelection,
+  ClaudeRuntimeSource,
+  ClaudeRuntimeStatus,
+} from '@shared/claude-runtime'
 import type { CadBackendStatus, CadCacheStatus } from '@shared/ipc/cad'
 import type { GitBackupAccountStatus } from '@shared/ipc/git-backup'
 import { useSettingsStore } from '../../stores'
@@ -188,6 +193,11 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
   const [secretStatus, setSecretStatus] = useState<SettingsSecretStatus | null>(null)
   const [secretBusy, setSecretBusy] = useState(false)
   const [secretMessage, setSecretMessage] = useState<string | null>(null)
+  const [claudeRuntimeStatus, setClaudeRuntimeStatus] = useState<ClaudeRuntimeStatus | null>(null)
+  const [claudeRuntimeSource, setClaudeRuntimeSource] = useState<ClaudeRuntimeSource>('system')
+  const [claudeRuntimePath, setClaudeRuntimePath] = useState('')
+  const [claudeRuntimeBusy, setClaudeRuntimeBusy] = useState(false)
+  const [claudeRuntimeMessage, setClaudeRuntimeMessage] = useState<string | null>(null)
   const [cadStatus, setCadStatus] = useState<CadBackendStatus | null>(null)
   const [cadCacheStatus, setCadCacheStatus] = useState<CadCacheStatus | null>(null)
   const [cadChecking, setCadChecking] = useState(false)
@@ -224,6 +234,19 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
     }
   }, [])
 
+  const refreshClaudeRuntimeStatus = useCallback(async (): Promise<void> => {
+    try {
+      const result = await window.cclinkStudio.settings.getClaudeRuntimeStatus()
+      if (!result.success || !result.status) {
+        setClaudeRuntimeMessage(result.error ?? '无法读取 Claude Code 运行时状态')
+        return
+      }
+      setClaudeRuntimeStatus(result.status)
+    } catch (nextError: unknown) {
+      setClaudeRuntimeMessage(nextError instanceof Error ? nextError.message : String(nextError))
+    }
+  }, [])
+
   useEffect(() => {
     void loadSettings()
   }, [loadSettings])
@@ -243,6 +266,15 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
   useEffect(() => {
     if (activeSection === 'agent') void refreshSecretStatus()
   }, [activeSection, refreshSecretStatus])
+
+  useEffect(() => {
+    setClaudeRuntimeSource(settings.claudeRuntimeSource)
+    setClaudeRuntimePath(settings.claudeCodePath)
+  }, [settings.claudeCodePath, settings.claudeRuntimeSource])
+
+  useEffect(() => {
+    if (activeSection === 'agent') void refreshClaudeRuntimeStatus()
+  }, [activeSection, refreshClaudeRuntimeStatus])
 
   const searchResults = useMemo(() => {
     const query = searchQuery.trim().toLowerCase()
@@ -280,6 +312,51 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
       backendType: apiFormat === 'anthropic' ? 'claude-code' : 'http-api',
       apiBaseUrl,
     })
+  }
+
+  const runtimeSelectionDraft = (): ClaudeRuntimeSelection =>
+    claudeRuntimeSource === 'custom'
+      ? { source: 'custom', customPath: claudeRuntimePath }
+      : { source: claudeRuntimeSource }
+
+  const probeClaudeRuntime = async (): Promise<void> => {
+    setClaudeRuntimeBusy(true)
+    setClaudeRuntimeMessage(null)
+    try {
+      const response =
+        await window.cclinkStudio.settings.probeClaudeRuntime(runtimeSelectionDraft())
+      if (!response.success || !response.result) {
+        setClaudeRuntimeMessage(response.error ?? 'Claude Code 运行时探测失败')
+      } else if (!response.result.success) {
+        setClaudeRuntimeMessage(
+          `${response.result.failure.code}: ${response.result.failure.message}`,
+        )
+      } else {
+        setClaudeRuntimeMessage(
+          `可用 · Claude Code ${response.result.runtime.claudeCodeVersion} · ${response.result.runtime.executablePath}`,
+        )
+      }
+    } catch (nextError: unknown) {
+      setClaudeRuntimeMessage(nextError instanceof Error ? nextError.message : String(nextError))
+    } finally {
+      setClaudeRuntimeBusy(false)
+    }
+  }
+
+  const applyClaudeRuntime = async (): Promise<void> => {
+    setClaudeRuntimeBusy(true)
+    setClaudeRuntimeMessage(null)
+    try {
+      const success = await updateSettings({
+        claudeRuntimeSource,
+        claudeCodePath: claudeRuntimeSource === 'custom' ? claudeRuntimePath : '',
+      })
+      if (!success) return
+      setClaudeRuntimeMessage('Claude Code 运行时已切换')
+      await refreshClaudeRuntimeStatus()
+    } finally {
+      setClaudeRuntimeBusy(false)
+    }
   }
 
   const refreshCadStatus = (): void => {
@@ -674,19 +751,77 @@ export function SettingsPage({ initialSection }: SettingsPageProps = {}): React.
                 </div>
               </SettingsRow>
 
-              <SettingsRow settingKey="claudeCodePath" settings={settings} onReset={resetOne}>
+              <SettingsRow settingKey="claudeRuntimeSource" settings={settings} onReset={resetOne}>
                 <div className="settings-label">
-                  <span>Claude Code 路径</span>
-                  <span className="settings-description">为空时从 PATH 自动解析。</span>
+                  <span>Claude Code 运行时</span>
+                  <span className="settings-description">
+                    内置固定版本、系统安装或自定义可执行文件。切换前会先探测，不会静默回退。
+                  </span>
                 </div>
                 <div className="settings-control">
-                  <input
-                    className="settings-input"
-                    value={settings.claudeCodePath}
-                    onChange={(event) => update({ claudeCodePath: event.target.value })}
-                  />
+                  <select
+                    className="settings-select"
+                    value={claudeRuntimeSource}
+                    onChange={(event) =>
+                      setClaudeRuntimeSource(event.target.value as ClaudeRuntimeSource)
+                    }
+                  >
+                    <option value="bundled">内置固定版本</option>
+                    <option value="system">系统安装</option>
+                    <option value="custom">自定义路径</option>
+                  </select>
+                  <button
+                    className="settings-secondary-btn"
+                    type="button"
+                    disabled={claudeRuntimeBusy}
+                    onClick={() => void probeClaudeRuntime()}
+                  >
+                    检测
+                  </button>
+                  <button
+                    className="settings-secondary-btn"
+                    type="button"
+                    disabled={claudeRuntimeBusy}
+                    onClick={() => void applyClaudeRuntime()}
+                  >
+                    应用
+                  </button>
                 </div>
               </SettingsRow>
+
+              {claudeRuntimeSource === 'custom' && (
+                <SettingsRow settingKey="claudeCodePath" settings={settings} onReset={resetOne}>
+                  <div className="settings-label">
+                    <span>自定义可执行文件</span>
+                    <span className="settings-description">必须是可执行文件的绝对路径。</span>
+                  </div>
+                  <div className="settings-control">
+                    <input
+                      className="settings-input"
+                      value={claudeRuntimePath}
+                      onChange={(event) => setClaudeRuntimePath(event.target.value)}
+                    />
+                  </div>
+                </SettingsRow>
+              )}
+
+              <div className="settings-row">
+                <div className="settings-label">
+                  <span>当前状态</span>
+                  <span className="settings-description">
+                    {claudeRuntimeStatus?.failure
+                      ? `${claudeRuntimeStatus.state} · ${claudeRuntimeStatus.failure.code}: ${claudeRuntimeStatus.failure.message}`
+                      : claudeRuntimeStatus?.active
+                        ? `${claudeRuntimeStatus.state} · ${claudeRuntimeStatus.active.source} · Claude Code ${claudeRuntimeStatus.active.claudeCodeVersion}`
+                        : '尚未激活 Claude Code 运行时'}
+                  </span>
+                </div>
+                {claudeRuntimeMessage && (
+                  <div className="settings-control">
+                    <span className="settings-description">{claudeRuntimeMessage}</span>
+                  </div>
+                )}
+              </div>
             </div>
           </section>
         )}

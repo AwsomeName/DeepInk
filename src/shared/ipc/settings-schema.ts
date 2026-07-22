@@ -11,6 +11,7 @@ const settingsUpdateSchema = z
     permissionMode: z.enum(['auto', 'categorized', 'strict']),
     disabledAgentToolModules: z.array(z.string().min(1).max(256)).max(128),
     maxBudgetUsd: z.number().finite().min(0).max(10_000),
+    claudeRuntimeSource: z.enum(['bundled', 'system', 'custom']),
     claudeCodePath: pathString,
     defaultZoomMode: z.enum(['fit', 'manual']),
     defaultDeviceMode: z.enum(['desktop', 'mobile']),
@@ -48,6 +49,11 @@ const settingsUpdateSchema = z
 
 const settingsSecretKeySchema = z.enum(['apiKey', 'meshyApiKey'])
 const settingsSecretValueSchema = z.string().max(8192)
+const claudeRuntimeSelectionSchema = z.discriminatedUnion('source', [
+  z.object({ source: z.literal('bundled') }).strict(),
+  z.object({ source: z.literal('system') }).strict(),
+  z.object({ source: z.literal('custom'), customPath: pathString }).strict(),
+])
 const settingsKeys = new Set<string>([
   ...settingsUpdateSchema.keyof().options,
   'apiKey',
@@ -72,4 +78,8 @@ export function parseSettingsSecretValue(value: unknown): string {
 
 export function parseSettingsKey(value: unknown): keyof AppSettings {
   return settingsKeySchema.parse(value)
+}
+
+export function parseClaudeRuntimeSelection(value: unknown) {
+  return claudeRuntimeSelectionSchema.parse(value)
 }

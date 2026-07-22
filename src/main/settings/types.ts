@@ -13,6 +13,7 @@ export type {
   Provider,
   ApiFormat,
   AgentEngine,
+  ClaudeRuntimeSource,
   CadBackend,
   AppSettings,
   ProviderPreset,
@@ -22,4 +23,5 @@ export {
   PROVIDER_PRESETS,
   DEFAULT_SETTINGS,
   getPresetBaseUrl,
+  normalizeClaudeRuntimeSettingsUpdate,
 } from '../../shared/settings-constants'

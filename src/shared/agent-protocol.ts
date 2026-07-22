@@ -84,6 +84,8 @@ export interface ClaudeStreamEventData {
   type: string
   conversationId?: string
   runId?: string
+  /** Runtime/API/model compatibility identity for safely persisting SDK sessions. */
+  sessionCompatibilityFingerprint?: string | null
   operation?: 'message' | 'compact'
   subtype?: string
   session_id?: string
@@ -196,6 +198,7 @@ export interface AgentContextUsageSnapshot {
 export interface AgentCompactConversationPayload {
   runId?: string
   sessionId: string
+  sessionCompatibilityFingerprint?: string | null
   workspaceRef?: import('./workspace-ref').WorkspaceRef
   instructions?: string
 }
@@ -207,6 +210,10 @@ export interface AgentStatus {
   /** 当前正在执行的运行实例。 */
   runId?: string | null
   sessionId: string | null
+  /** Runtime/API/model identity that must match before restoring sessionId. */
+  sessionCompatibilityFingerprint?: string | null
+  /** Safe, path-free facts for status UI and copied diagnostics. */
+  runtimeProvenance?: import('./claude-runtime').ClaudeRuntimeProvenance | null
   /** Process-local random reference for redacted diagnostic correlation. */
   sessionRef?: string | null
   ready?: boolean
@@ -261,7 +268,11 @@ export interface AgentApiContract {
   }
   getScope(conversationId?: string): Promise<AgentScope>
   resetSession(conversationId?: string): Promise<void>
-  restoreConversation(conversationId: string, sessionId: string | null): Promise<void>
+  restoreConversation(
+    conversationId: string,
+    sessionId: string | null,
+    sessionCompatibilityFingerprint?: string | null,
+  ): Promise<void>
   closeConversation(conversationId: string): Promise<void>
   getContextUsage(conversationId?: string): Promise<AgentContextUsageSnapshot | null>
   compactConversation(

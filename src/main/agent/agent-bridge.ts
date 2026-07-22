@@ -32,6 +32,7 @@ import type {
 } from '../../shared/agent-protocol'
 import { agentIpcEvents } from '../../shared/ipc/agent'
 import { SessionDiagnosticReferenceStore } from './session-diagnostic-reference-store'
+import type { ClaudeRuntimeProvenance } from '../../shared/claude-runtime'
 
 const AGENT_EVENT_CHANNELS: Record<AgentRuntimeEvent['type'], string> = {
   stream: agentIpcEvents.stream,
@@ -44,8 +45,12 @@ export interface AgentBridgeOptions {
   agentEngine?: 'local-claude-code'
   backendType?: 'claude-code' | 'http-api'
   maxBudgetUsd?: number
-  /** Claude Code executable 路径；为空时由 Agent SDK 按 PATH 解析。 */
+  /** 主进程 ClaudeRuntimeManager 已探测的 Claude Code executable 绝对路径。 */
   claudeCodePath?: string
+  /** Claude Code 运行时与 provider/model 组合的会话兼容指纹。 */
+  sessionCompatibilityFingerprint?: string
+  /** 已解析运行时的安全诊断投影，不包含绝对路径。 */
+  runtimeProvenance?: ClaudeRuntimeProvenance
   /** API 格式（当前本地 Agent 路径使用 Anthropic-compatible 配置） */
   apiFormat?: 'anthropic' | 'openai'
   /** API 基础地址（Anthropic 格式时注入为 ANTHROPIC_BASE_URL） */
@@ -87,6 +92,9 @@ export class AgentBridge {
     getSettingsSnapshot?: () => AppSettings
   }
   private readonly getWorkspacePath?: () => string
+  private configurationChangePending = false
+  private sessionCompatibilityFingerprint: string | null
+  private runtimeProvenance: ClaudeRuntimeProvenance | null
   constructor(
     mainWindow: BrowserWindow,
     playwrightBridge: PlaywrightBridge | null,
@@ -109,6 +117,8 @@ export class AgentBridge {
       getSettingsSnapshot: options?.getSettingsSnapshot,
     }
     this.getWorkspacePath = options?.getWorkspacePath
+    this.sessionCompatibilityFingerprint = options?.sessionCompatibilityFingerprint ?? null
+    this.runtimeProvenance = options?.runtimeProvenance ?? null
 
     this.runtime = new AgentRuntime({
       config: this.buildBackendConfig(options),
@@ -154,10 +164,13 @@ export class AgentBridge {
     conversationId = DEFAULT_CONVERSATION_ID,
     context?: AgentSendMessageContext,
   ): Promise<void> {
+    if (this.configurationChangePending) {
+      throw new Error('Agent 配置正在切换，请稍后重试')
+    }
     if (context?.sessionId !== undefined) {
       this.runtime.restoreConversation(
         conversationId,
-        typeof context.sessionId === 'string' ? context.sessionId.trim() || null : null,
+        this.resolveRestorableSessionId(context.sessionId, context.sessionCompatibilityFingerprint),
       )
     }
     const sendPlan = await this.resolveSendPlan(conversationId, message, context)
@@ -214,7 +227,16 @@ export class AgentBridge {
     if (this.isBusy(conversationId)) throw new Error('Agent 正在响应中，暂时不能压缩上下文')
     const sessionId = payload.sessionId.trim()
     if (!sessionId) throw new Error('当前会话还没有可压缩的 Claude SDK session')
-    this.runtime.restoreConversation(conversationId, sessionId)
+    const compatibleSessionId = this.resolveRestorableSessionId(
+      sessionId,
+      payload.sessionCompatibilityFingerprint,
+    )
+    if (!compatibleSessionId) {
+      throw new Error(
+        '当前 Claude SDK session 与已启用的 Agent 运行时不兼容，请发送新消息开始新会话',
+      )
+    }
+    this.runtime.restoreConversation(conversationId, compatibleSessionId)
     const workspacePath =
       payload.workspaceRef?.kind === 'local'
         ? payload.workspaceRef.path
@@ -313,6 +335,8 @@ export class AgentBridge {
     busy: boolean
     runId: string | null
     sessionId: string | null
+    sessionCompatibilityFingerprint: string | null
+    runtimeProvenance: ClaudeRuntimeProvenance | null
     sessionRef: string | null
     ready: boolean
   } {
@@ -320,6 +344,8 @@ export class AgentBridge {
     return {
       ...status,
       busy: this.runtime.isBusy(conversationId),
+      sessionCompatibilityFingerprint: this.sessionCompatibilityFingerprint,
+      runtimeProvenance: this.runtimeProvenance,
       sessionRef: this.getSessionDiagnosticRef(status.sessionId),
       ready: true,
     }
@@ -330,6 +356,23 @@ export class AgentBridge {
     return this.runtime.isBusy(conversationId)
   }
 
+  beginConfigurationChange(): boolean {
+    if (
+      this.configurationChangePending ||
+      this.runtime
+        .getConversationIds()
+        .some((conversationId) => this.runtime.isBusy(conversationId))
+    ) {
+      return false
+    }
+    this.configurationChangePending = true
+    return true
+  }
+
+  endConfigurationChange(): void {
+    this.configurationChangePending = false
+  }
+
   /** 重置会话 */
   resetSession(conversationId = DEFAULT_CONVERSATION_ID): void {
     const sessionId = this.runtime.getStatus(conversationId).sessionId
@@ -338,8 +381,15 @@ export class AgentBridge {
   }
 
   /** 恢复历史会话的后端 session id */
-  restoreConversation(conversationId: string, sessionId: string | null): void {
-    this.runtime.restoreConversation(conversationId, sessionId)
+  restoreConversation(
+    conversationId: string,
+    sessionId: string | null,
+    sessionCompatibilityFingerprint?: string | null,
+  ): void {
+    this.runtime.restoreConversation(
+      conversationId,
+      this.resolveRestorableSessionId(sessionId, sessionCompatibilityFingerprint),
+    )
   }
 
   /** 销毁一个会话 backend（关闭历史会话时释放资源） */
@@ -448,20 +498,25 @@ export class AgentBridge {
   }
 
   /** 切换后端（使用存储的依赖） */
-  switchBackend(config: BackendConfig): void {
-    this.runtime.switchBackend(config)
+  switchBackend(config: BackendConfig, preserveSessions = true): void {
+    this.runtime.switchBackend(config, preserveSessions)
   }
 
   /** 根据 API 设置重新配置后端（用于设置变更时的热重载） */
-  reconfigure(apiSettings: {
-    agentEngine?: string
-    claudeCodePath?: string
-    apiFormat?: string
-    apiBaseUrl?: string
-    apiKey?: string
-    modelName?: string
-    maxBudgetUsd?: number
-  }): void {
+  reconfigure(
+    apiSettings: {
+      agentEngine?: string
+      claudeCodePath?: string
+      apiFormat?: string
+      apiBaseUrl?: string
+      apiKey?: string
+      modelName?: string
+      maxBudgetUsd?: number
+      sessionCompatibilityFingerprint?: string
+      runtimeProvenance?: ClaudeRuntimeProvenance
+    },
+    options?: { forceResetSessions?: boolean },
+  ): void {
     const config = this.buildBackendConfig({
       maxBudgetUsd: apiSettings.maxBudgetUsd,
       agentEngine: 'local-claude-code',
@@ -470,7 +525,14 @@ export class AgentBridge {
       apiKey: apiSettings.apiKey,
       modelName: apiSettings.modelName,
     })
-    this.switchBackend(config)
+    const nextFingerprint = apiSettings.sessionCompatibilityFingerprint ?? null
+    const preserveSessions =
+      options?.forceResetSessions !== true &&
+      this.sessionCompatibilityFingerprint !== null &&
+      this.sessionCompatibilityFingerprint === nextFingerprint
+    this.switchBackend(config, preserveSessions)
+    this.sessionCompatibilityFingerprint = nextFingerprint
+    this.runtimeProvenance = apiSettings.runtimeProvenance ?? null
   }
 
   /** 销毁资源 */
@@ -599,11 +661,43 @@ export class AgentBridge {
     if (channel) {
       const payload =
         typeof data === 'object' && data !== null
-          ? { ...(data as Record<string, unknown>), conversationId, runId }
-          : { value: data, conversationId, runId }
+          ? {
+              ...(data as Record<string, unknown>),
+              conversationId,
+              runId,
+              sessionCompatibilityFingerprint: this.sessionCompatibilityFingerprint,
+            }
+          : {
+              value: data,
+              conversationId,
+              runId,
+              sessionCompatibilityFingerprint: this.sessionCompatibilityFingerprint,
+            }
       this.mainWindow.webContents.send(channel, payload)
     }
   }
+
+  private resolveRestorableSessionId(
+    sessionId: string | null,
+    persistedFingerprint?: string | null,
+  ): string | null {
+    return resolveCompatibleClaudeSessionId(
+      sessionId,
+      persistedFingerprint,
+      this.sessionCompatibilityFingerprint,
+    )
+  }
+}
+
+export function resolveCompatibleClaudeSessionId(
+  sessionId: string | null,
+  persistedFingerprint: string | null | undefined,
+  activeFingerprint: string | null,
+): string | null {
+  const normalizedSessionId = typeof sessionId === 'string' ? sessionId.trim() : ''
+  if (!normalizedSessionId) return null
+  if (!activeFingerprint || persistedFingerprint !== activeFingerprint) return null
+  return normalizedSessionId
 }
 
 function looksLikeBrowserTask(message: string): boolean {

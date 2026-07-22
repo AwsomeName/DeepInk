@@ -32,6 +32,8 @@ const settingsApi: SettingsApiContract = {
   reset: () => invokeIpcContract(settingsIpc.reset),
   resetKey: (key) => invokeIpcContract(settingsIpc.resetKey, key),
   detectClaudeCode: () => invokeIpcContract(settingsIpc.detectClaudeCode),
+  getClaudeRuntimeStatus: () => invokeIpcContract(settingsIpc.getClaudeRuntimeStatus),
+  probeClaudeRuntime: (selection) => invokeIpcContract(settingsIpc.probeClaudeRuntime, selection),
 }
 
 contextBridge.exposeInMainWorld('cclinkStudio', {

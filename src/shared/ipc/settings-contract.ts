@@ -3,12 +3,14 @@ import {
   settingsIpc,
   type SettingsOperationResult,
   type SettingsSecretOperationResult,
+  type ClaudeRuntimeProbeOperationResult,
 } from './settings'
 import {
   parseSettingsKey,
   parseSettingsSecretKey,
   parseSettingsSecretValue,
   parseSettingsUpdate,
+  parseClaudeRuntimeSelection,
 } from './settings-schema'
 
 const invalidSettingsResult = async (): Promise<SettingsOperationResult> => ({
@@ -18,6 +20,10 @@ const invalidSettingsResult = async (): Promise<SettingsOperationResult> => ({
 const invalidSecretResult = async (): Promise<SettingsSecretOperationResult> => ({
   success: false,
   error: '设置参数无效',
+})
+const invalidRuntimeProbeResult = async (): Promise<ClaudeRuntimeProbeOperationResult> => ({
+  success: false,
+  error: 'Claude Code 运行时参数无效',
 })
 
 function requireArgs(args: unknown[], count: number, channel: string): void {
@@ -61,4 +67,13 @@ export const settingsIpcContracts = {
     invalidSettingsResult,
   ),
   detectClaudeCode: bindNoArgsIpc(settingsIpc.detectClaudeCode),
+  getClaudeRuntimeStatus: bindNoArgsIpc(settingsIpc.getClaudeRuntimeStatus),
+  probeClaudeRuntime: bindIpcParser(
+    settingsIpc.probeClaudeRuntime,
+    (args) => {
+      requireArgs(args, 1, settingsIpc.probeClaudeRuntime.channel)
+      return ipcArgs(parseClaudeRuntimeSelection(args[0]))
+    },
+    invalidRuntimeProbeResult,
+  ),
 } as const

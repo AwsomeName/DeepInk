@@ -140,10 +140,16 @@ export function buildAgentDiagnosticMarkdown(input: AgentDiagnosticReportInput):
     `- UI 当前 runId：${redactText(conversation?.activeRunId ?? '无')}`,
     `- 主进程 busy：${input.agentRuntime?.busy ?? input.agentRuntime?.connected ?? 'unknown'}`,
     `- 主进程 ready：${input.agentRuntime?.ready ?? 'unknown'}`,
+    `- Claude 运行时来源：${input.agentRuntime?.runtimeProvenance?.source ?? 'unknown'}`,
+    `- Agent SDK 版本：${input.agentRuntime?.runtimeProvenance?.sdkVersion ?? 'unknown'}`,
+    `- Claude Code 版本：${input.agentRuntime?.runtimeProvenance?.claudeCodeVersion ?? 'unknown'}`,
     `- 主进程当前 runId：${redactText(input.agentRuntime?.runId ?? '无')}`,
     `- 最近运行事件：${conversation?.lastRunEventAt ? formatDateTime(conversation.lastRunEventAt) : '无'}`,
     `- 最近终止原因：${conversation?.lastRunTerminalReason ?? '无'}`,
     `- 后端 Session：${input.agentRuntime?.sessionId ? '已存在' : '无'}`,
+    `- Session 兼容指纹：${formatSessionCompatibilityFingerprint(
+      input.agentRuntime?.sessionCompatibilityFingerprint,
+    )}`,
     `- 流式消息：${conversation?.streamingMessageId ? '进行中' : '无'}`,
     `- 权限模式：${input.permissionMode}`,
     `- 待确认操作：${input.pendingConfirmationCount}`,
@@ -168,6 +174,10 @@ export function buildAgentDiagnosticMarkdown(input: AgentDiagnosticReportInput):
     '## 脱敏说明',
     'password/token/cookie/authorization/api key/session/验证码/手机号/邮箱等字段已脱敏或截断。',
   ].join('\n')
+}
+
+function formatSessionCompatibilityFingerprint(value: string | null | undefined): string {
+  return value ? `${value.slice(0, 12)}...` : '无'
 }
 
 export function selectDiagnosticBrowserTask({

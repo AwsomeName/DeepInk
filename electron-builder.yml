@@ -22,6 +22,11 @@ asarUnpack:
   # occt-import-js：OpenCascade wasm 运行时需要随 STEP/STP 转换后端一起可读
   - node_modules/occt-import-js/dist/**
 extraResources:
+  # 固定版本 Claude Code 运行时：构建前由 staging 脚本生成 manifest 与真实可执行文件
+  - from: .agent-runtime-staging
+    to: agent-runtime
+    filter:
+      - '**/*'
   - from: resources/scrcpy-server.jar
     to: scrcpy-server.jar
     filter:

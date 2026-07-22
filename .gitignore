@@ -5,6 +5,7 @@ node_modules/
 out/
 dist/
 release/
+.agent-runtime-staging/
 *.tsbuildinfo
 
 # ─── Electron 打包输出 ─────────────────────────────

@@ -94,6 +94,8 @@ export interface AgentSendMessagePayload {
   skills?: AgentSendSkill[]
   /** 已持久化的 Claude session；主进程在发送前原子恢复，避免 UI 历史与后端脱节。 */
   sessionId?: string | null
+  /** 创建 sessionId 时的运行时/API/模型指纹；不匹配时主进程必须拒绝恢复。 */
+  sessionCompatibilityFingerprint?: string | null
   /** 会话绑定的工作空间；Agent cwd 必须跟随会话，而不是全局当前项目。 */
   workspaceRef?: WorkspaceRef
   /** UI 持久化历史生成的有界连续性快照；用于 SDK 压缩或进程恢复后的任务续接。 */
@@ -139,9 +141,14 @@ export const agentIpc = {
   setScope: defineIpcCall<AgentSetScopeArgs, boolean>('agent:setScope'),
   getScope: defineIpcCall<[conversationId?: string], AgentScope>('agent:getScope'),
   resetSession: defineIpcCall<[conversationId?: string], void>('agent:resetSession'),
-  restoreConversation: defineIpcCall<[conversationId: string, sessionId: string | null], void>(
-    'agent:restoreConversation',
-  ),
+  restoreConversation: defineIpcCall<
+    [
+      conversationId: string,
+      sessionId: string | null,
+      sessionCompatibilityFingerprint?: string | null,
+    ],
+    void
+  >('agent:restoreConversation'),
   closeConversation: defineIpcCall<[conversationId: string], void>('agent:closeConversation'),
   getCapabilities: defineIpcCall<[], AgentCapabilityStatus[]>('agent:getCapabilities'),
   listToolModules: defineIpcCall<[], AgentToolModuleStatus[]>('agent:listToolModules'),

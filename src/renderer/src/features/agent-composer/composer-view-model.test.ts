@@ -23,13 +23,17 @@ describe('composer-view-model', () => {
 
   it('shows the real local runtime instead of a fake model selector', () => {
     expect(getRuntimeLabel(DEFAULT_SETTINGS)).toBe('Claude Code')
-    expect(getRuntimeDetail(DEFAULT_SETTINGS)).toBe('本机 · 自动检测')
+    expect(getRuntimeDetail(DEFAULT_SETTINGS)).toBe('系统安装')
     expect(
       getRuntimeDetail({
         ...DEFAULT_SETTINGS,
+        claudeRuntimeSource: 'custom',
         claudeCodePath: '/opt/homebrew/bin/claude',
       }),
-    ).toBe('本机')
+    ).toBe('自定义路径')
+    expect(getRuntimeDetail({ ...DEFAULT_SETTINGS, claudeRuntimeSource: 'bundled' })).toBe(
+      '内置固定版本',
+    )
   })
 
   it('formats Claude Code detection status for the runtime menu', () => {
@@ -51,6 +55,7 @@ describe('composer-view-model', () => {
       }),
     ).toBe('未找到 Claude Code CLI')
     expect(getClaudeCodeSourceLabel('configured')).toBe('手动路径')
+    expect(getClaudeCodeSourceLabel('bundled')).toBe('内置固定版本')
     expect(getClaudeCodeSourceLabel('shell-path')).toBe('Shell PATH')
   })
 })

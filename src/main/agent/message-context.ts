@@ -11,6 +11,7 @@ export interface AgentSendMessageContext {
   skills?: AgentSendSkill[]
   runId?: string
   sessionId?: string | null
+  sessionCompatibilityFingerprint?: string | null
   workspaceRef?: WorkspaceRef
   resourceContext?: AgentResourceContextSnapshot
   continuity?: AgentConversationContinuity

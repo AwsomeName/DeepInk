@@ -22,6 +22,7 @@ import {
   mcpServerSchema,
   mcpServerUpdatesSchema,
   nullableAgentSessionIdSchema,
+  nullableAgentSessionCompatibilityFingerprintSchema,
   optionalAgentConversationIdSchema,
 } from './agent-schema'
 
@@ -88,10 +89,15 @@ export const agentIpcContracts = {
   getScope: bindOptionalConversation(agentIpc.getScope),
   resetSession: bindOptionalConversation(agentIpc.resetSession),
   restoreConversation: bindIpcParser(agentIpc.restoreConversation, (args) => {
-    requireArgs(args, 2, agentIpc.restoreConversation.channel)
+    if (args.length < 2 || args.length > 3) {
+      throw new Error(`IPC ${agentIpc.restoreConversation.channel} 需要 2 或 3 个参数`)
+    }
     return ipcArgs(
       agentConversationIdSchema.parse(args[0]),
       nullableAgentSessionIdSchema.parse(args[1]),
+      args.length === 3
+        ? nullableAgentSessionCompatibilityFingerprintSchema.parse(args[2])
+        : undefined,
     )
   }),
   closeConversation: bindConversation(agentIpc.closeConversation),

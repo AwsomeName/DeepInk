@@ -42,8 +42,9 @@ export function getRuntimeLabel(settings: AppSettings): string {
 
 export function getRuntimeDetail(settings: AppSettings): string {
   if (settings.agentEngine === 'local-claude-code') {
-    if (settings.claudeCodePath) return '本机'
-    return '本机 · 自动检测'
+    if (settings.claudeRuntimeSource === 'bundled') return '内置固定版本'
+    if (settings.claudeRuntimeSource === 'custom') return '自定义路径'
+    return '系统安装'
   }
   return '设置'
 }
@@ -61,6 +62,8 @@ export function getClaudeCodeStatusDetail(status: ClaudeCodeStatus | null): stri
 
 export function getClaudeCodeSourceLabel(source: ClaudeCodeStatus['source'] | null): string {
   switch (source) {
+    case 'bundled':
+      return '内置固定版本'
     case 'configured':
       return '手动路径'
     case 'known-path':

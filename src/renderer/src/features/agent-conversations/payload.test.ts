@@ -9,6 +9,8 @@ import {
 } from './payload'
 
 describe('buildAgentSendPayload', () => {
+  const sessionCompatibilityFingerprint = 'a'.repeat(64)
+
   beforeEach(() => {
     useAgentStore.setState(useAgentStore.getInitialState(), true)
   })
@@ -22,12 +24,15 @@ describe('buildAgentSendPayload', () => {
         workspaceRef: { kind: 'local', path: '/Users/apple/Desktop/previous-project' },
       },
     })
-    useAgentStore.getState().setSessionId('session-123', conversationId)
+    useAgentStore
+      .getState()
+      .setSessionId('session-123', conversationId, sessionCompatibilityFingerprint)
 
     const conversation = useAgentStore.getState().conversations[conversationId]
     expect(buildAgentSendPayload('继续', conversation)).toMatchObject({
       message: '继续',
       sessionId: 'session-123',
+      sessionCompatibilityFingerprint,
       workspaceRef: { kind: 'local', path: '/Users/apple/Desktop/previous-project' },
     })
   })

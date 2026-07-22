@@ -79,6 +79,26 @@ describe('AgentRuntime session continuity', () => {
     expect(runtime.getScope('conversation-1')).toEqual({ kind: 'editor' })
   })
 
+  it('drops SDK session ids when the runtime compatibility fingerprint changes', () => {
+    const runtime = new AgentRuntime({
+      config: { type: 'local-claude-code' },
+      deps: {} as never,
+    })
+    runtime.restoreConversation('conversation-1', 'session-from-other-runtime')
+    runtime.setScope({ kind: 'editor' }, 'conversation-1')
+
+    runtime.switchBackend(
+      {
+        type: 'local-claude-code',
+        claudeCode: { claudeCodePath: '/new/runtime/claude' },
+      },
+      false,
+    )
+
+    expect(runtime.getStatus('conversation-1').sessionId).toBeNull()
+    expect(runtime.getScope('conversation-1')).toEqual({ kind: 'editor' })
+  })
+
   it('attaches the active run id to backend events and clears it at completion', async () => {
     const events: Array<{ conversationId: string; runId: string | null; type: string }> = []
     const runtime = new AgentRuntime({

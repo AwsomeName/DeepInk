@@ -172,6 +172,7 @@ export function createConversationRunController({
         const result = await agentApi.compactConversation(conversationId, {
           runId,
           sessionId: conversation.sessionId,
+          sessionCompatibilityFingerprint: conversation.sessionCompatibilityFingerprint ?? null,
           workspaceRef: conversation.runtime.workspaceRef,
           instructions: instructions.trim() || undefined,
         })

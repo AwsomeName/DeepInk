@@ -130,6 +130,12 @@ describe('agent diagnostic report', () => {
         runId: 'run-1',
         sessionId: 'raw-agent-session-secret',
         sessionRef: 'session-diagnostic-ref-1',
+        sessionCompatibilityFingerprint: 'a'.repeat(64),
+        runtimeProvenance: {
+          source: 'bundled',
+          sdkVersion: '0.3.211',
+          claudeCodeVersion: '2.1.211',
+        },
       },
       capabilities: [
         {
@@ -285,6 +291,10 @@ describe('agent diagnostic report', () => {
     expect(markdown).toContain('疑似挑战：auth_required, captcha_or_bot_check')
     expect(markdown).toContain('绑定状态：tab_mismatch')
     expect(markdown).toContain('浏览器内核：Electron 43.1.1 / Chromium 150.0.7871.114')
+    expect(markdown).toContain('Session 兼容指纹：aaaaaaaaaaaa...')
+    expect(markdown).toContain('Claude 运行时来源：bundled')
+    expect(markdown).toContain('Agent SDK 版本：0.3.211')
+    expect(markdown).toContain('Claude Code 版本：2.1.211')
     expect(markdown).toContain('可视 URL：https://www.zhihu.com/signin?token=[redacted]')
     expect(markdown).toContain('自动化 URL：https://www.baidu.com/')
     expect(markdown).toContain('Partition：persist:cclink-studio-profile-zhihu')

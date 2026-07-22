@@ -142,7 +142,7 @@ export class AgentRuntime {
     return this.ensureConversation(conversationId).scope
   }
 
-  switchBackend(config: BackendConfig): void {
+  switchBackend(config: BackendConfig, preserveSessions = true): void {
     this.currentConfig = config
     const existing = Array.from(this.conversations.entries()).map(
       ([conversationId, conversation]) => ({
@@ -170,7 +170,7 @@ export class AgentRuntime {
       }
       void previous.backend.destroy()
       const conversation = this.createConversation(previous.conversationId, previous.scope)
-      conversation.backend.setSessionId?.(previous.sessionId)
+      conversation.backend.setSessionId?.(preserveSessions ? previous.sessionId : null)
       conversation.activeRunId = null
       const { conversationId } = previous
       this.conversations.set(conversationId, conversation)

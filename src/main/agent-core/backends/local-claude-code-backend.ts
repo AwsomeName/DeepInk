@@ -53,7 +53,7 @@ export interface AndroidAdbHost {
 }
 
 export interface ClaudeCodeBackendOptions {
-  /** Claude Code executable path；为空时按 PATH 使用 claude。 */
+  /** Claude Code executable path；产品运行时应传入主进程已探测的绝对路径。 */
   claudeCodePath?: string
   /** 单次会话最大费用（美元） */
   maxBudgetUsd?: number
@@ -88,7 +88,7 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
   /** 当前 Claude Code 进程使用的 MCP 会话 token（进程退出时释放） */
   private mcpSessionToken: string | null = null
   private readonly maxBudgetUsd: number
-  private readonly claudeCodePath: string
+  private readonly claudeCodePath?: string
   private readonly extraEnv: Record<string, string>
   private readonly apiBaseUrl?: string
   private readonly apiKey?: string
@@ -115,7 +115,7 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
     this.toolHost = toolHost
     this.mcpClientMgr = mcpClientMgr
     this.adbBridge = adbBridge
-    this.claudeCodePath = options?.claudeCodePath?.trim() || 'claude'
+    this.claudeCodePath = options?.claudeCodePath?.trim() || undefined
     this.maxBudgetUsd = options?.maxBudgetUsd ?? 1.0
     this.extraEnv = options?.env ?? {}
     this.apiBaseUrl = options?.apiBaseUrl?.trim() || undefined
@@ -433,7 +433,7 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
             ],
           }
         : undefined,
-      pathToClaudeCodeExecutable: this.claudeCodePath,
+      ...(this.claudeCodePath ? { pathToClaudeCodeExecutable: this.claudeCodePath } : {}),
       allowedTools,
       stderr: (data) => {
         this.rememberStderr(data)
@@ -525,10 +525,17 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
       // result 已经是本轮的终态，不能再向 UI 重复发送第二张错误卡。
       if (!this.aborted && !this.terminalEventEmitted) {
         this.terminalEventEmitted = true
+        const rawMessage = err instanceof Error ? err.message : String(err)
+        const failure = classifySdkFailure(rawMessage)
+        if (failure.invalidatesSession) {
+          this.sessionId = null
+          this.lastContextUsage = null
+        }
         this.emit('error', {
           type: 'error',
           operation,
-          message: `Claude Agent SDK 错误: ${err instanceof Error ? err.message : String(err)}`,
+          code: failure.code,
+          message: failure.code ? failure.message : `Claude Agent SDK 错误: ${failure.message}`,
         })
       }
     } finally {
@@ -675,7 +682,13 @@ export class LocalClaudeCodeBackend implements IAgentBackend {
 }
 
 interface SdkFailureClassification {
-  code?: 'budget_exceeded' | 'sdk_session_invalid'
+  code?:
+    | 'budget_exceeded'
+    | 'sdk_session_invalid'
+    | 'authentication_failed'
+    | 'rate_limited'
+    | 'network_unavailable'
+    | 'proxy_gateway_error'
   invalidatesSession: boolean
   message: string
 }
@@ -726,6 +739,46 @@ function classifySdkFailure(message: string): SdkFailureClassification {
       code: 'sdk_session_invalid',
       invalidatesSession: true,
       message: `${message}\n当前 SDK 会话无法继续恢复，已安全重置；再次发送时会基于当前会话摘要新建 SDK 会话。`,
+    }
+  }
+
+  if (
+    /authentication_error|unauthorized|invalid (?:api|x-api) key|api error:\s*401|http\s*401/i.test(
+      message,
+    )
+  ) {
+    return {
+      code: 'authentication_failed',
+      invalidatesSession: false,
+      message: `${message}\n模型服务拒绝了当前凭证。请在设置中检查 API Key、端点和该凭证的模型权限。`,
+    }
+  }
+
+  if (/rate[_ -]?limit|too many requests|api error:\s*429|http\s*429/i.test(message)) {
+    return {
+      code: 'rate_limited',
+      invalidatesSession: false,
+      message: `${message}\n模型服务触发了频率限制。当前 SDK 会话仍保留，请稍后重试。`,
+    }
+  }
+
+  if (/empty or malformed response|proxy or gateway|bad gateway|gateway timeout/i.test(message)) {
+    return {
+      code: 'proxy_gateway_error',
+      invalidatesSession: false,
+      message: `${message}\n服务端、代理或网关返回了不可解析的响应。请检查 API 地址和代理绕过规则。`,
+    }
+  }
+
+  if (
+    /econnreset|econnrefused|etimedout|enotfound|network error|socket hang up|fetch failed/i.test(
+      message,
+    )
+  ) {
+    return {
+      code: 'network_unavailable',
+      invalidatesSession: false,
+      message: `${message}\n无法稳定连接模型服务。当前 SDK 会话仍保留，请检查网络、DNS 和代理设置后重试。`,
     }
   }
 

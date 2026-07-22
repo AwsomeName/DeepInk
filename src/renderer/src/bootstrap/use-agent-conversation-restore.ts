@@ -4,11 +4,23 @@ import { useAgentStore, type AgentConversationState } from '../stores/agent-stor
 export function collectRestorableAgentSessions(
   conversations: Record<string, AgentConversationState>,
   conversationOrder: string[],
-): Array<{ conversationId: string; sessionId: string }> {
+): Array<{
+  conversationId: string
+  sessionId: string
+  sessionCompatibilityFingerprint: string
+}> {
   return conversationOrder.flatMap((conversationId) => {
     const conversation = conversations[conversationId]
-    return conversation?.sessionId && !conversation.archivedAt
-      ? [{ conversationId, sessionId: conversation.sessionId }]
+    return conversation?.sessionId &&
+      conversation.sessionCompatibilityFingerprint &&
+      !conversation.archivedAt
+      ? [
+          {
+            conversationId,
+            sessionId: conversation.sessionId,
+            sessionCompatibilityFingerprint: conversation.sessionCompatibilityFingerprint,
+          },
+        ]
       : []
   })
 }
@@ -31,12 +43,17 @@ export function useAgentConversationRestore(enabled: boolean): void {
     }
 
     for (const session of sessions) {
-      if (restoredSessionsRef.current.get(session.conversationId) === session.sessionId) continue
-      restoredSessionsRef.current.set(session.conversationId, session.sessionId)
+      const restoreKey = `${session.sessionId}:${session.sessionCompatibilityFingerprint}`
+      if (restoredSessionsRef.current.get(session.conversationId) === restoreKey) continue
+      restoredSessionsRef.current.set(session.conversationId, restoreKey)
       void window.cclinkStudio.agent
-        .restoreConversation(session.conversationId, session.sessionId)
+        .restoreConversation(
+          session.conversationId,
+          session.sessionId,
+          session.sessionCompatibilityFingerprint,
+        )
         .catch(() => {
-          if (restoredSessionsRef.current.get(session.conversationId) === session.sessionId) {
+          if (restoredSessionsRef.current.get(session.conversationId) === restoreKey) {
             restoredSessionsRef.current.delete(session.conversationId)
           }
         })

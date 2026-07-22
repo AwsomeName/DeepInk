@@ -50,6 +50,8 @@ export interface AgentConversationState {
   lastRunEventAt?: number | null
   lastRunTerminalReason?: AgentRunTerminalReason | null
   sessionId: string | null
+  /** 创建 sessionId 时的运行时/API/模型指纹；旧快照可缺省。 */
+  sessionCompatibilityFingerprint?: string | null
   streamingMessageId: string | null
   lastCost: number | null
   contextUsage: AgentContextUsageSnapshot | null
@@ -109,6 +111,7 @@ export function createAgentConversationState(
     lastRunEventAt: null,
     lastRunTerminalReason: null,
     sessionId: null,
+    sessionCompatibilityFingerprint: null,
     streamingMessageId: null,
     lastCost: null,
     contextUsage: null,

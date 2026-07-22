@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest'
 import type { AgentConversationState } from '../../stores/agent-store'
 import { createConversationRunController } from './conversation-run-controller'
 
+const SESSION_COMPATIBILITY_FINGERPRINT = 'a'.repeat(64)
+
 function createConversation(updates: Partial<AgentConversationState> = {}): AgentConversationState {
   return {
     id: 'agent-1',
@@ -21,6 +23,7 @@ function createConversation(updates: Partial<AgentConversationState> = {}): Agen
     lastRunEventAt: null,
     lastRunTerminalReason: null,
     sessionId: 'session-1',
+    sessionCompatibilityFingerprint: SESSION_COMPATIBILITY_FINGERPRINT,
     streamingMessageId: null,
     lastCost: null,
     contextUsage: null,
@@ -176,6 +179,7 @@ describe('conversation-run-controller', () => {
     expect(agentApi.compactConversation).toHaveBeenCalledWith('agent-1', {
       runId: 'compact-1',
       sessionId: 'session-1',
+      sessionCompatibilityFingerprint: SESSION_COMPATIBILITY_FINGERPRINT,
       workspaceRef: undefined,
       instructions: '保留任务',
     })

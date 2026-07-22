@@ -50,6 +50,11 @@ function normalizeSendMessageInput(input: AgentSendMessageInput): AgentSendMessa
     skills: Array.isArray(input.skills) ? input.skills : undefined,
     sessionId:
       input.sessionId === null || typeof input.sessionId === 'string' ? input.sessionId : undefined,
+    sessionCompatibilityFingerprint:
+      input.sessionCompatibilityFingerprint === null ||
+      typeof input.sessionCompatibilityFingerprint === 'string'
+        ? input.sessionCompatibilityFingerprint
+        : undefined,
     workspaceRef: normalizeWorkspaceRef(input.workspaceRef),
     continuity: normalizeContinuity(input.continuity),
   }
@@ -145,6 +150,7 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
         resources: payload.resources,
         skills: payload.skills,
         sessionId: payload.sessionId,
+        sessionCompatibilityFingerprint: payload.sessionCompatibilityFingerprint,
         workspaceRef: payload.workspaceRef,
         continuity: payload.continuity,
       },
@@ -164,7 +170,16 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
   handle(agentIpc.getStatus, (_event, ...args) => {
     const [conversationId] = args
     const agentBridge = requireAgentBridge()
-    if (!agentBridge) return { connected: false, busy: false, sessionId: null, ready: false }
+    if (!agentBridge) {
+      return {
+        connected: false,
+        busy: false,
+        sessionId: null,
+        sessionCompatibilityFingerprint: null,
+        runtimeProvenance: null,
+        ready: false,
+      }
+    }
     return agentBridge.getStatus(conversationId)
   })
 
@@ -181,6 +196,7 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
     try {
       await agentBridge.compactConversation(conversationId, {
         sessionId: input.sessionId,
+        sessionCompatibilityFingerprint: input.sessionCompatibilityFingerprint,
         runId: input.runId,
         workspaceRef: input.workspaceRef,
         instructions: input.instructions,
@@ -221,10 +237,11 @@ export function registerAgentIpc(deps: AgentIpcDeps): void {
   })
 
   // 恢复历史会话的后端 session id
-  handle(agentIpc.restoreConversation, (_event, conversationId, sessionId) => {
+  handle(agentIpc.restoreConversation, (_event, ...args) => {
+    const [conversationId, sessionId, sessionCompatibilityFingerprint] = args
     const agentBridge = requireAgentBridge()
     if (!agentBridge) return
-    agentBridge.restoreConversation(conversationId, sessionId)
+    agentBridge.restoreConversation(conversationId, sessionId, sessionCompatibilityFingerprint)
   })
 
   // 关闭指定会话并释放后端资源

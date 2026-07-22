@@ -119,7 +119,11 @@ interface AgentState {
     runId?: string,
   ) => void
   setBackendState: (state: AgentBackendState, conversationId?: string) => void
-  setSessionId: (id: string | null, conversationId?: string) => void
+  setSessionId: (
+    id: string | null,
+    conversationId?: string,
+    sessionCompatibilityFingerprint?: string | null,
+  ) => void
   setLastCost: (cost: number, conversationId?: string) => void
   setContextUsage: (usage: AgentContextUsageSnapshot | null, conversationId?: string) => void
   beginContextCompaction: (conversationId?: string) => string
@@ -155,6 +159,39 @@ interface AgentState {
 }
 
 const createConversation = createAgentConversationState
+
+function resolveRuntimeSession(
+  conversation: AgentConversationState,
+  status: AgentStatus,
+): Pick<AgentConversationState, 'sessionId' | 'sessionCompatibilityFingerprint'> {
+  const statusFingerprint = status.sessionCompatibilityFingerprint
+  if (status.sessionId) {
+    return {
+      sessionId: status.sessionId,
+      sessionCompatibilityFingerprint: statusFingerprint ?? null,
+    }
+  }
+  if (statusFingerprint === undefined) {
+    return {
+      sessionId: conversation.sessionId,
+      sessionCompatibilityFingerprint: conversation.sessionCompatibilityFingerprint ?? null,
+    }
+  }
+  if (
+    conversation.sessionId &&
+    statusFingerprint &&
+    conversation.sessionCompatibilityFingerprint === statusFingerprint
+  ) {
+    return {
+      sessionId: conversation.sessionId,
+      sessionCompatibilityFingerprint: statusFingerprint,
+    }
+  }
+  return {
+    sessionId: null,
+    sessionCompatibilityFingerprint: statusFingerprint ?? null,
+  }
+}
 
 function mirrorActive(
   state: AgentState,
@@ -739,11 +776,16 @@ export const useAgentStore = create<AgentState>((set) => ({
       })),
     ),
 
-  setSessionId: (sessionId, conversationId) =>
+  setSessionId: (sessionId, conversationId, sessionCompatibilityFingerprint) =>
     set((state) =>
       updateConversation(state, conversationId, (conversation) => ({
         ...conversation,
         sessionId,
+        sessionCompatibilityFingerprint: sessionId
+          ? (sessionCompatibilityFingerprint ??
+            conversation.sessionCompatibilityFingerprint ??
+            null)
+          : null,
         updatedAt: Date.now(),
       })),
     ),
@@ -839,6 +881,7 @@ export const useAgentStore = create<AgentState>((set) => ({
   reconcileRuntimeStatus: (status, conversationId) =>
     set((state) =>
       updateConversation(state, conversationId, (conversation) => {
+        const runtimeSession = resolveRuntimeSession(conversation, status)
         if (status.busy ?? status.connected) {
           return {
             ...conversation,
@@ -853,7 +896,7 @@ export const useAgentStore = create<AgentState>((set) => ({
             activeRunId: status.runId ?? conversation.activeRunId ?? null,
             lastRunEventAt: Date.now(),
             lastRunTerminalReason: null,
-            sessionId: status.sessionId ?? conversation.sessionId,
+            ...runtimeSession,
             updatedAt: Date.now(),
           }
         }
@@ -863,8 +906,10 @@ export const useAgentStore = create<AgentState>((set) => ({
           conversation.runStatus === 'running' ||
           Boolean(conversation.activeRunId)
         if (!awaitingRuntimeReconciliation) {
-          return status.sessionId && status.sessionId !== conversation.sessionId
-            ? { ...conversation, sessionId: status.sessionId, updatedAt: Date.now() }
+          return runtimeSession.sessionId !== conversation.sessionId ||
+            runtimeSession.sessionCompatibilityFingerprint !==
+              (conversation.sessionCompatibilityFingerprint ?? null)
+            ? { ...conversation, ...runtimeSession, updatedAt: Date.now() }
             : conversation
         }
         const terminalReason: AgentRunTerminalReason =
@@ -880,7 +925,7 @@ export const useAgentStore = create<AgentState>((set) => ({
           activeRunId: null,
           lastRunEventAt: Date.now(),
           lastRunTerminalReason: terminalReason,
-          sessionId: status.sessionId ?? conversation.sessionId,
+          ...runtimeSession,
           streamingMessageId: null,
           updatedAt: Date.now(),
         }

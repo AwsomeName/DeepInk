@@ -8,7 +8,7 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { readFile, writeFile } from 'fs/promises'
-import { DEFAULT_SETTINGS, type AppSettings } from './types'
+import { DEFAULT_SETTINGS, normalizeClaudeRuntimeSettingsUpdate, type AppSettings } from './types'
 import {
   SettingsCredentialStore,
   type SettingsSecretKey,
@@ -28,6 +28,7 @@ const VALID_VALUES: Record<string, Set<string>> = {
   defaultZoomMode: new Set<string>(['fit', 'manual']),
   defaultDeviceMode: new Set<string>(['desktop', 'mobile']),
   agentEngine: new Set<string>(['local-claude-code']),
+  claudeRuntimeSource: new Set<string>(['bundled', 'system', 'custom']),
   provider: new Set<string>([
     'anthropic',
     'deepseek',
@@ -81,9 +82,12 @@ export class SettingsService {
 
     this.store = { ...DEFAULT_SETTINGS }
     this.applyPersistedSettings(parsed)
+    this.migrateClaudeRuntimeSelection(parsed)
 
     const legacySecrets = extractLegacySecrets(parsed)
     const hasLegacySecretFields = Object.keys(parsed).some((key) => SECRET_KEYS.has(key))
+    const needsClaudeRuntimeMigration =
+      settingsFileExists && typeof parsed.claudeRuntimeSource !== 'string'
     try {
       await this.credentialStore.load()
       const encryptedSecrets = await this.credentialStore.getAll()
@@ -96,9 +100,14 @@ export class SettingsService {
       }
       this.secrets = mergedSecrets
       this.migrationBlocked = false
-      if (settingsFileExists && hasLegacySecretFields) {
+      if (settingsFileExists && (hasLegacySecretFields || needsClaudeRuntimeMigration)) {
         await this.saveState()
-        console.log('[SettingsService] 旧版明文凭证已迁移到系统加密存储')
+        if (hasLegacySecretFields) {
+          console.log('[SettingsService] 旧版明文凭证已迁移到系统加密存储')
+        }
+        if (needsClaudeRuntimeMigration) {
+          console.log('[SettingsService] Claude Code 运行时来源设置已迁移')
+        }
       }
     } catch (error) {
       this.secrets = legacySecrets
@@ -185,7 +194,8 @@ export class SettingsService {
       }
       ;(filtered as Record<string, unknown>)[key] = val
     }
-    const nextStore = { ...this.store, ...filtered }
+    const normalized = normalizeClaudeRuntimeSettingsUpdate(this.store, filtered)
+    const nextStore = { ...this.store, ...normalized }
     await this.saveState(nextStore)
     this.store = nextStore
     return this.getAll()
@@ -241,6 +251,11 @@ export class SettingsService {
       }
       ;(this.store as unknown as Record<string, unknown>)[key] = val
     }
+  }
+
+  private migrateClaudeRuntimeSelection(parsed: Record<string, unknown>): void {
+    if (typeof parsed.claudeRuntimeSource === 'string') return
+    this.store.claudeRuntimeSource = this.store.claudeCodePath.trim() ? 'custom' : 'system'
   }
 }
 

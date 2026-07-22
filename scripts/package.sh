@@ -108,7 +108,13 @@ info "构建（pnpm build → electron-vite build）..."
 pnpm build > /tmp/cclink-studio-build.log 2>&1 || { tail -30 /tmp/cclink-studio-build.log; die "构建失败，详见 /tmp/cclink-studio-build.log"; }
 ok "构建完成"
 
-# ── 5. 打包（electron-builder） ───────────────────────────
+# ── 5. 准备固定版本 Agent 运行时 ───────────────────────────
+info "准备 Claude Code Agent 运行时资源..."
+node scripts/stage-claude-runtime.mjs --arch "$ARCH" \
+  || die "Claude Code Agent 运行时 staging 失败"
+ok "Agent 运行时资源已验证"
+
+# ── 6. 打包（electron-builder） ───────────────────────────
 EB_ARGS=(--mac)
 case "$ARCH" in
   arm64)    EB_ARGS+=(--arm64) ;;
@@ -122,7 +128,23 @@ npx electron-builder "${EB_ARGS[@]}" > /tmp/cclink-studio-package.log 2>&1 \
   || { tail -40 /tmp/cclink-studio-package.log; die "打包失败，详见 /tmp/cclink-studio-package.log"; }
 ok "打包完成"
 
-# ── 6. 结果摘要 ───────────────────────────────────────────
+# ── 7. 验证安装包内 Agent 运行时 ──────────────────────────
+case "$ARCH" in
+  arm64) APP_SEARCH_ROOT="dist/mac-arm64" ;;
+  x64) APP_SEARCH_ROOT="dist/mac" ;;
+  universal) APP_SEARCH_ROOT="dist/mac-universal" ;;
+esac
+APP_PATH=$(find "$APP_SEARCH_ROOT" -maxdepth 2 -type d -name '*.app' -print -quit)
+[ -n "$APP_PATH" ] || die "未找到打包后的 .app，无法验证 Agent 运行时"
+info "验证安装包内 Claude Code Agent 运行时..."
+node scripts/stage-claude-runtime.mjs \
+  --verify-only \
+  --arch "$ARCH" \
+  --output "$APP_PATH/Contents/Resources/agent-runtime" \
+  || die "安装包内 Claude Code Agent 运行时验证失败"
+ok "安装包内 Agent 运行时可执行、版本与完整性均通过"
+
+# ── 8. 结果摘要 ───────────────────────────────────────────
 echo ""
 echo -e "${GREEN}${BOLD}✅ 打包成功${RESET} — 版本 $VERSION / 架构 $ARCH"
 echo ""
@@ -132,7 +154,7 @@ echo ""
 echo -e "${CYAN}搬到另一台 Mac 的提示:${RESET}"
 echo -e "  • 默认未签名 → 目标机安装后执行:  ${BOLD}xattr -cr /Applications/CCLink\\ Studio.app${RESET}"
 echo -e "  • Intel Mac 需另行用 ${BOLD}--x64${RESET} 打包；当前产物仅适用于 ${BOLD}$ARCH${RESET}"
-echo -e "  • Agent 用 http-api 后端（国内模型 / OpenAI 兼容）零外部依赖；claude-code 后端需目标机装 claude CLI"
+echo -e "  • 安装包携带固定版本 Claude Code 运行时；模型服务和 API 凭证仍由用户配置"
 echo -e "  • 内嵌浏览器用 Electron 自带 Chromium，无需额外下载"
 
 [ "$OPEN_FINDER" -eq 1 ] && open dist/

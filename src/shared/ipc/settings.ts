@@ -4,6 +4,7 @@ export type {
   ZoomMode,
   DeviceMode,
   AgentEngine,
+  ClaudeRuntimeSource,
   CadBackend,
   Provider,
   ApiFormat,
@@ -14,6 +15,11 @@ export type {
 export { PROVIDER_PRESETS, DEFAULT_SETTINGS, getPresetBaseUrl } from '../settings-constants'
 
 import type { AppSettings } from '../settings-constants'
+import type {
+  ClaudeRuntimeProbeResult,
+  ClaudeRuntimeSelection,
+  ClaudeRuntimeStatus,
+} from '../claude-runtime'
 import { defineIpcCall } from './contract'
 
 export interface SettingsOperationResult {
@@ -40,8 +46,20 @@ export interface SettingsSecretOperationResult {
 export interface ClaudeCodeStatus {
   installed: boolean
   path: string | null
-  source: 'configured' | 'known-path' | 'shell-path' | 'spawn-path' | 'not-found'
+  source: 'bundled' | 'configured' | 'known-path' | 'shell-path' | 'spawn-path' | 'not-found'
   error?: string
+}
+
+export interface ClaudeRuntimeStatusResult {
+  success: boolean
+  error?: string
+  status?: ClaudeRuntimeStatus
+}
+
+export interface ClaudeRuntimeProbeOperationResult {
+  success: boolean
+  error?: string
+  result?: ClaudeRuntimeProbeResult
 }
 
 export interface ClaudeCodeDetectionResult {
@@ -59,6 +77,8 @@ export interface SettingsApiContract {
   reset(): Promise<SettingsOperationResult>
   resetKey(key: keyof AppSettings): Promise<SettingsOperationResult>
   detectClaudeCode(): Promise<ClaudeCodeDetectionResult>
+  getClaudeRuntimeStatus(): Promise<ClaudeRuntimeStatusResult>
+  probeClaudeRuntime(selection: ClaudeRuntimeSelection): Promise<ClaudeRuntimeProbeOperationResult>
 }
 
 export const settingsIpc = {
@@ -74,4 +94,10 @@ export const settingsIpc = {
   reset: defineIpcCall<[], SettingsOperationResult>('settings:reset'),
   resetKey: defineIpcCall<[keyof AppSettings], SettingsOperationResult>('settings:resetKey'),
   detectClaudeCode: defineIpcCall<[], ClaudeCodeDetectionResult>('settings:detectClaudeCode'),
+  getClaudeRuntimeStatus: defineIpcCall<[], ClaudeRuntimeStatusResult>(
+    'settings:getClaudeRuntimeStatus',
+  ),
+  probeClaudeRuntime: defineIpcCall<[ClaudeRuntimeSelection], ClaudeRuntimeProbeOperationResult>(
+    'settings:probeClaudeRuntime',
+  ),
 } as const

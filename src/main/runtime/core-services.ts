@@ -142,6 +142,11 @@ export async function bootstrapMainProcessServices(
     runtime.permissionManager,
     () => runtime.agentBridge,
     () => runtime.toolHost,
+    () => runtime.claudeRuntimeManager,
+    async () => {
+      const { bootstrapAgentRuntime } = await import('./agent-runtime')
+      await bootstrapAgentRuntime(runtime)
+    },
   )
   console.log('[CCLink Studio] 设置 IPC 已注册')
 

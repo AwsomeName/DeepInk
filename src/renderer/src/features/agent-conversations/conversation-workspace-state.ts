@@ -55,7 +55,12 @@ export function normalizeConversationSnapshot(
   for (const [index, id] of parsed.conversationOrder.entries()) {
     const conversation = parsed.conversations[id]
     if (!conversation) continue
-    const invalidPersistedSession = hasTerminalSdkSessionFailure(conversation.messages)
+    const persistedFingerprint = normalizeSessionCompatibilityFingerprint(
+      conversation.sessionCompatibilityFingerprint,
+    )
+    const invalidPersistedSession =
+      hasTerminalSdkSessionFailure(conversation.messages) ||
+      (Boolean(conversation.sessionId) && !persistedFingerprint)
     const awaitingRuntimeReconciliation =
       conversation.runStatus === 'starting' ||
       conversation.runStatus === 'running' ||
@@ -81,6 +86,7 @@ export function normalizeConversationSnapshot(
         : [],
       mountedSkills: Array.isArray(conversation.mountedSkills) ? conversation.mountedSkills : [],
       sessionId: invalidPersistedSession ? null : (conversation.sessionId ?? null),
+      sessionCompatibilityFingerprint: invalidPersistedSession ? null : persistedFingerprint,
       contextUsage: invalidPersistedSession ? null : (conversation.contextUsage ?? null),
       contextCompaction: conversation.contextCompaction ?? {
         status: 'idle',
@@ -137,6 +143,10 @@ export function normalizeConversationSnapshot(
   }
 
   return { conversations, conversationOrder: order, activeConversationId }
+}
+
+function normalizeSessionCompatibilityFingerprint(value: unknown): string | null {
+  return typeof value === 'string' && /^[a-f0-9]{64}$/.test(value) ? value : null
 }
 
 function hasTerminalSdkSessionFailure(messages: AgentMessage[] | undefined): boolean {

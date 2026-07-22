@@ -96,6 +96,7 @@ export function buildAgentSendPayload(
     resources: toSendResources(conversation?.mountedResources ?? []),
     skills: toSendSkills(conversation?.mountedSkills ?? []),
     sessionId: conversation?.sessionId ?? null,
+    sessionCompatibilityFingerprint: conversation?.sessionCompatibilityFingerprint ?? null,
     continuity: buildConversationContinuity(conversation, message),
     ...(conversation?.runtime.workspaceRef
       ? { workspaceRef: conversation.runtime.workspaceRef }
