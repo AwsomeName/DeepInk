@@ -62,3 +62,4 @@
 - 全新 detached worktree 完成 `pnpm install --frozen-lockfile`。
 - `pnpm verify` 通过：151 个测试文件、902 项测试。
 - `pnpm smoke:standalone` 通过：local 9/9、UI 6/6、workflow 7/7、restore 4/4。
+- 关闭提交 `ca634cb` 在全新 detached worktree `/tmp/cclink-context-m3-close.PKK2oV` 复验通过：153 个测试文件、926 项测试；standalone 26/26；工作树干净。
