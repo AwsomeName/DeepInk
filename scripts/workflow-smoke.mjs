@@ -106,7 +106,9 @@ async function closeTemporaryWorkspaces() {
     const projectItem = pageRef.locator(`.project-strip-item[data-project-path="${path}"]`).first()
     if ((await projectItem.count()) === 0) continue
     await projectItem.click({ button: 'right' })
-    const closeAction = pageRef.locator('.project-strip-context-action', { hasText: '关闭项目' })
+    const closeAction = pageRef.locator('[data-context-action="project.close"]', {
+      hasText: '关闭项目',
+    })
     await closeAction.waitFor({ timeout: 10_000 })
     await closeAction.click()
     await pageRef.waitForFunction(

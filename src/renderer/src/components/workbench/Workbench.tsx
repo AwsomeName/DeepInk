@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react'
 import { useAgentStore, useBrowserStore, useTabStore, useWorkspaceStore } from '../../stores'
-import { useTabContextMenuStore } from '../../stores/tab-context-menu-store'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
+import { workspaceRefKey } from '@shared/workspace-ref'
 import { AndroidToolbar } from './AndroidToolbar'
 import { BrowserToolbar } from './BrowserToolbar'
 import { TabBar } from './TabBar'
@@ -28,7 +29,7 @@ export function Workbench({
   const openTab = useTabStore((s) => s.openTab)
   const createConversation = useAgentStore((s) => s.createConversation)
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
-  const showTabMenu = useTabContextMenuStore((s) => s.show)
+  const showContextMenu = useContextMenuStore((s) => s.show)
   const browserTabs = useBrowserStore((s) => s.tabs)
   const setBrowserUrlInput = useBrowserStore((s) => s.setUrlInput)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -99,7 +100,7 @@ export function Workbench({
   }, [])
 
   const handleShowTabMenu = useCallback(
-    async (tabId: string, x: number, y: number): Promise<void> => {
+    async (tabId: string, x: number, y: number, focusReturn: HTMLElement): Promise<void> => {
       let browserPreviewDataUrl: string | null = null
       if (activeTabId && isBrowserTab) {
         try {
@@ -108,9 +109,22 @@ export function Workbench({
           console.warn('[Workbench] 浏览器右键菜单快照失败:', error)
         }
       }
-      showTabMenu(tabId, x, y, browserPreviewDataUrl)
+      const tab = useTabStore.getState().tabs.find((item) => item.id === tabId)
+      if (!tab) return
+      showContextMenu({
+        target: {
+          kind: 'tab',
+          workspaceKey: workspaceRefKey(tab.workspaceRef ?? activeWorkspaceRef),
+          tabId,
+          tabType: tab.type,
+        },
+        x,
+        y,
+        focusReturn,
+        browserPreviewDataUrl,
+      })
     },
-    [activeTabId, isBrowserTab, showTabMenu],
+    [activeTabId, activeWorkspaceRef, isBrowserTab, showContextMenu],
   )
 
   const openBrowserUrl = useCallback(
@@ -136,7 +150,7 @@ export function Workbench({
         onNewBrowser={openNewBrowser}
         onNewConversation={openNewConversation}
         onNewTerminal={openNewTerminal}
-        onShowMenu={(tabId, x, y) => void handleShowTabMenu(tabId, x, y)}
+        onShowMenu={(tabId, x, y, focusReturn) => void handleShowTabMenu(tabId, x, y, focusReturn)}
         createMenuOpen={tabCreateMenuOpen}
         onCreateMenuOpenChange={onTabCreateMenuOpenChange}
       />

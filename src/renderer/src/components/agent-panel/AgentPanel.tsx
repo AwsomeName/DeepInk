@@ -11,6 +11,9 @@ import {
   useWorkspaceStore,
 } from '../../stores'
 import { workspaceRefKey, workspaceRefLabel } from '../../../../shared/workspace-ref'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
+import { useCommandStore } from '../../stores/command-store'
+import { THREAD_RESTORED_EVENT } from '../../features/context-actions/domains/thread-context-actions'
 import { MountedResourceBar } from '../../features/agent-conversations/mounted-resource-bar'
 import { MountedSkillStrip } from '../../features/agent-conversations/mounted-skill-strip'
 import {
@@ -129,13 +132,9 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
   const scope = useAgentStore((s) => s.scope)
   const createConversation = useAgentStore((s) => s.createConversation)
   const switchConversation = useAgentStore((s) => s.switchConversation)
-  const archiveConversation = useAgentStore((s) => s.archiveConversation)
-  const restoreArchivedConversation = useAgentStore((s) => s.restoreArchivedConversation)
-  const renameConversation = useAgentStore((s) => s.renameConversation)
   const tabs = useTabStore((s) => s.tabs)
   const activeTabId = useTabStore((s) => s.activeTabId)
   const openTab = useTabStore((s) => s.openTab)
-  const closeTab = useTabStore((s) => s.closeTab)
   const settings = useSettingsStore((s) => s.settings)
   const loadSettings = useSettingsStore((s) => s.loadSettings)
   const editorFiles = useEditorStore((s) => s.files)
@@ -511,40 +510,15 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
     [switchConversation],
   )
 
-  const handleArchiveConversation = useCallback(
-    async (conversationId: string) => {
-      try {
-        await archiveConversation(conversationId)
-        tabs
-          .filter(
-            (tab) =>
-              tab.type === 'conversation' &&
-              tab.conversation &&
-              'sessionId' in tab.conversation &&
-              tab.conversation.sessionId === conversationId,
-          )
-          .forEach((tab) => closeTab(tab.id))
-      } catch (error) {
-        showToast(`会话已移到历史，但保存失败：${String(error)}`, 'error')
-      }
-    },
-    [archiveConversation, closeTab, showToast, tabs],
-  )
-
-  const handleRestoreConversation = useCallback(
-    async (conversationId: string) => {
-      try {
-        await restoreArchivedConversation(conversationId)
-      } catch (error) {
-        showToast(`会话已恢复，但保存失败：${String(error)}`, 'error')
-        return
-      }
+  useEffect(() => {
+    const handleThreadRestored = (): void => {
       setArchivedThreadsExpanded(false)
       setResourceQuery(null)
       setSkillQuery(null)
-    },
-    [restoreArchivedConversation, showToast],
-  )
+    }
+    window.addEventListener(THREAD_RESTORED_EVENT, handleThreadRestored)
+    return () => window.removeEventListener(THREAD_RESTORED_EVENT, handleThreadRestored)
+  }, [])
 
   const handleCopyDiagnostics = useCallback(async () => {
     const conversation = useAgentStore.getState().conversations[activeConversationId] ?? null
@@ -887,12 +861,9 @@ export function AgentPanel({ variant = 'side' }: AgentPanelProps): React.ReactEl
       onToggleExpanded={() => setQuickThreadsExpanded((value) => !value)}
       onNew={handleNewConversation}
       onSwitch={handleSwitchConversation}
-      onRename={renameConversation}
       archivedThreads={archivedQuickThreads}
       archivedExpanded={archivedThreadsExpanded}
       onToggleArchived={() => setArchivedThreadsExpanded((value) => !value)}
-      onArchive={handleArchiveConversation}
-      onRestore={handleRestoreConversation}
     />
   )
   const centerThreadList = (
@@ -1223,12 +1194,9 @@ function QuickThreadSwitcher({
   onToggleExpanded,
   onNew,
   onSwitch,
-  onRename,
   archivedThreads,
   archivedExpanded,
   onToggleArchived,
-  onArchive,
-  onRestore,
 }: {
   threads: QuickThreadSummary[]
   totalCount: number
@@ -1236,89 +1204,23 @@ function QuickThreadSwitcher({
   onToggleExpanded: () => void
   onNew: () => void
   onSwitch: (conversationId: string) => void
-  onRename: (conversationId: string, title: string) => void
   archivedThreads: QuickThreadSummary[]
   archivedExpanded: boolean
   onToggleArchived: () => void
-  onArchive: (conversationId: string) => Promise<void>
-  onRestore: (conversationId: string) => Promise<void>
 }): React.ReactElement {
-  const [contextMenu, setContextMenu] = useState<{
-    thread: QuickThreadSummary
-    archived: boolean
-    x: number
-    y: number
-  } | null>(null)
-  const [renamingThreadId, setRenamingThreadId] = useState<string | null>(null)
-  const [renameDraft, setRenameDraft] = useState('')
-  const contextMenuRef = useRef<HTMLDivElement | null>(null)
-  const renameInputRef = useRef<HTMLInputElement | null>(null)
-  const renameCancelledRef = useRef(false)
+  const showContextMenu = useContextMenuStore((state) => state.show)
+  const executeCommand = useCommandStore((state) => state.executeCommand)
   const hasOverflow = totalCount > 5
 
-  useEffect(() => {
-    if (!contextMenu) return
-
-    const handlePointerDown = (event: MouseEvent): void => {
-      if (!contextMenuRef.current?.contains(event.target as Node)) {
-        setContextMenu(null)
-      }
-    }
-    const handleKeyDown = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setContextMenu(null)
-    }
-
-    const frame = requestAnimationFrame(() => {
-      document.addEventListener('mousedown', handlePointerDown)
-      document.addEventListener('keydown', handleKeyDown)
+  const restoreThread = (thread: QuickThreadSummary): void => {
+    void executeCommand('agent.restoreConversation', {
+      source: 'toolbar',
+      target: {
+        kind: 'thread',
+        workspaceKey: thread.workspaceKey,
+        conversationId: thread.id,
+      },
     })
-
-    return () => {
-      cancelAnimationFrame(frame)
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [contextMenu])
-
-  useEffect(() => {
-    if (!renamingThreadId) return
-    renameInputRef.current?.focus()
-    renameInputRef.current?.select()
-  }, [renamingThreadId])
-
-  const beginRename = (): void => {
-    if (!contextMenu) return
-    const { thread } = contextMenu
-    setContextMenu(null)
-    renameCancelledRef.current = false
-    setRenameDraft(thread.title)
-    setRenamingThreadId(thread.id)
-  }
-
-  const commitRename = (threadId: string): void => {
-    if (renameCancelledRef.current) {
-      renameCancelledRef.current = false
-      return
-    }
-    const nextTitle = renameDraft.trim()
-    setRenamingThreadId(null)
-    setRenameDraft('')
-    if (!nextTitle) return
-    onRename(threadId, nextTitle)
-  }
-
-  const archiveContextThread = (): void => {
-    if (!contextMenu) return
-    const { thread } = contextMenu
-    setContextMenu(null)
-    void onArchive(thread.id)
-  }
-
-  const restoreContextThread = (): void => {
-    if (!contextMenu) return
-    const { thread } = contextMenu
-    setContextMenu(null)
-    void onRestore(thread.id)
   }
 
   const renderThreadRow = (thread: QuickThreadSummary, archived: boolean): React.ReactElement => (
@@ -1330,8 +1232,7 @@ function QuickThreadSwitcher({
       role="button"
       tabIndex={0}
       onClick={() => {
-        if (renamingThreadId === thread.id) return
-        if (archived) void onRestore(thread.id)
+        if (archived) restoreThread(thread)
         else onSwitch(thread.id)
       }}
       onKeyDown={(event) => {
@@ -1339,48 +1240,28 @@ function QuickThreadSwitcher({
           return
         }
         event.preventDefault()
-        if (archived) void onRestore(thread.id)
+        if (archived) restoreThread(thread)
         else onSwitch(thread.id)
       }}
       onContextMenu={(event) => {
         event.preventDefault()
         event.stopPropagation()
-        setContextMenu({
-          thread,
-          archived,
+        showContextMenu({
+          target: {
+            kind: 'thread',
+            workspaceKey: thread.workspaceKey,
+            conversationId: thread.id,
+          },
           x: event.clientX,
           y: event.clientY,
+          focusReturn: event.currentTarget,
         })
       }}
       title={`${thread.title} · ${thread.statusLabel} · 右键管理`}
     >
       <span className={`agent-quick-thread-dot status-${thread.statusKind}`} />
       <span className="agent-quick-thread-copy">
-        {renamingThreadId === thread.id ? (
-          <input
-            ref={renameInputRef}
-            className="agent-quick-thread-rename-input"
-            value={renameDraft}
-            aria-label="重命名会话"
-            onChange={(event) => setRenameDraft(event.target.value)}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={(event) => {
-              event.stopPropagation()
-              if (event.key === 'Enter') {
-                event.preventDefault()
-                event.currentTarget.blur()
-              } else if (event.key === 'Escape') {
-                event.preventDefault()
-                renameCancelledRef.current = true
-                setRenamingThreadId(null)
-                setRenameDraft('')
-              }
-            }}
-            onBlur={() => commitRename(thread.id)}
-          />
-        ) : (
-          <span className="agent-quick-thread-title">{thread.title}</span>
-        )}
+        <span className="agent-quick-thread-title">{thread.title}</span>
         <span className="agent-quick-thread-meta">
           {thread.workspaceLabel} · {thread.messageCount} 条消息
         </span>
@@ -1434,51 +1315,6 @@ function QuickThreadSwitcher({
               {archivedThreads.map((thread) => renderThreadRow(thread, true))}
             </div>
           )}
-        </div>
-      )}
-
-      {contextMenu && (
-        <div
-          ref={contextMenuRef}
-          className="context-menu agent-thread-context-menu"
-          role="menu"
-          style={{
-            left: Math.min(contextMenu.x, window.innerWidth - 170),
-            top: Math.min(contextMenu.y, window.innerHeight - 96),
-          }}
-        >
-          <div className="context-menu-items">
-            <button
-              type="button"
-              className="context-menu-item agent-thread-context-action"
-              role="menuitem"
-              onClick={beginRename}
-            >
-              <span className="context-menu-icon">✎</span>
-              <span>重命名</span>
-            </button>
-            {contextMenu.archived ? (
-              <button
-                type="button"
-                className="context-menu-item agent-thread-context-action"
-                role="menuitem"
-                onClick={restoreContextThread}
-              >
-                <span className="context-menu-icon">↶</span>
-                <span>恢复到会话列表</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="context-menu-item agent-thread-context-action"
-                role="menuitem"
-                onClick={archiveContextThread}
-              >
-                <span className="context-menu-icon">⌄</span>
-                <span>移到历史会话</span>
-              </button>
-            )}
-          </div>
         </div>
       )}
     </div>

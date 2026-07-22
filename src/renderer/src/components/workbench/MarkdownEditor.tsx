@@ -12,12 +12,11 @@ import { TableCell } from '@tiptap/extension-table-cell'
 import { TableHeader } from '@tiptap/extension-table-header'
 import Link from '@tiptap/extension-link'
 import { common, createLowlight } from 'lowlight'
-import type { AgentMountedResource } from '../../types'
-import { useAgentStore } from '../../stores/agent-store'
 import { useEditorStore } from '../../stores/editor-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useTabStore } from '../../stores/tab-store'
-import { useUIStore } from '../../stores/ui-store'
+import { useSettingsStore } from '../../stores/settings-store'
+import { useCommandStore } from '../../stores/command-store'
+import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useToastStore } from '../common/Toast'
 import { EditorToolbar } from './EditorToolbar'
 import {
@@ -28,28 +27,19 @@ import {
   type MarkdownSourceRange,
 } from '../../features/markdown/markdown-codec'
 import {
-  MAX_FILE_RANGE_BYTES,
-  MAX_FILE_RANGE_LINES,
-} from '../../features/agent-conversations/payload'
-import {
-  focusAgentComposer,
   MARKDOWN_REVEAL_RANGE_EVENT,
   type MarkdownRevealRange,
 } from '../../features/markdown/markdown-navigation'
 import { MarkdownImage, resolveMarkdownImageSource } from '../../features/markdown/MarkdownImage'
 import type { FsMarkdownDocumentInspection } from '@shared/ipc/fs'
+import { workspaceRefKey } from '@shared/workspace-ref'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
 
 const lowlight = createLowlight(common)
 
 interface MarkdownEditorProps {
   filePath?: string
   tabId: string
-}
-
-interface SelectionMenuState {
-  range: MarkdownSourceRange
-  x: number
-  y: number
 }
 
 interface ImageDraft {
@@ -67,9 +57,7 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
 
   const fileState = useEditorStore((state) => state.files[fileKey])
   const pendingCount = useEditorStore((state) => state.pendingUpdates.length)
-  const activeConversationId = useAgentStore((state) => state.activeConversationId)
-  const addMountedResource = useAgentStore((state) => state.addMountedResource)
-  const setAgentPanelMode = useUIStore((state) => state.setAgentPanelMode)
+  const executeCommand = useCommandStore((state) => state.executeCommand)
   const editorFontFamily = useSettingsStore((state) => state.settings.editorFontFamily)
   const editorFontSize = useSettingsStore((state) => state.settings.editorFontSize)
   const editorWordWrap = useSettingsStore((state) => state.settings.editorWordWrap)
@@ -84,7 +72,6 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
   const [resourceInspection, setResourceInspection] = useState<FsMarkdownDocumentInspection | null>(
     null,
   )
-  const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null)
   const [parseBlockedReason, setParseBlockedReason] = useState<string | null>(null)
   const [imageDraft, setImageDraft] = useState<ImageDraft | null>(null)
   const appliedUpdateIds = useRef(new Set<string>())
@@ -140,7 +127,20 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
             const range = currentWysiwygSelection()
             if (!range) return false
             event.preventDefault()
-            setSelectionMenu({ range, x: event.clientX, y: event.clientY })
+            const activeWorkspaceRef = useWorkspaceStore.getState().activeWorkspaceRef
+            useContextMenuStore.getState().show({
+              target: {
+                kind: 'markdown-selection',
+                workspaceKey: workspaceRefKey(activeWorkspaceRef),
+                tabId,
+                filePath: filePathRef.current ?? '',
+                range,
+                dirty: useEditorStore.getState().files[fileKeyRef.current]?.dirty ?? false,
+              },
+              x: event.clientX,
+              y: event.clientY,
+              focusReturn: event.target instanceof HTMLElement ? event.target : null,
+            })
             return true
           },
         },
@@ -154,7 +154,6 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
       },
       onSelectionUpdate: () => {
         setSelectionRange(currentWysiwygSelection())
-        setSelectionMenu(null)
       },
     },
     [extensions],
@@ -351,12 +350,6 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
     window.addEventListener(MARKDOWN_REVEAL_RANGE_EVENT, reveal)
     return () => window.removeEventListener(MARKDOWN_REVEAL_RANGE_EVENT, reveal)
   }, [editor, fileKey, filePath, tabId])
-
-  useEffect(() => {
-    const closeMenu = (): void => setSelectionMenu(null)
-    window.addEventListener('pointerdown', closeMenu)
-    return () => window.removeEventListener('pointerdown', closeMenu)
-  }, [])
 
   useEffect(() => {
     if (!editor) return
@@ -573,51 +566,22 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
 
   const sendSelectionToConversation = useCallback(
     (range: MarkdownSourceRange) => {
-      const lineCount = range.endLine - range.startLine + 1
-      const bytes = new TextEncoder().encode(range.sourceSnapshot).byteLength
-      if (lineCount > MAX_FILE_RANGE_LINES || bytes > MAX_FILE_RANGE_BYTES) {
-        showToast(
-          `选区最多 ${MAX_FILE_RANGE_LINES} 行且不超过 ${MAX_FILE_RANGE_BYTES / 1024}KB`,
-          'error',
-        )
-        return
-      }
-      const name = filePath?.split('/').pop() ?? '未命名.md'
-      const resource: AgentMountedResource = {
-        id: `file-range:${filePath ?? tabId}:${range.startLine}:${range.endLine}:${Date.now()}`,
-        kind: 'file-range',
-        label: `${name}:L${range.startLine}-L${range.endLine}`,
-        detail: `${filePath ?? '未保存文档'} 第 ${range.startLine}-${range.endLine} 行`,
-        ref: {
-          type: 'file-range',
-          path: filePath,
+      const workspaceKey = workspaceRefKey(useWorkspaceStore.getState().activeWorkspaceRef)
+      void executeCommand('markdown.sendSelectionToConversation', {
+        source: 'toolbar',
+        target: {
+          kind: 'markdown-selection',
+          workspaceKey,
           tabId,
-          format: 'markdown',
-          startLine: range.startLine,
-          endLine: range.endLine,
-          startColumn: range.startColumn,
-          endColumn: range.endColumn,
-          selectedText: range.selectedText,
-          sourceSnapshot: range.sourceSnapshot,
-          snapshotHash: hashMarkdownSnapshot(range.sourceSnapshot),
+          filePath: filePath ?? '',
+          range,
           dirty,
         },
-      }
-      addMountedResource(resource, activeConversationId)
-      setAgentPanelMode('right', 'user')
-      setSelectionMenu(null)
-      showToast('已将带行号的 Markdown 选区挂到当前会话', 'success')
-      requestAnimationFrame(focusAgentComposer)
+      }).then((result) => {
+        if (!result.ok) showToast(result.message ?? '无法发送选区', 'error')
+      })
     },
-    [
-      activeConversationId,
-      addMountedResource,
-      dirty,
-      filePath,
-      setAgentPanelMode,
-      showToast,
-      tabId,
-    ],
+    [dirty, executeCommand, filePath, showToast, tabId],
   )
 
   const handleReload = useCallback(async () => {
@@ -803,25 +767,13 @@ export function MarkdownEditor({ filePath, tabId }: MarkdownEditorProps): React.
         </div>
       )}
 
-      {selectionRange && !selectionMenu && (
+      {selectionRange && (
         <div className="markdown-selection-toolbar">
           <span>
             L{selectionRange.startLine}-L{selectionRange.endLine}
           </span>
           <button type="button" onClick={() => sendSelectionToConversation(selectionRange)}>
             发给会话
-          </button>
-        </div>
-      )}
-
-      {selectionMenu && (
-        <div
-          className="markdown-selection-menu"
-          style={{ left: selectionMenu.x, top: selectionMenu.y }}
-          onPointerDown={(event) => event.stopPropagation()}
-        >
-          <button type="button" onClick={() => sendSelectionToConversation(selectionMenu.range)}>
-            带行号发送给会话
           </button>
         </div>
       )}

@@ -523,21 +523,6 @@ input:focus {
   text-align: center;
 }
 
-.project-strip-context-menu {
-  position: fixed;
-  z-index: 10020;
-  min-width: 160px;
-  -webkit-app-region: no-drag;
-}
-
-.project-strip-context-action {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-}
-
 .main-area {
   position: relative;
   display: flex;
@@ -4018,40 +4003,6 @@ body.is-resizing-thread-list .agent-panel-center > .agent-quick-switcher {
   max-height: 220px;
   margin-top: 2px;
   overflow-y: auto;
-}
-
-.agent-thread-context-menu {
-  position: fixed;
-  z-index: 10000;
-  min-width: 150px;
-}
-
-.agent-thread-context-action {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-}
-
-.conversation-copy-menu {
-  position: fixed;
-  z-index: 10020;
-  min-width: 150px;
-}
-
-.conversation-copy-menu-action {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  font: inherit;
-  text-align: left;
-}
-
-.conversation-copy-menu-action .context-menu-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .agent-panel-switcher {
@@ -9466,21 +9417,19 @@ button.file-tree-item {
   user-select: none;
 }
 
-.tab-context-menu {
-  position: fixed;
-  z-index: 10030;
+.unified-context-menu {
   -webkit-app-region: no-drag;
 }
 
-.tab-context-menu.renaming {
+.unified-context-menu.renaming {
   min-width: 260px;
 }
 
-.tab-context-menu .context-menu-item {
+.unified-context-menu .context-menu-item {
   padding: 4px 12px;
 }
 
-.tab-context-menu .context-menu-separator {
+.unified-context-menu .context-menu-separator {
   margin: 2px 8px;
 }
 
@@ -9522,14 +9471,31 @@ button.file-tree-item {
   transition: background var(--transition-fast);
 }
 
-.context-menu-item:hover:not(.disabled) {
-  background: var(--bg-hover);
-  color: var(--text-active);
+button.context-menu-item {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
 }
 
-.context-menu-item.disabled {
+.context-menu-item:hover:not(.disabled):not(:disabled),
+.context-menu-item.selected:not(:disabled),
+.context-menu-item:focus-visible:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text-active);
+  outline: none;
+}
+
+.context-menu-item.disabled,
+.context-menu-item:disabled {
   color: var(--text-secondary);
   cursor: default;
+  opacity: 0.65;
+}
+
+.context-menu-item.danger:not(:disabled) {
+  color: var(--error, #f48771);
 }
 
 .context-menu-icon {

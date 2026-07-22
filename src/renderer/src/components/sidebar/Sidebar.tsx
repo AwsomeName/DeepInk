@@ -5,8 +5,8 @@ import {
   useBrowserStore,
   useAgentStore,
   useWorkspaceStore,
-  useTabContextMenuStore,
 } from '../../stores'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
 import type { TerminalStatus } from '@shared/terminal'
 import type { TerminalSessionSnapshot } from '@shared/ipc/terminal'
 import type { WorkspaceRef } from '../../../../shared/workspace-ref'
@@ -589,7 +589,7 @@ function TerminalSidebarView({ workspaceRef }: { workspaceRef: WorkspaceRef }): 
   const activeTabId = useTabStore((s) => s.activeTabId)
   const openTab = useTabStore((s) => s.openTab)
   const activateTab = useTabStore((s) => s.activateTab)
-  const showTabMenu = useTabContextMenuStore((s) => s.show)
+  const showContextMenu = useContextMenuStore((s) => s.show)
   const [sessions, setSessions] = useState<TerminalSessionSnapshot[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -687,7 +687,17 @@ function TerminalSidebarView({ workspaceRef }: { workspaceRef: WorkspaceRef }): 
                 onContextMenu={(event) => {
                   event.preventDefault()
                   event.stopPropagation()
-                  showTabMenu(tab.id, event.clientX, event.clientY)
+                  showContextMenu({
+                    target: {
+                      kind: 'tab',
+                      workspaceKey,
+                      tabId: tab.id,
+                      tabType: tab.type,
+                    },
+                    x: event.clientX,
+                    y: event.clientY,
+                    focusReturn: event.currentTarget,
+                  })
                 }}
                 title={sessionId ?? tab.title}
               >

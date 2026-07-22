@@ -7,7 +7,7 @@ import type { TerminalExecutionEvent } from '@shared/terminal'
 import type { Tab } from '../../types'
 import { workspaceRefLabel, workspaceRefSourceLabel } from '../../../../shared/workspace-ref'
 import { useTabStore } from '../../stores/tab-store'
-import { useTabContextMenuStore } from '../../stores/tab-context-menu-store'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
 import { useTerminalStore } from '../../stores/terminal-store'
 import { resolveConversationTab } from '../../utils/conversation-tab'
 import { submitTerminalCommand } from '../../utils/terminal-command'
@@ -41,15 +41,15 @@ export function WorkbenchContent({
   contentRef,
 }: WorkbenchContentProps): React.ReactElement {
   const conversationTarget = activeTab ? resolveConversationTab(activeTab) : null
-  const tabContextMenuOpen = useTabContextMenuStore((state) => state.open)
-  const browserPreviewDataUrl = useTabContextMenuStore((state) => state.browserPreviewDataUrl)
-  const clearBrowserPreview = useTabContextMenuStore((state) => state.clearBrowserPreview)
+  const contextMenuOpen = useContextMenuStore((state) => state.open)
+  const browserPreviewDataUrl = useContextMenuStore((state) => state.browserPreviewDataUrl)
+  const clearBrowserPreview = useContextMenuStore((state) => state.clearBrowserPreview)
 
   useEffect(() => {
-    if (tabContextMenuOpen || !browserPreviewDataUrl) return
+    if (contextMenuOpen || !browserPreviewDataUrl) return
     const timer = window.setTimeout(clearBrowserPreview, 120)
     return () => window.clearTimeout(timer)
-  }, [browserPreviewDataUrl, clearBrowserPreview, tabContextMenuOpen])
+  }, [browserPreviewDataUrl, clearBrowserPreview, contextMenuOpen])
 
   return (
     <div className="workbench-content" ref={contentRef}>

@@ -1,4 +1,19 @@
 import { create } from 'zustand'
+import { workspaceRefKey } from '@shared/workspace-ref'
+import {
+  targetMatchesWorkspace,
+  type CommandContext,
+} from '../features/context-actions/context-target'
+import { useWorkspaceStore } from './workspace-store'
+
+export type CommandRisk =
+  | 'read'
+  | 'local-write'
+  | 'destructive'
+  | 'external-side-effect'
+  | 'credential'
+
+export type CommandAvailability = boolean | { enabled: boolean; reason?: string }
 
 /** 命令定义 */
 export interface Command {
@@ -7,9 +22,23 @@ export interface Command {
   /** 快捷键（显示用） */
   shortcut?: string
   /** 执行函数 */
-  action: () => void
+  action: (context?: CommandContext) => unknown | Promise<unknown>
   /** 分组 */
   category?: string
+  /** 只在结构化目标存在时显示，不进入全局命令面板。 */
+  contextOnly?: boolean
+  /** 根据执行目标生成名称，例如“关闭 Terminal”。 */
+  contextLabel?: (context: CommandContext) => string
+  visible?: (context: CommandContext) => boolean
+  enabled?: (context: CommandContext) => CommandAvailability
+  checked?: (context: CommandContext) => boolean
+  risk?: CommandRisk
+}
+
+export interface CommandExecutionResult {
+  ok: boolean
+  reason?: 'missing-command' | 'hidden' | 'disabled' | 'stale-target' | 'failed'
+  message?: string
 }
 
 interface CommandState {
@@ -39,6 +68,7 @@ interface CommandState {
   markCommandUsed: (id: string) => void
   /** 获取过滤后的命令 */
   getFilteredCommands: () => Command[]
+  executeCommand: (id: string, context: CommandContext) => Promise<CommandExecutionResult>
 }
 
 const COMMAND_STORAGE_KEY = 'cclink-studio-command-state'
@@ -112,12 +142,13 @@ export const useCommandStore = create<CommandState>((set, get) => ({
 
   getFilteredCommands: () => {
     const { commands, query, recentCommandIds } = get()
+    const paletteCommands = commands.filter((command) => !command.contextOnly)
     if (!query.trim()) {
       const recent = recentCommandIds
-        .map((id) => commands.find((cmd) => cmd.id === id))
+        .map((id) => paletteCommands.find((cmd) => cmd.id === id))
         .filter((cmd): cmd is Command => Boolean(cmd))
       const recentIds = new Set(recent.map((cmd) => cmd.id))
-      return [...recent, ...commands.filter((cmd) => !recentIds.has(cmd.id))]
+      return [...recent, ...paletteCommands.filter((cmd) => !recentIds.has(cmd.id))]
     }
 
     /** 简单模糊匹配：query 中的字符按顺序出现在 target 中即匹配 */
@@ -130,7 +161,7 @@ export const useCommandStore = create<CommandState>((set, get) => ({
     }
 
     const q = query.toLowerCase().trim()
-    return commands.filter((c) => {
+    return paletteCommands.filter((c) => {
       const label = c.label.toLowerCase()
       const id = c.id.toLowerCase()
       const category = (c.category || '').toLowerCase()
@@ -143,5 +174,37 @@ export const useCommandStore = create<CommandState>((set, get) => ({
         id.includes(q)
       )
     })
+  },
+
+  executeCommand: async (id, context) => {
+    const command = get().commands.find((item) => item.id === id)
+    if (!command) return { ok: false, reason: 'missing-command', message: '命令不存在' }
+    const activeWorkspaceKey = workspaceRefKey(useWorkspaceStore.getState().activeWorkspaceRef)
+    if (context.target && !targetMatchesWorkspace(context.target, activeWorkspaceKey)) {
+      return { ok: false, reason: 'stale-target', message: '操作目标所属项目已切换' }
+    }
+    if (command.visible && !command.visible(context)) {
+      return { ok: false, reason: 'hidden', message: '命令对当前目标不可用' }
+    }
+    const availability = command.enabled?.(context) ?? true
+    const enabled = typeof availability === 'boolean' ? availability : availability.enabled
+    if (!enabled) {
+      return {
+        ok: false,
+        reason: 'disabled',
+        message: typeof availability === 'boolean' ? undefined : availability.reason,
+      }
+    }
+    try {
+      await command.action(context)
+      get().markCommandUsed(id)
+      return { ok: true }
+    } catch (error) {
+      return {
+        ok: false,
+        reason: 'failed',
+        message: error instanceof Error ? error.message : String(error),
+      }
+    }
   },
 }))

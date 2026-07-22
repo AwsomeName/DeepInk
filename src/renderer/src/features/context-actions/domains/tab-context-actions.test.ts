@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useAgentStore } from '../../stores/agent-store'
-import { useTabStore } from '../../stores/tab-store'
-import { renameWorkbenchTab } from './TabContextMenu'
+import { useAgentStore } from '../../../stores/agent-store'
+import { useTabStore } from '../../../stores/tab-store'
+import { renameWorkbenchTab } from './tab-context-actions'
 
 beforeEach(() => {
   useTabStore.setState(useTabStore.getInitialState(), true)

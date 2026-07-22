@@ -5,6 +5,7 @@ import { useUIStore } from '../stores/ui-store'
 /** 注册窗口级快捷键。 */
 export function useGlobalShortcuts(): void {
   const togglePalette = useCommandStore((s) => s.togglePalette)
+  const executeCommand = useCommandStore((s) => s.executeCommand)
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent): void => {
@@ -43,12 +44,11 @@ export function useGlobalShortcuts(): void {
       }
       if (cmd && !shift && e.key === 'w') {
         e.preventDefault()
-        const { activeTabId, closeTab } = useTabStore.getState()
-        if (activeTabId) closeTab(activeTabId)
+        void executeCommand('workbench.closeTab', { source: 'shortcut' })
       }
     }
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [togglePalette])
+  }, [executeCommand, togglePalette])
 }

@@ -9,7 +9,7 @@ export function CommandPalette(): React.ReactElement {
   const setQuery = useCommandStore((s) => s.setQuery)
   const closePalette = useCommandStore((s) => s.closePalette)
   const getFilteredCommands = useCommandStore((s) => s.getFilteredCommands)
-  const markCommandUsed = useCommandStore((s) => s.markCommandUsed)
+  const executeCommand = useCommandStore((s) => s.executeCommand)
 
   const [selectedIndex, setSelectedIndex] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -56,12 +56,11 @@ export function CommandPalette(): React.ReactElement {
     (index: number) => {
       const cmd = filtered[index]
       if (cmd) {
-        markCommandUsed(cmd.id)
         closePalette()
-        cmd.action()
+        void executeCommand(cmd.id, { source: 'palette' })
       }
     },
-    [filtered, markCommandUsed, closePalette],
+    [filtered, executeCommand, closePalette],
   )
 
   /** 键盘导航 */

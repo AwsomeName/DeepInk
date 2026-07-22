@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, type DragEvent } from 'react'
 import { useFsStore, useTabStore } from '../../stores'
-import { useContextMenuStore } from '../../stores/context-menu-store'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
 import type { FileTreeNode } from '../../stores/fs-store'
 import {
   IconFolder,
@@ -415,6 +415,7 @@ function FileTreeNodeView({
   const isDir = node.type === 'directory'
   const icon = getFileIcon(node)
   const showMenu = useContextMenuStore((s) => s.show)
+  const workspacePath = useFsStore((s) => s.workspacePath)
   const editingPath = useFsStore((s) => s.editingPath)
   const newFolderParent = useFsStore((s) => s.newFolderParent)
   const confirmRename = useFsStore((s) => s.confirmRename)
@@ -455,7 +456,20 @@ function FileTreeNodeView({
         }}
         onContextMenu={(e) => {
           e.preventDefault()
-          showMenu(node, e.clientX, e.clientY)
+          showMenu({
+            target: {
+              kind: 'file',
+              workspaceKey: workspacePath,
+              path: node.path,
+              name: node.name,
+              fileType: node.type,
+              extension: node.extension,
+              expanded: node.expanded,
+            },
+            x: e.clientX,
+            y: e.clientY,
+            focusReturn: e.currentTarget,
+          })
         }}
       >
         {/* 展开/折叠箭头（目录才有） */}

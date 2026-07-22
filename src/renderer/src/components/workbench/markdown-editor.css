@@ -335,8 +335,7 @@
 }
 
 .markdown-conflict-banner button,
-.markdown-selection-toolbar button,
-.markdown-selection-menu button {
+.markdown-selection-toolbar button {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
   background: var(--bg-toolbar);
@@ -397,16 +396,6 @@
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.26);
   color: var(--text-secondary);
   font-size: 11px;
-}
-
-.markdown-selection-menu {
-  position: fixed;
-  z-index: 1000;
-  padding: 4px;
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-sm);
-  background: var(--bg-toolbar);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3);
 }
 
 .tiptap-editor .tiptap {

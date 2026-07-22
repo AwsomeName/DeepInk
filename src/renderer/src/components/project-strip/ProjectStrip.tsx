@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useAgentStore, useFsStore, useOpenProjectsStore, useWorkspaceStore } from '../../stores'
 import { getRunningProjectCounts } from '../../features/agent-conversations/project-activity'
-import { getProjectCloseSuccessor } from '../../stores/open-projects-store'
 import { getWorkspaceStateOwnerKey } from '../../utils/workspace-state'
+import { useContextMenuStore } from '../../features/context-actions/context-menu-store'
 import { IconHistory, IconProjects } from '../common/Icons'
 import { useToastStore } from '../common/Toast'
 
 type DropPlacement = 'before' | 'after'
-
-interface ProjectMenuState {
-  path: string
-  x: number
-  y: number
-}
 
 function getProjectName(path: string): string {
   return path.split('/').filter(Boolean).at(-1) ?? path
@@ -40,11 +34,9 @@ function buildProjectLabels(paths: string[]): Map<string, string> {
 
 export function ProjectStrip(): React.ReactElement {
   const openProjectPaths = useOpenProjectsStore((state) => state.openProjectPaths)
-  const removeProject = useOpenProjectsStore((state) => state.removeProject)
   const reorderProject = useOpenProjectsStore((state) => state.reorderProject)
   const recentWorkspacePaths = useFsStore((state) => state.recentWorkspacePaths)
   const openRecentWorkspace = useFsStore((state) => state.openRecentWorkspace)
-  const closeWorkspace = useFsStore((state) => state.closeWorkspace)
   const switchingPath = useFsStore((state) => state.switchingPath)
   const workspaceLoading = useFsStore((state) => state.loading)
   const workspacePicking = useFsStore((state) => state.picking)
@@ -61,12 +53,11 @@ export function ProjectStrip(): React.ReactElement {
     path: string
     placement: DropPlacement
   } | null>(null)
-  const [menu, setMenu] = useState<ProjectMenuState | null>(null)
+  const showContextMenu = useContextMenuStore((state) => state.show)
 
   const scrollRef = useRef<HTMLDivElement>(null)
   const historyRef = useRef<HTMLDivElement>(null)
   const historyButtonRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
   const projectRefs = useRef(new Map<string, HTMLButtonElement>())
   const draggingPathRef = useRef<string | null>(null)
   const suppressClickRef = useRef(false)
@@ -106,22 +97,6 @@ export function ProjectStrip(): React.ReactElement {
     }
   }, [historyOpen])
 
-  useEffect(() => {
-    if (!menu) return
-    const handlePointerDown = (event: MouseEvent): void => {
-      if (!menuRef.current?.contains(event.target as Node)) setMenu(null)
-    }
-    const handleEscape = (event: KeyboardEvent): void => {
-      if (event.key === 'Escape') setMenu(null)
-    }
-    document.addEventListener('mousedown', handlePointerDown)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handlePointerDown)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [menu])
-
   const activateProject = async (path: string): Promise<boolean> => {
     if (activePath === path) return true
     const success = await openRecentWorkspace(path)
@@ -134,29 +109,6 @@ export function ProjectStrip(): React.ReactElement {
 
   const openHistoryProject = async (path: string): Promise<void> => {
     if (await activateProject(path)) setHistoryOpen(false)
-  }
-
-  const closeProject = async (path: string): Promise<void> => {
-    setMenu(null)
-    const currentActive = useWorkspaceStore.getState().activeWorkspaceRef
-    const isActive = currentActive.kind === 'local' && currentActive.path === path
-    if (!isActive) {
-      removeProject(path)
-      return
-    }
-
-    const currentProjects = useOpenProjectsStore.getState().openProjectPaths
-    const nextPath = getProjectCloseSuccessor(currentProjects, path)
-
-    if (nextPath) {
-      if (await activateProject(nextPath)) removeProject(path)
-      return
-    }
-
-    await closeWorkspace()
-    if (useWorkspaceStore.getState().activeWorkspaceRef.kind === 'global') {
-      removeProject(path)
-    }
   }
 
   const toggleHistory = (): void => {
@@ -252,7 +204,12 @@ export function ProjectStrip(): React.ReactElement {
                   onContextMenu={(event) => {
                     event.preventDefault()
                     setHistoryOpen(false)
-                    setMenu({ path, x: event.clientX, y: event.clientY })
+                    showContextMenu({
+                      target: { kind: 'project', workspaceKey: path, path },
+                      x: event.clientX,
+                      y: event.clientY,
+                      focusReturn: event.currentTarget,
+                    })
                   }}
                   onDragStart={(event) => {
                     suppressClickRef.current = true
@@ -346,28 +303,6 @@ export function ProjectStrip(): React.ReactElement {
           )}
         </div>
       </div>
-
-      {menu && (
-        <div
-          ref={menuRef}
-          className="context-menu project-strip-context-menu"
-          style={{
-            left: Math.min(menu.x, window.innerWidth - 180),
-            top: Math.min(menu.y, window.innerHeight - 56),
-          }}
-        >
-          <div className="context-menu-items">
-            <button
-              type="button"
-              className="context-menu-item project-strip-context-action"
-              onClick={() => void closeProject(menu.path)}
-            >
-              <span className="context-menu-icon">✕</span>
-              <span>关闭项目</span>
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

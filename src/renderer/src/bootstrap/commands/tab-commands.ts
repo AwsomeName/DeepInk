@@ -1,5 +1,6 @@
 import type { Command } from '../../stores/command-store'
 import { useTabStore } from '../../stores/tab-store'
+import { closeTabWithDraftPolicy } from '../../utils/close-tab'
 
 export function createTabCommands(): Command[] {
   return [
@@ -27,9 +28,27 @@ export function createTabCommands(): Command[] {
       label: '关闭当前 Tab',
       shortcut: '⌘ W',
       category: 'Tab',
-      action: () => {
-        const { activeTabId, closeTab } = useTabStore.getState()
-        if (activeTabId) closeTab(activeTabId)
+      contextLabel: (context) => {
+        const tabId = context.target?.kind === 'tab' ? context.target.tabId : null
+        const tab = useTabStore.getState().tabs.find((item) => item.id === tabId)
+        return tab?.type === 'terminal' || tab?.type === 'terminal-record'
+          ? '关闭 Terminal'
+          : context.target?.kind === 'tab'
+            ? '关闭'
+            : '关闭当前 Tab'
+      },
+      enabled: (context) => {
+        const { activeTabId, tabs } = useTabStore.getState()
+        const tabId = context.target?.kind === 'tab' ? context.target.tabId : activeTabId
+        return {
+          enabled: Boolean(tabId && tabs.some((tab) => tab.id === tabId)),
+          reason: '标签页已关闭',
+        }
+      },
+      action: (context) => {
+        const { activeTabId } = useTabStore.getState()
+        const tabId = context?.target?.kind === 'tab' ? context.target.tabId : activeTabId
+        if (tabId) return closeTabWithDraftPolicy(tabId)
       },
     },
     {

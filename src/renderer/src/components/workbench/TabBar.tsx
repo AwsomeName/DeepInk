@@ -41,7 +41,7 @@ interface TabBarProps {
   onNewBrowser: () => void
   onNewConversation: () => void
   onNewTerminal: () => void
-  onShowMenu: (tabId: string, x: number, y: number) => void
+  onShowMenu: (tabId: string, x: number, y: number, focusReturn: HTMLElement) => void
   createMenuOpen: boolean
   onCreateMenuOpenChange: (open: boolean) => void
 }
@@ -149,7 +149,7 @@ export function TabBar({
           onClick={() => onActivate(tab.id)}
           onContextMenu={(event) => {
             event.preventDefault()
-            onShowMenu(tab.id, event.clientX, event.clientY)
+            onShowMenu(tab.id, event.clientX, event.clientY, event.currentTarget)
           }}
         >
           <span className="tab-icon">

@@ -11,10 +11,10 @@ import { IconFolder, IconPanelLeft, IconPanelRight } from './components/common/I
 import { ErrorBoundary } from './components/common/ErrorBoundary'
 import { PanelErrorFallback } from './components/common/ErrorFallback'
 import { CommandPalette } from './components/command-palette/CommandPalette'
-import { ContextMenu } from './components/common/ContextMenu'
-import { TabContextMenu } from './components/common/TabContextMenu'
-import { useTabContextMenuStore } from './stores/tab-context-menu-store'
-import { ConversationCopyMenu } from './components/common/ConversationCopyMenu'
+import { ContextMenuHost } from './features/context-actions/ContextMenuHost'
+import { useContextMenuStore } from './features/context-actions/context-menu-store'
+import { useRegisterContextActions } from './features/context-actions/use-register-context-actions'
+import { useConversationSelectionMenu } from './features/context-actions/use-conversation-selection-menu'
 import { Toast } from './components/common/Toast'
 import LoadingScreen from './components/loading/LoadingScreen'
 import { useAgentWorkContext } from './bootstrap/use-agent-work-context'
@@ -47,8 +47,8 @@ function MainLayout(): React.ReactElement {
   const workspaceLoading = useFsStore((s) => s.loading)
   const workspacePicking = useFsStore((s) => s.picking)
   const activeWorkspaceRef = useWorkspaceStore((s) => s.activeWorkspaceRef)
-  const tabContextMenuOpen = useTabContextMenuStore((s) => s.open)
-  const tabContextMenuBrowserPreview = useTabContextMenuStore((s) => s.browserPreviewDataUrl)
+  const contextMenuOpen = useContextMenuStore((s) => s.open)
+  const contextMenuBrowserPreview = useContextMenuStore((s) => s.browserPreviewDataUrl)
   const [tabCreateMenuOpen, setTabCreateMenuOpen] = useState(false)
   const [panelResizing, setPanelResizing] = useState(false)
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth)
@@ -75,6 +75,8 @@ function MainLayout(): React.ReactElement {
   }, [])
 
   useRegisterCommands()
+  useRegisterContextActions()
+  useConversationSelectionMenu()
   useGlobalShortcuts()
   useMainProcessEvents()
   useAgentStreamEvents()
@@ -86,7 +88,7 @@ function MainLayout(): React.ReactElement {
     agentInCenter ||
       floatingSurfaceOpen ||
       panelResizing ||
-      (tabContextMenuOpen && tabContextMenuBrowserPreview) ||
+      (contextMenuOpen && contextMenuBrowserPreview) ||
       tabCreateMenuOpen
       ? undefined
       : activeTab,
@@ -236,9 +238,7 @@ function MainLayout(): React.ReactElement {
 
       <StatusBar />
       <CommandPalette />
-      <ContextMenu />
-      <TabContextMenu />
-      <ConversationCopyMenu />
+      <ContextMenuHost />
       <Toast />
     </div>
   )
