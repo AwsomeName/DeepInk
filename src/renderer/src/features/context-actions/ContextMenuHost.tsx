@@ -76,7 +76,14 @@ export function ContextMenuHost(): React.ReactElement | null {
     if (!open || editingContributionId) return
     const firstEnabled = items.findIndex((item) => item.enabled)
     setSelectedIndex(firstEnabled >= 0 ? firstEnabled : 0)
-    menuRef.current?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus()
+    const focusFirstEnabled = (): void => {
+      menuRef.current?.querySelector<HTMLElement>('[role^="menuitem"]:not(:disabled)')?.focus()
+    }
+    focusFirstEnabled()
+    const frame = requestAnimationFrame(() => {
+      if (!menuRef.current?.contains(document.activeElement)) focusFirstEnabled()
+    })
+    return () => cancelAnimationFrame(frame)
   }, [editingContributionId, items, menuId, open])
 
   useEffect(() => {

@@ -76,6 +76,15 @@ async function ensureSidebarVisible(page) {
   }
 }
 
+async function waitForContextActionFocus(page, timeout = 2_000) {
+  await page.waitForFunction(
+    () => Boolean(document.activeElement?.getAttribute('data-context-action')),
+    undefined,
+    { timeout },
+  )
+  return page.evaluate(() => document.activeElement?.getAttribute('data-context-action'))
+}
+
 async function createTabFromMenu(page, label) {
   await page.locator('.tab-new-button').first().click()
   const menu = page.locator('.tab-create-menu')
@@ -408,9 +417,7 @@ async function main() {
       )
       await operationsPlatform.click({ button: 'right' })
       await page.locator('[data-context-action="operations.prepare-session"]').waitFor()
-      const firstFocusedAction = await page.evaluate(() =>
-        document.activeElement?.getAttribute('data-context-action'),
-      )
+      const firstFocusedAction = await waitForContextActionFocus(page)
       await page.keyboard.press('Tab')
       const nextFocusedAction = await page.evaluate(() =>
         document.activeElement?.getAttribute('data-context-action'),
@@ -453,9 +460,7 @@ async function main() {
       await page.keyboard.press('Shift+F10')
       const settingsCopyKeyAction = page.locator('[data-context-action="settings.copy-key"]')
       await settingsCopyKeyAction.waitFor()
-      const initialSettingsAction = await page.evaluate(() =>
-        document.activeElement?.getAttribute('data-context-action'),
-      )
+      const initialSettingsAction = await waitForContextActionFocus(page)
       assert(
         initialSettingsAction === 'settings.reset-current' ||
           initialSettingsAction === 'settings.copy-key',

@@ -9,10 +9,9 @@
 - [x] 诊断：构建失败、陈旧目标、权限拒绝、领域失败可区分且默认脱敏。
 - [x] `pnpm verify` 和 `pnpm smoke:standalone` 在实现提交的全新 detached worktree 通过。
 
-实现提交 `000bf69` 的全新 detached worktree 证据：`pnpm install --frozen-lockfile`、
-`pnpm verify` 通过（155 files / 937 tests）；`pnpm smoke:standalone` 通过（local 9/9、
-UI 6/6、workflow 9/9、restore 4/4）。开发工作树中的 workflow 键盘与焦点检查另连续
-复跑三轮通过。
+M5 实现基线的全新 detached worktree 证据：`pnpm install --frozen-lockfile`、`pnpm verify`
+通过（155 files / 937 tests）；`pnpm smoke:standalone` 通过（local 9/9、UI 6/6、
+workflow 9/9、restore 4/4）。焦点时序修正后的最新提交必须在推送前重新执行同一组门禁。
 
 ## H1 区域与对象
 
