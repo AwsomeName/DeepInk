@@ -149,7 +149,11 @@ echo ""
 echo -e "${GREEN}${BOLD}✅ 打包成功${RESET} — 版本 $VERSION / 架构 $ARCH"
 echo ""
 info "产物清单:"
-ls -lh dist/*.dmg dist/*.zip 2>/dev/null | awk '{printf "    %s  %s\n", $5, $9}' || true
+for artifact in dist/*.dmg dist/*.zip; do
+  [ -e "$artifact" ] || continue
+  size=$(du -h "$artifact" | cut -f1)
+  printf "    %s  %s\n" "$size" "$artifact"
+done
 echo ""
 echo -e "${CYAN}搬到另一台 Mac 的提示:${RESET}"
 echo -e "  • 默认未签名 → 目标机安装后执行:  ${BOLD}xattr -cr /Applications/CCLink\\ Studio.app${RESET}"
@@ -157,4 +161,6 @@ echo -e "  • Intel Mac 需另行用 ${BOLD}--x64${RESET} 打包；当前产物
 echo -e "  • 安装包携带固定版本 Claude Code 运行时；模型服务和 API 凭证仍由用户配置"
 echo -e "  • 内嵌浏览器用 Electron 自带 Chromium，无需额外下载"
 
-[ "$OPEN_FINDER" -eq 1 ] && open dist/
+if [ "$OPEN_FINDER" -eq 1 ]; then
+  open dist/
+fi
