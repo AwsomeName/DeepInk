@@ -106,6 +106,10 @@ CCLink Studio 开源壳保留这些本地能力：
 - 本地设置、诊断、文件访问和工作台状态恢复。
 - updater 的中性检查框架，但不开源默认生产更新源、签名、公证或制品上传链路。
 
+桌面发布与更新的状态所有权、发布权限边界和 R0-R2 验收以
+`docs/features/desktop-release-and-updates.md` 为事实源。Developer ID 直接分发是
+当前默认路线；Mac App Store 需要独立 ADR。
+
 这些能力不需要用户登录 CCLink，也不依赖官方云服务。
 
 ## 独立启动边界
